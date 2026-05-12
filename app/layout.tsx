@@ -2,10 +2,9 @@ import './globals.css'
 import { Inter } from 'next/font/google'
 
 export const metadata = {
-  metadataBase: new URL('https://postgres-drizzle.vercel.app'),
-  title: 'Postgres Demo with Drizzle',
-  description:
-    'A simple Next.js app with a Postgres database and Drizzle as the ORM',
+  metadataBase: new URL('https://yourboats.vercel.app'),
+  title: 'yourboats',
+  description: 'Boat cleaning operations — scheduling, jobs, and invoicing',
 }
 
 const inter = Inter({
@@ -14,14 +13,10 @@ const inter = Inter({
   display: 'swap',
 })
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={inter.variable}>{children}</body>
+      <body className={`${inter.variable} font-sans antialiased`}>{children}</body>
     </html>
   )
 }

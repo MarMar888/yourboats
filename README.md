@@ -1,49 +1,107 @@
----
-name: Postgres + Drizzle Next.js Starter
-slug: postgres-drizzle
-description: Simple Next.js template that uses a Postgres database and Drizzle as the ORM.
-framework: Next.js
-useCase: Starter
-css: Tailwind
-database: Postgres
-deployUrl: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fstorage%2Fpostgres-drizzle&project-name=postgres-drizzle&repository-name=postgres-drizzle&demo-title=Vercel%20Postgres%20%2B%20Drizzle%20Next.js%20Starter&demo-description=Simple%20Next.js%20template%20that%20uses%20Vercel%20Postgres%20as%20the%20database%20and%20Drizzle%20as%20the%20ORM.&demo-url=https%3A%2F%2Fpostgres-drizzle.vercel.app%2F&demo-image=https%3A%2F%2Fpostgres-drizzle.vercel.app%2Fopengraph-image.png&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%7D%5D
-demoUrl: https://postgres-drizzle.vercel.app/
-relatedTemplates:
-  - postgres-starter
-  - postgres-prisma
-  - postgres-kysely
----
+# yourboats
 
-# Postgres + Drizzle Next.js Starter
+Operations app for Squeaky Clean Boats — one place for the owner, manager, and employees to see what's scheduled, what's done, and what needs invoicing. Replaces the Google Sheet + AppSheet setup.
 
-Simple Next.js template that uses a Postgres database and [Drizzle](https://github.com/drizzle-team/drizzle-orm) as the ORM.
+## Stack
 
-## Demo
+- **Next.js** (App Router) — Vercel
+- **Supabase** — Postgres + Auth (magic link + password)
+- **Drizzle ORM** — type-safe schema and queries
+- **Tailwind + shadcn/ui** — component library
+- **QuickBooks Online** — invoice delivery and payment (integrated, not replaced)
+- **Vercel Cron** — nightly schedule generation + invoice-status sync
 
-https://postgres-drizzle.vercel.app/
+## Roles
 
-## How to Use
+| Role | What they can do |
+|------|-----------------|
+| Owner | Everything — full access including financial views, employee management |
+| Manager | All jobs across employees, customer/boat CRUD, assign employees, trigger invoices to QBO |
+| Employee | Own assigned jobs only — mark complete, leave notes, flag complaints |
 
-You can choose from one of the following two methods to use this repository:
+## Local setup
 
-### One-Click Deploy
-
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples):
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fstorage%2Fpostgres-drizzle&project-name=postgres-drizzle&repository-name=postgres-drizzle&demo-title=Vercel%20Postgres%20%2B%20Drizzle%20Next.js%20Starter&demo-description=Simple%20Next.js%20template%20that%20uses%20Vercel%20Postgres%20as%20the%20database%20and%20Drizzle%20as%20the%20ORM.&demo-url=https%3A%2F%2Fpostgres-drizzle.vercel.app%2F&demo-image=https%3A%2F%2Fpostgres-drizzle.vercel.app%2Fopengraph-image.png&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%7D%5D)
-
-### Clone and Deploy
-
-Execute [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app) with [pnpm](https://pnpm.io/installation) to bootstrap the example:
+1. **Clone and install**
 
 ```bash
-pnpm create next-app --example https://github.com/vercel/examples/tree/main/storage/postgres-drizzle
+git clone https://github.com/MarMar888/yourboats.git
+cd yourboats
+pnpm install
 ```
 
-Next, run Next.js in development mode:
+2. **Create a Supabase project** at [supabase.com](https://supabase.com). Copy your project URL and keys.
+
+3. **Copy env file and fill in values**
+
+```bash
+cp .env.example .env.local
+```
+
+| Variable | Where to find it |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API |
+| `DATABASE_URL` | Supabase → Settings → Database → Connection string (Session mode) |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` in dev |
+
+4. **Push the schema**
+
+```bash
+pnpm drizzle-kit push
+```
+
+5. **Run**
 
 ```bash
 pnpm dev
 ```
 
-Deploy it to the cloud with [Vercel](https://vercel.com/new?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples) ([Documentation](https://nextjs.org/docs/deployment)).
+Open [http://localhost:3000](http://localhost:3000) — you'll be redirected to `/login`.
+
+## Project structure
+
+```
+app/
+  (auth)/login/       # Login page + server actions
+  (app)/              # Authenticated shell (layout with nav)
+    dashboard/        # Today's job cards
+    schedule/         # Week/month view
+    customers/        # Customer + boat management
+    invoices/         # Ready-to-invoice queue + QBO push
+    complaints/       # Complaint log
+    team/             # Employee management (owner only)
+  auth/callback/      # Supabase magic-link callback
+lib/
+  db/
+    schema.ts         # Full Drizzle schema (all 8 tables)
+    index.ts          # DB client
+  supabase/
+    client.ts         # Browser Supabase client
+    server.ts         # Server-side Supabase client
+middleware.ts         # Auth guard — redirects unauthenticated requests to /login
+```
+
+## Data model (summary)
+
+`users` → `service_assignments` → `services` → `service_boats` → `boats` → `customers`
+
+`customers` → `recurring_schedules` (auto-generates `services` rows)
+
+`services` → `invoices` (pushed to QBO on manager approval)
+
+`services` → `complaints` (manager bonus tracking)
+
+See [`lib/db/schema.ts`](lib/db/schema.ts) for the full schema with all fields and relations.
+
+## Phased scope
+
+**v1 (current):** Auth + roles, customers + boats, schedule engine, daily job card view, complete → invoice to QBO, complaints tracking, per-customer notes.
+
+**v1.5:** Tip capture, employee tiers + commission %, multi-employee share splits, pay period reports.
+
+**v2:** Photo uploads, automated customer reminders, route planning.
+
+## QuickBooks integration
+
+OAuth 2.0, one-time auth by the owner. yourboats pushes customers and invoices to QBO; QBO is the source of truth for billing. A nightly Vercel Cron job pulls invoice statuses back.
