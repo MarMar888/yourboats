@@ -1,10 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { services, invoices } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, lte } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
+import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { log } from '@/lib/log'
 
 /**
  * Void a QBO invoice by ID. Non-fatal — logs errors but does not throw.
@@ -13,7 +17,6 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
   try {
     const qbo = await getQboClient()
 
-    // Step 1: fetch current SyncToken (required for any QBO update)
     const existing = await new Promise<{ Id: string; SyncToken: string }>((resolve, reject) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       qbo.getInvoice(qboInvoiceId, (err: unknown, result: any) =>
@@ -21,7 +24,6 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
       )
     })
 
-    // Step 2: void via sparse update with void:true
     await new Promise<void>((resolve, reject) => {
       qbo.updateInvoice(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,26 +33,48 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
       )
     })
   } catch (err) {
-    // QBO errors are non-fatal — log and continue with local delete
     console.error('[QBO] Failed to void invoice', qboInvoiceId, err)
   }
 }
 
-export async function deleteService(serviceId: string): Promise<void> {
-  // Look up any linked invoice with a QBO ID before deleting
+export async function deleteService(serviceId: string, redirectTo?: string): Promise<void> {
   const [linkedInvoice] = await db
     .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId })
     .from(invoices)
     .where(eq(invoices.serviceId, serviceId))
     .limit(1)
 
-  // Attempt to void the QBO invoice before local delete (non-fatal)
   if (linkedInvoice?.qboInvoiceId) {
     await voidQboInvoice(linkedInvoice.qboInvoiceId)
   }
 
-  // Delete the service — cascade handles invoice, serviceBoats, serviceAssignments, complaints
   await db.delete(services).where(eq(services.id, serviceId))
+  await log({ action: 'delete_service', entityType: 'service', entityId: serviceId })
+
+  revalidatePath('/schedule')
+  revalidatePath('/invoices')
+  if (redirectTo) redirect(redirectTo)
+}
+
+export async function approveWeek(formData: FormData): Promise<void> {
+  const cookieStore = await cookies()
+  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
+  const devUser = DEV_USERS.find((u) => u.id === devUserId)
+  if (!devUser || (devUser.role !== 'owner' && devUser.role !== 'manager')) return
+
+  const startDate = formData.get('startDate') as string
+  const endDate = formData.get('endDate') as string
+
+  await db
+    .update(services)
+    .set({ approvedAt: new Date(), approvedByUserId: devUser.id })
+    .where(
+      and(
+        gte(services.serviceDate, startDate),
+        lte(services.serviceDate, endDate),
+        eq(services.status, 'scheduled')
+      )
+    )
 
   revalidatePath('/schedule')
 }

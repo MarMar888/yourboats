@@ -17,7 +17,6 @@ export async function updateBoatAssignments(
   const devUser = DEV_USERS.find((u) => u.id === devUserId)
   if (!devUser || (devUser.role !== 'owner' && devUser.role !== 'manager')) return
 
-  // Replace all assignments for this (service, boat) pair
   await db
     .delete(serviceBoatAssignments)
     .where(
