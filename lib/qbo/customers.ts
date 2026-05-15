@@ -38,26 +38,14 @@ function qboToInsert(c: QboCustomer) {
 export async function importAllCustomersFromQbo(): Promise<{ imported: number }> {
   const qbo = await getQboClient()
 
-  const allCustomers: QboCustomer[] = []
-  const pageSize = 100
-  let startPos = 1
+  const data = await new Promise<{ QueryResponse?: { Customer?: QboCustomer[] } }>(
+    (resolve, reject) =>
+      qbo.findCustomers([{ field: 'fetchAll', value: true }], (err: unknown, result: unknown) =>
+        err ? reject(err) : resolve(result as { QueryResponse?: { Customer?: QboCustomer[] } })
+      )
+  )
 
-  while (true) {
-    const sql = `select * from Customer startposition ${startPos} maxresults ${pageSize}`
-
-    const page = await new Promise<QboCustomer[]>((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      qbo.query(sql, (err: any, data: any) => {
-        if (err) return reject(new Error(err.Fault?.Error?.[0]?.Detail ?? JSON.stringify(err)))
-        resolve(data?.QueryResponse?.Customer ?? [])
-      })
-    })
-
-    allCustomers.push(...page)
-    if (page.length < pageSize) break
-    startPos += pageSize
-  }
-
+  const allCustomers = data?.QueryResponse?.Customer ?? []
   const active = allCustomers.filter((c) => c.Active !== false)
 
   for (const c of active) {

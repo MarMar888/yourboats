@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { customers } from '@/lib/db/schema'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 export default async function CustomersPage() {
@@ -10,9 +9,6 @@ export default async function CustomersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Customers</h1>
-        <Button asChild>
-          <Link href="/customers/new">Add customer</Link>
-        </Button>
       </div>
 
       {all.length === 0 ? (
