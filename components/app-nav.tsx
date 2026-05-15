@@ -1,9 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { CurrentUser } from '@/lib/auth/get-current-user'
+import { Button } from '@/components/ui/button'
+import GlobalCreateModal from '@/components/global-create-modal'
 
 type UserRole = CurrentUser['role']
 
@@ -20,45 +23,58 @@ const navItems: { href: string; label: string; roles: UserRole[] }[] = [
 export default function AppNav({ user }: { user: CurrentUser }) {
   const pathname = usePathname()
   const visible = navItems.filter((item) => item.roles.includes(user.role))
+  const [createOpen, setCreateOpen] = useState(false)
+  const canCreate = user.role === 'owner' || user.role === 'manager'
 
   return (
-    <header className="border-b bg-background sticky top-0 z-40">
-      <div className="container flex h-14 items-center gap-6">
-        <Link href="/dashboard" className="font-semibold text-primary">
-          yourboats
-        </Link>
+    <>
+      <header className="border-b bg-background sticky top-0 z-40">
+        <div className="container flex h-14 items-center gap-6">
+          <Link href="/dashboard" className="font-semibold text-primary">
+            yourboats
+          </Link>
 
-        <nav className="flex items-center gap-1 flex-1">
-          {visible.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'text-sm px-3 py-1.5 rounded-md transition-colors hover:bg-muted',
-                pathname.startsWith(item.href)
-                  ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground'
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+          <nav className="flex items-center gap-1 flex-1">
+            {visible.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'text-sm px-3 py-1.5 rounded-md transition-colors hover:bg-muted',
+                  pathname.startsWith(item.href)
+                    ? 'bg-muted font-medium text-foreground'
+                    : 'text-muted-foreground'
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground capitalize">{user.role}</span>
-          {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
-            <Link
-              href="/pick-user"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {user.displayName}
-            </Link>
-          ) : (
-            <span className="text-sm font-medium text-muted-foreground">{user.displayName}</span>
-          )}
+          <div className="flex items-center gap-3">
+            {canCreate && (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                + New
+              </Button>
+            )}
+            <span className="text-sm text-muted-foreground capitalize">{user.role}</span>
+            {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
+              <Link
+                href="/pick-user"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {user.displayName}
+              </Link>
+            ) : (
+              <span className="text-sm font-medium text-muted-foreground">{user.displayName}</span>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {canCreate && (
+        <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />
+      )}
+    </>
   )
 }

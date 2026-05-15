@@ -113,9 +113,13 @@ export const services = pgTable('services', {
   completedByUserId: uuid('completed_by_user_id').references(() => users.id, {
     onDelete: 'set null',
   }),
+  approvedAt: timestamp('approved_at'),
+  approvedByUserId: text('approved_by_user_id'),
   invoiceId: uuid('invoice_id'), // set after invoice created; FK added below via relation
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+export const rateTypeEnum = pgEnum('rate_type', ['per_ft', 'flat'])
 
 export const serviceBoats = pgTable(
   'service_boats',
@@ -126,9 +130,30 @@ export const serviceBoats = pgTable(
     boatId: uuid('boat_id')
       .notNull()
       .references(() => boats.id, { onDelete: 'cascade' }),
+    description: text('description'),           // e.g. "Interior, Exterior, Cabin"
+    notes: text('notes'),                        // per-boat operational notes
+    rateType: rateTypeEnum('rate_type').default('per_ft'),
+    rate: numeric('rate', { precision: 10, scale: 2 }),
   },
   (t) => ({
-    pk: primaryKey(t.serviceId, t.boatId),
+    pk: primaryKey({ columns: [t.serviceId, t.boatId] }),
+  })
+)
+
+export const serviceBoatAssignments = pgTable(
+  'service_boat_assignments',
+  {
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    boatId: uuid('boat_id')
+      .notNull()
+      .references(() => boats.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(), // text, no FK — dev IDs aren't UUIDs
+    assignedAt: timestamp('assigned_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.serviceId, t.boatId, t.userId] }),
   })
 )
 
@@ -181,6 +206,17 @@ export const complaints = pgTable('complaints', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+export const logs = pgTable('logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id'),           // dev user id or future auth user id
+  action: text('action').notNull(),  // e.g. 'create_service', 'push_invoice_qbo'
+  entityType: text('entity_type'),   // 'service' | 'invoice' | 'customer' | 'boat'
+  entityId: text('entity_id'),
+  metadata: text('metadata'),        // JSON string — extra context
+  error: text('error'),              // set if the action failed
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const qboTokens = pgTable('qbo_tokens', {
   id: integer('id').primaryKey().default(1), // single row
   realmId: text('realm_id').notNull(),
@@ -220,9 +256,15 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
   complaints: many(complaints),
 }))
 
-export const serviceBoatsRelations = relations(serviceBoats, ({ one }) => ({
+export const serviceBoatsRelations = relations(serviceBoats, ({ one, many }) => ({
   service: one(services, { fields: [serviceBoats.serviceId], references: [services.id] }),
   boat: one(boats, { fields: [serviceBoats.boatId], references: [boats.id] }),
+  assignments: many(serviceBoatAssignments),
+}))
+
+export const serviceBoatAssignmentsRelations = relations(serviceBoatAssignments, ({ one }) => ({
+  service: one(services, { fields: [serviceBoatAssignments.serviceId], references: [services.id] }),
+  boat: one(boats, { fields: [serviceBoatAssignments.boatId], references: [boats.id] }),
 }))
 
 export const serviceAssignmentsRelations = relations(serviceAssignments, ({ one }) => ({
