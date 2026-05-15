@@ -116,7 +116,12 @@ export default async function SchedulePage({ searchParams }: PageProps) {
       .select({ serviceId: serviceBoatAssignments.serviceId })
       .from(serviceBoatAssignments)
       .where(eq(serviceBoatAssignments.userId, selectedEmployee))
-    filteredServiceIds = [...new Set(rows.map((r) => r.serviceId))]
+    const seen = new Set<string>()
+    filteredServiceIds = rows.map((r) => r.serviceId).filter((id) => {
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
   }
 
   // ── Services in week ──────────────────────────────────────────────────────
