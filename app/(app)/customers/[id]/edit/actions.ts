@@ -88,3 +88,28 @@ export async function updateCustomer(
   revalidatePath(`/customers/${customerId}`)
   revalidatePath('/customers')
 }
+
+function emptyToNull(v: FormDataEntryValue | null): string | null {
+  if (v === null) return null
+  const s = typeof v === 'string' ? v.trim() : ''
+  return s === '' ? null : s
+}
+
+/** Form action — parses FormData for `<form action={...}>`. */
+export async function updateCustomerFromForm(
+  customerId: string,
+  formData: FormData
+): Promise<void> {
+  const name = formData.get('name')
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new Error('Name is required')
+  }
+  await updateCustomer(customerId, {
+    name: name.trim(),
+    email: emptyToNull(formData.get('email')),
+    phone: emptyToNull(formData.get('phone')),
+    address: emptyToNull(formData.get('address')),
+    notes: emptyToNull(formData.get('notes')),
+    isPrepaid: formData.get('isPrepaid') === 'on',
+  })
+}
