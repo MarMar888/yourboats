@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/server'
+import { syncUser } from '@/lib/auth/sync-user'
 
+/**
+ * Magic-link / OAuth callback.
+ * Neon Auth handles token exchange via /api/auth/[...path].
+ * This route can be used as a post-login redirect to sync the user into the DB.
+ */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const { origin } = new URL(request.url)
 
-  if (code) {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+  try {
+    const { data: session } = await auth.getSession()
+    if (session?.user) {
+      await syncUser(session.user.email, session.user.name ?? session.user.email)
     }
+  } catch {
+    // Non-fatal — user will be synced on next page load if needed
   }
 
-  return NextResponse.redirect(`${origin}/login?message=Authentication failed`)
+  return NextResponse.redirect(`${origin}/dashboard`)
 }

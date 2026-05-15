@@ -1,18 +1,44 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
+const DEV_AUTH = process.env.NEXT_PUBLIC_DEV_AUTH === 'true'
+
+// Public paths that never require auth
+const PUBLIC_PATHS = ['/login', '/pick-user', '/api/auth']
+
+function isPublic(pathname: string) {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
+
+// ── Dev-auth middleware ──────────────────────────────────────────────────────
+function devAuthMiddleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl
+
+  if (isPublic(pathname)) return NextResponse.next()
+
   const devUser = request.cookies.get('dev_user')?.value
-
-  if (pathname.startsWith('/pick-user')) {
-    return NextResponse.next()
-  }
-
   if (!devUser) {
     return NextResponse.redirect(new URL('/pick-user', request.url))
   }
 
   return NextResponse.next()
+}
+
+// ── Real Neon Auth middleware ────────────────────────────────────────────────
+async function neonAuthMiddleware(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl
+
+  if (isPublic(pathname)) return NextResponse.next()
+
+  const { auth } = await import('@/lib/auth/server')
+  return auth.middleware({ loginUrl: '/login' })(request)
+}
+
+// ── Unified export ───────────────────────────────────────────────────────────
+export async function middleware(request: NextRequest) {
+  if (DEV_AUTH) {
+    return devAuthMiddleware(request)
+  }
+  return neonAuthMiddleware(request)
 }
 
 export const config = {

@@ -5,11 +5,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { message?: string }
+  searchParams: Promise<{ message?: string }>
 }) {
+  const { message } = await searchParams
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/40">
       <Card className="w-full max-w-sm">
@@ -18,8 +20,8 @@ export default function LoginPage({
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {searchParams.message && (
-            <p className="text-sm text-destructive text-center">{searchParams.message}</p>
+          {message && (
+            <p className="text-sm text-destructive text-center">{message}</p>
           )}
 
           <form className="space-y-3">
