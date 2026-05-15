@@ -43,15 +43,14 @@ export async function importAllCustomersFromQbo(): Promise<{ imported: number }>
   let startPos = 1
 
   while (true) {
+    const sql = `select * from Customer startposition ${startPos} maxresults ${pageSize}`
+
     const page = await new Promise<QboCustomer[]>((resolve, reject) => {
-      qbo.findCustomers(
-        { startPosition: startPos, maxResults: pageSize },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (err: any, data: any) => {
-          if (err) return reject(new Error(err.Fault?.Error?.[0]?.Detail ?? JSON.stringify(err)))
-          resolve(data?.QueryResponse?.Customer ?? [])
-        }
-      )
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      qbo.query(sql, (err: any, data: any) => {
+        if (err) return reject(new Error(err.Fault?.Error?.[0]?.Detail ?? JSON.stringify(err)))
+        resolve(data?.QueryResponse?.Customer ?? [])
+      })
     })
 
     allCustomers.push(...page)
