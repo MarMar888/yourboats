@@ -70,6 +70,7 @@ export async function logComplaint(formData: FormData): Promise<LogComplaintResu
     })
 
     revalidatePath('/complaints')
+    revalidatePath(`/schedule/${serviceId}`)
     return { ok: true }
   } catch (err) {
     await log({
