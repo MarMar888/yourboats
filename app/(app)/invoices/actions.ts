@@ -7,17 +7,53 @@ import { getQboClient } from '@/lib/qbo/client'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
 
+export type ActionResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+// ─── QBO void helper (non-fatal) ─────────────────────────────────────────────
+
+async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
+  try {
+    const qbo = await getQboClient()
+    const existing = await new Promise<{ Id: string; SyncToken: string }>((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      qbo.getInvoice(qboInvoiceId, (err: unknown, result: any) =>
+        err ? reject(err) : resolve(result)
+      )
+    })
+    await new Promise<void>((resolve, reject) => {
+      qbo.updateInvoice(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { Id: existing.Id, SyncToken: existing.SyncToken, sparse: true, void: true } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (err: unknown, _result: any) => (err ? reject(err) : resolve())
+      )
+    })
+  } catch (err) {
+    console.error('[QBO] Failed to void invoice', qboInvoiceId, err)
+  }
+}
+
 // ─── Delete invoice ───────────────────────────────────────────────────────────
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
+  const [invoice] = await db
+    .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1)
+
+  if (!invoice) return
+
+  if (invoice.qboInvoiceId) {
+    await voidQboInvoice(invoice.qboInvoiceId)
+  }
+
   await db.delete(invoices).where(eq(invoices.id, invoiceId))
   await log({ action: 'delete_invoice', entityType: 'invoice', entityId: invoiceId })
   revalidatePath('/invoices')
 }
-
-export type ActionResult =
-  | { ok: true }
-  | { ok: false; error: string }
 
 // ─── Create invoice in QBO (draft stays draft, just gets a qboInvoiceId) ──────
 
@@ -66,7 +102,6 @@ export async function createQboInvoice(invoiceId: string): Promise<ActionResult>
 
   if (sbRows.length === 0) return { ok: false, error: 'No boats on this service.' }
 
-  // Look up QBO item
   let qboItemId: string
   let qboItemName = 'Services'
   try {
@@ -90,7 +125,6 @@ export async function createQboInvoice(invoiceId: string): Promise<ActionResult>
     return { ok: false, error: `QuickBooks connection error: ${err instanceof Error ? err.message : String(err)}` }
   }
 
-  // Create invoice in QBO
   try {
     const qbo = await getQboClient()
     const dueDate = new Date(service.serviceDate + 'T00:00:00')
@@ -169,7 +203,6 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
     const qbo = await getQboClient()
     await new Promise<void>(
       (resolve, reject) =>
-        // sendInvoicePdf sends the invoice email via QBO; pass customer email or undefined to use QBO's on-file address
         qbo.sendInvoicePdf(
           inv.qboInvoiceId!,
           svc?.email ?? undefined,
