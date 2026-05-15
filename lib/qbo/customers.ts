@@ -35,25 +35,20 @@ function qboToInsert(c: QboCustomer) {
   }
 }
 
-export async function importAllCustomersFromQbo(): Promise<{ imported: number; updated: number }> {
+export async function importAllCustomersFromQbo(): Promise<{ imported: number }> {
   const qbo = await getQboClient()
 
-  // QBO max page size is 1000; loop until we have everything
   const allCustomers: QboCustomer[] = []
-  const pageSize = 1000
+  const pageSize = 100
   let startPos = 1
 
   while (true) {
     const page = await new Promise<QboCustomer[]>((resolve, reject) => {
       qbo.findCustomers(
-        [
-          { field: 'fetchAll', value: 'true' },
-          { field: 'startPosition', value: String(startPos) },
-          { field: 'maxResults', value: String(pageSize) },
-        ],
+        { startPosition: startPos, maxResults: pageSize },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (err: any, data: any) => {
-          if (err) return reject(err)
+          if (err) return reject(new Error(err.Fault?.Error?.[0]?.Detail ?? JSON.stringify(err)))
           resolve(data?.QueryResponse?.Customer ?? [])
         }
       )
@@ -64,15 +59,11 @@ export async function importAllCustomersFromQbo(): Promise<{ imported: number; u
     startPos += pageSize
   }
 
-  // Only active customers
-  const active = allCustomers.filter((c) => c.Active)
-
-  let imported = 0
-  let updated = 0
+  const active = allCustomers.filter((c) => c.Active !== false)
 
   for (const c of active) {
     const row = qboToInsert(c)
-    const result = await db
+    await db
       .insert(customers)
       .values(row)
       .onConflictDoUpdate({
@@ -86,12 +77,7 @@ export async function importAllCustomersFromQbo(): Promise<{ imported: number; u
           updatedAt: new Date(),
         },
       })
-      .returning({ id: customers.id })
-
-    // onConflictDoUpdate always returns a row; check if it was a true insert
-    // by whether the row existed before (crude but sufficient for a bulk import)
-    if (result.length > 0) imported++
   }
 
-  return { imported: active.length, updated }
+  return { imported: active.length }
 }
