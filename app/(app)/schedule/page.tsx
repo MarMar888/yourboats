@@ -11,12 +11,10 @@ import {
 } from '@/lib/db/schema'
 import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { deleteService } from './actions'
 import { ApproveWeekModal, UnapproveWeekButton } from './approve-week-modal'
-import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
-import AssignInline from './assign-inline'
+import ScheduleCard from './schedule-card'
+import type { ReminderStatus } from './schedule-card'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,12 +55,6 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   other:             'Other',
 }
 
-const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
-  scheduled: 'secondary',
-  complete:  'success',
-  cancelled: 'destructive',
-}
-
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -93,11 +85,6 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     .from(users)
     .where(eq(users.active, true))
     .orderBy(asc(users.displayName))
-
-  // Name lookup map
-  const userNameMap: Record<string, string> = Object.fromEntries(
-    employeeList.map((u) => [u.id, u.displayName])
-  )
 
   // ── Employee filter pre-query ─────────────────────────────────────────────
   let filteredServiceIds: string[] | null = null
@@ -319,96 +306,33 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {dayCards.map((card) => (
-                    <div
-                      key={card.id}
-                      className={cn(
-                        'relative flex flex-col rounded-xl border bg-card shadow-sm p-4 gap-2',
-                        card.approvedAt && 'border-green-200 bg-green-50/30'
-                      )}
-                    >
-                      {/* Top row: customer name → detail link + delete */}
-                      <div className="flex items-start justify-between gap-2">
-                        <Link
-                          href={`/schedule/${card.id}`}
-                          className="font-semibold text-base leading-tight hover:underline"
-                        >
-                          {card.customerName}
-                        </Link>
-                        {isManager && (
-                          <ConfirmDeleteButton
-                            action={deleteService.bind(null, card.id, undefined)}
-                            title="Delete service"
-                            description={`Delete the service for ${card.customerName}? The invoice will also be deleted.`}
-                            triggerLabel="×"
-                          />
-                        )}
-                      </div>
-
-                      {/* Service type + status + reminder tag */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-muted-foreground">
-                          {SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType}
-                        </span>
-                        <Badge variant={STATUS_VARIANT[card.status] ?? 'secondary'} className="capitalize text-xs">
-                          {card.status}
-                        </Badge>
-                        {card.approvedAt && (
-                          <span className="text-xs text-green-600 font-medium">✓</span>
-                        )}
-                        {card.reminderSentAt ? (
-                          <span
-                            className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5"
-                            title={`Sent ${card.reminderSentAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
-                          >
-                            ✉ Reminder sent
-                          </span>
-                        ) : card.status === 'scheduled' && card.approvedAt && card.serviceDate > toISODate(new Date()) ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                            ⏰ Reminder scheduled
-                          </span>
-                        ) : card.status === 'scheduled' && !card.approvedAt ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5">
-                            No reminder
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {/* Boats + per-boat assignments */}
-                      {card.boats.length > 0 && (
-                        <div className="space-y-0.5">
-                          {card.boats.map((b) => (
-                            <div key={b.boatId} className="text-sm">
-                              <span className="font-medium">{b.nickname}</span>
-                              {b.assignedIds.length > 0 && (
-                                <span className="text-xs text-muted-foreground ml-1.5">
-                                  — {b.assignedIds.map((id) => userNameMap[id] ?? id).join(', ')}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Inline assignment (manager+) */}
-                      {isManager && (
-                        <AssignInline
-                          serviceId={card.id}
-                          boats={card.boats}
-                          employees={employeeList}
-                        />
-                      )}
-
-                      {/* Price */}
-                      {card.totalPrice && (
-                        <div className="mt-auto pt-1 flex justify-end">
-                          <span className="text-sm font-medium">
-                            ${parseFloat(card.totalPrice).toFixed(2)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {dayCards.map((card) => {
+                    const todayStr = toISODate(new Date())
+                    const reminderStatus: ReminderStatus = card.reminderSentAt
+                      ? 'sent'
+                      : card.status === 'scheduled' && card.approvedAt && card.serviceDate > todayStr
+                        ? 'scheduled'
+                        : 'none'
+                    return (
+                      <ScheduleCard
+                        key={card.id}
+                        serviceId={card.id}
+                        customerId={card.customerId}
+                        customerName={card.customerName}
+                        serviceType={SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType}
+                        serviceDate={card.serviceDate}
+                        status={card.status}
+                        totalPrice={card.totalPrice}
+                        notes={card.notes}
+                        approvedAt={card.approvedAt}
+                        reminderStatus={reminderStatus}
+                        reminderSentAt={card.reminderSentAt}
+                        boats={card.boats}
+                        employees={employeeList}
+                        isManager={isManager}
+                      />
+                    )
+                  })}
                 </div>
               )}
             </div>
