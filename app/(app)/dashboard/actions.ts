@@ -1,17 +1,14 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { services } from '@/lib/db/schema'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 
 export async function markComplete(serviceId: string): Promise<{ error?: string }> {
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const user = DEV_USERS.find((u) => u.id === devUserId)
+  const user = await getCurrentUser()
 
   if (!user) {
     return { error: 'Not authenticated' }
@@ -49,7 +46,7 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
     action: 'mark_complete',
     entityType: 'service',
     entityId: serviceId,
-    metadata: { devUserId: user.id, role: user.role },
+    metadata: { userId: user.id, role: user.role },
   })
 
   revalidatePath('/dashboard')

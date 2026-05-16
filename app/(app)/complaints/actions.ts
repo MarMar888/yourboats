@@ -1,30 +1,11 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { complaints, users } from '@/lib/db/schema'
+import { complaints } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function getCurrentUser() {
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const devUser = DEV_USERS.find((u) => u.id === devUserId)
-  if (!devUser) return null
-
-  // Look up the real DB user by email
-  const [dbUser] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, devUser.email))
-    .limit(1)
-
-  return dbUser ?? null
-}
 
 // ─── Log complaint ─────────────────────────────────────────────────────────────
 

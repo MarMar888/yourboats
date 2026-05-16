@@ -1,8 +1,7 @@
 import { db } from '@/lib/db'
 import { complaints, services, customers } from '@/lib/db/schema'
 import { eq, desc, asc } from 'drizzle-orm'
-import { cookies } from 'next/headers'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -29,11 +28,8 @@ export default async function ComplaintsPage({
   const filter: Filter =
     rawFilter === 'open' ? 'open' : rawFilter === 'resolved' ? 'resolved' : 'all'
 
-  // Get current dev user role
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const devUser = DEV_USERS.find((u) => u.id === devUserId)
-  const canResolve = devUser?.role === 'owner' || devUser?.role === 'manager'
+  const currentUser = await getCurrentUser()
+  const canResolve = currentUser?.role === 'owner' || currentUser?.role === 'manager'
 
   // Fetch all complaints joined to services and customers
   const rows = await db

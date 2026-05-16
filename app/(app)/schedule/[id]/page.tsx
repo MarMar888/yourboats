@@ -3,17 +3,17 @@ import {
   services, customers, serviceBoats, boats,
   serviceBoatAssignments, invoices, complaints, users,
 } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteService } from '../actions'
 import { BoatAssignment } from './boat-assignment'
 import FlagComplaintButton from './flag-complaint-button'
+import { AddTipForm } from './add-tip-form'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -61,10 +61,8 @@ export default async function ServiceDetailPage({
 }) {
   const { id } = await params
 
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const devUser = DEV_USERS.find((u) => u.id === devUserId)
-  const canManage = devUser?.role === 'owner' || devUser?.role === 'manager'
+  const currentUser = await getCurrentUser()
+  const canManage = currentUser?.role === 'owner' || currentUser?.role === 'manager'
 
   // Fetch service + customer
   const [svc] = await db
@@ -75,6 +73,7 @@ export default async function ServiceDetailPage({
       status:       services.status,
       notes:        services.notes,
       totalPrice:   services.totalPrice,
+      tipAmount:    services.tipAmount,
       approvedAt:   services.approvedAt,
       approvedBy:   services.approvedByUserId,
       completedAt:  services.completedAt,
@@ -113,7 +112,13 @@ export default async function ServiceDetailPage({
     .where(eq(serviceBoats.serviceId, id))
     .orderBy(boats.nickname)
 
-  const userNames = Object.fromEntries(DEV_USERS.map((u) => [u.id, u.displayName]))
+  // Load all active users for assignment display and picker
+  const allUsers = await db
+    .select({ id: users.id, displayName: users.displayName })
+    .from(users)
+    .where(eq(users.active, true))
+    .orderBy(asc(users.displayName))
+  const userNames = Object.fromEntries(allUsers.map((u) => [u.id, u.displayName]))
 
   type BoatDetail = {
     boatId: string; nickname: string; makeModel: string | null; lengthFt: number | null
@@ -280,7 +285,7 @@ export default async function ServiceDetailPage({
                       <BoatAssignment
                         serviceId={svc.id}
                         boatId={b.boatId}
-                        employees={DEV_USERS.map((u) => ({ id: u.id, displayName: u.displayName }))}
+                        employees={allUsers}
                         assignedIds={b.assignedIds}
                       />
                     </div>
@@ -331,6 +336,27 @@ export default async function ServiceDetailPage({
               >
                 #{invoice.qboInvoiceId}
               </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tip section — shown for completed services */}
+      {svc.status === 'complete' && (
+        <div>
+          <h2 className="text-base font-semibold mb-3">Tip</h2>
+          <div className="rounded-lg border bg-card px-4 py-3">
+            {svc.tipAmount ? (
+              <p className="text-sm font-medium">
+                Tip: <span className="tabular-nums">${Number(svc.tipAmount).toFixed(2)}</span>
+              </p>
+            ) : canManage ? (
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">No tip recorded yet.</p>
+                <AddTipForm serviceId={svc.id} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No tip recorded.</p>
             )}
           </div>
         </div>

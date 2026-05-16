@@ -1,11 +1,10 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { complaints, serviceBoatAssignments } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export async function flagComplaint(
   serviceId: string,
@@ -13,11 +12,9 @@ export async function flagComplaint(
   description: string,
   severity: 'minor' | 'major'
 ) {
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const user = DEV_USERS.find((u) => u.id === devUserId)
+  const currentUser = await getCurrentUser()
 
-  if (!user) throw new Error('Not authenticated')
+  if (!currentUser) throw new Error('Not authenticated')
   if (!description.trim()) throw new Error('Description is required')
 
   await db.insert(complaints).values({
@@ -26,7 +23,7 @@ export async function flagComplaint(
     description: description.trim(),
     severity,
     resolved: false,
-    createdByUserId: user.id,
+    createdByUserId: currentUser.id,
   })
 
   revalidatePath(`/schedule/${serviceId}`)
@@ -38,10 +35,8 @@ export async function updateBoatAssignments(
   boatId: string,
   userIds: string[]
 ): Promise<void> {
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const devUser = DEV_USERS.find((u) => u.id === devUserId)
-  if (!devUser || (devUser.role !== 'owner' && devUser.role !== 'manager')) return
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) return
 
   await db
     .delete(serviceBoatAssignments)

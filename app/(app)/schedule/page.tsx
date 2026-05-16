@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { db } from '@/lib/db'
@@ -11,7 +10,7 @@ import {
   customers,
 } from '@/lib/db/schema'
 import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { approveWeek, deleteService } from './actions'
@@ -72,8 +71,7 @@ interface PageProps {
 }
 
 export default async function SchedulePage({ searchParams }: PageProps) {
-  const cookieStore = await cookies()
-  const currentUser = DEV_USERS.find((u) => u.id === cookieStore.get(DEV_USER_COOKIE)?.value)
+  const currentUser = await getCurrentUser()
   if (!currentUser) redirect('/pick-user')
 
   const isManager = currentUser.role === 'owner' || currentUser.role === 'manager'
@@ -88,26 +86,17 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   const nextWeekStr = toISODate(addDays(weekStart, 7))
   const selectedEmployee = params.employee ?? ''
 
-  // ── Employee list (DB users → fallback to DEV_USERS) ──────────────────────
-  let employeeList: { id: string; displayName: string }[]
-  try {
-    const dbUsers = await db
-      .select({ id: users.id, displayName: users.displayName })
-      .from(users)
-      .where(eq(users.active, true))
-      .orderBy(asc(users.displayName))
-    employeeList = dbUsers.length > 0
-      ? dbUsers
-      : DEV_USERS.map((u) => ({ id: u.id, displayName: u.displayName }))
-  } catch {
-    employeeList = DEV_USERS.map((u) => ({ id: u.id, displayName: u.displayName }))
-  }
+  // ── Employee list (active DB users) ──────────────────────────────────────
+  const employeeList = await db
+    .select({ id: users.id, displayName: users.displayName })
+    .from(users)
+    .where(eq(users.active, true))
+    .orderBy(asc(users.displayName))
 
-  // Name lookup map (DEV_USERS + DB users both contribute)
+  // Name lookup map
   const userNameMap: Record<string, string> = Object.fromEntries(
-    DEV_USERS.map((u) => [u.id, u.displayName])
+    employeeList.map((u) => [u.id, u.displayName])
   )
-  for (const emp of employeeList) userNameMap[emp.id] = emp.displayName
 
   // ── Employee filter pre-query ─────────────────────────────────────────────
   let filteredServiceIds: string[] | null = null

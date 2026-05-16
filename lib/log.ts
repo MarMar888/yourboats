@@ -1,7 +1,6 @@
 import { db } from '@/lib/db'
 import { logs } from '@/lib/db/schema'
-import { cookies } from 'next/headers'
-import { DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 type LogEntry = {
   action: string
@@ -11,20 +10,11 @@ type LogEntry = {
   error?: string
 }
 
-async function currentUserId(): Promise<string | null> {
-  try {
-    const store = await cookies()
-    return store.get(DEV_USER_COOKIE)?.value ?? null
-  } catch {
-    return null
-  }
-}
-
 export async function log(entry: LogEntry): Promise<void> {
   try {
-    const userId = await currentUserId()
+    const user = await getCurrentUser()
     await db.insert(logs).values({
-      userId,
+      userId: user?.id ?? null,
       action: entry.action,
       entityType: entry.entityType ?? null,
       entityId: entry.entityId ?? null,

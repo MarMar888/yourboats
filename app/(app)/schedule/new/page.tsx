@@ -1,21 +1,19 @@
 import { db } from '@/lib/db'
-import { customers, boats } from '@/lib/db/schema'
-import { asc } from 'drizzle-orm'
-import { cookies } from 'next/headers'
+import { customers, boats, users } from '@/lib/db/schema'
+import { asc, eq } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import ServiceForm from './service-form'
 
 export default async function NewServicePage() {
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const devUser = DEV_USERS.find((u) => u.id === devUserId)
-  const canAssign = devUser?.role === 'owner' || devUser?.role === 'manager'
+  const currentUser = await getCurrentUser()
+  const canAssign = currentUser?.role === 'owner' || currentUser?.role === 'manager'
 
-  const [allCustomers, allBoats] = await Promise.all([
+  const [allCustomers, allBoats, allUsers] = await Promise.all([
     db.select().from(customers).orderBy(asc(customers.name)),
     db.select().from(boats),
+    db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq(users.active, true)).orderBy(asc(users.displayName)),
   ])
 
   const boatsByCustomer = allBoats.reduce<Record<string, typeof allBoats>>(
@@ -26,8 +24,7 @@ export default async function NewServicePage() {
     {}
   )
 
-  // Employee list — use dev users for now; real users table when auth lands
-  const employees = DEV_USERS.map((u) => ({ id: u.id, displayName: u.displayName }))
+  const employees = allUsers
 
   return (
     <div>
