@@ -6,11 +6,9 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import GlobalCreateModal from '@/components/global-create-modal'
-import type { DEV_USERS } from '@/lib/dev-users'
+import type { CurrentUser } from '@/lib/auth/get-current-user'
 
-type DevUser = (typeof DEV_USERS)[number]
-
-const navItems: { href: string; label: string; roles: DevUser['role'][] }[] = [
+const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] = [
   { href: '/dashboard', label: 'Today', roles: ['owner', 'manager', 'employee'] },
   { href: '/schedule', label: 'Schedule', roles: ['owner', 'manager', 'employee'] },
   { href: '/customers', label: 'Customers', roles: ['owner', 'manager'] },
@@ -20,7 +18,7 @@ const navItems: { href: string; label: string; roles: DevUser['role'][] }[] = [
   { href: '/settings', label: 'Settings', roles: ['owner'] },
 ]
 
-export default function AppNav({ user }: { user: DevUser }) {
+export default function AppNav({ user }: { user: CurrentUser }) {
   const pathname = usePathname()
   const visible = navItems.filter((item) => item.roles.includes(user.role))
   const [createOpen, setCreateOpen] = useState(false)
@@ -57,12 +55,18 @@ export default function AppNav({ user }: { user: DevUser }) {
                 + New
               </Button>
             )}
-            <Link
-              href="/pick-user"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {user.displayName}
-            </Link>
+            {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
+              <Link
+                href="/pick-user"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {user.displayName} ({user.role})
+              </Link>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {user.displayName}
+              </span>
+            )}
           </div>
         </div>
       </header>

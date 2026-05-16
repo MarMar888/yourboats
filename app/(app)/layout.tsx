@@ -1,15 +1,16 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import AppNav from '@/components/app-nav'
 import AppFooter from '@/components/app-footer'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies()
-  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
-  const user = DEV_USERS.find((u) => u.id === devUserId)
+  const user = await getCurrentUser()
 
-  if (!user) redirect('/pick-user')
+  if (!user) {
+    // Redirect to dev picker in dev-auth mode, otherwise to login
+    const dest = process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? '/pick-user' : '/login'
+    redirect(dest)
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
