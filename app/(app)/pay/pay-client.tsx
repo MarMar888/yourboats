@@ -427,7 +427,7 @@ export function PayClient({
       {isOwner && (
         <div>
           <h2 className="text-base font-semibold mb-3">Tier deduction settings</h2>
-          <div className="rounded-lg border bg-card p-4 space-y-3 max-w-sm">
+          <div className="rounded-lg border bg-card p-4 space-y-3">
             {(['top', 'mid', 'low'] as const).map((tier) => (
               <div key={tier} className="flex items-center gap-3">
                 <span className="w-10 capitalize text-sm font-medium">{tier}</span>
@@ -454,7 +454,7 @@ export function PayClient({
       {isOwner && employees.length > 0 && (
         <div>
           <h2 className="text-base font-semibold mb-3">Employee tiers</h2>
-          <div className="rounded-lg border bg-card divide-y max-w-md">
+          <div className="rounded-lg border bg-card divide-y">
             {employees.map((emp) => (
               <div key={emp.id} className="flex items-center justify-between px-4 py-3 gap-4">
                 <span className="text-sm font-medium">{emp.displayName}</span>
