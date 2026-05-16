@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN boats b ON b.id = sb.boat_id
       WHERE s.service_date = (CURRENT_DATE + INTERVAL '1 day')::date
         AND s.status = 'scheduled'
+        AND s.approved_at IS NOT NULL
         AND c.email IS NOT NULL
         AND c.email != ''
     `)
