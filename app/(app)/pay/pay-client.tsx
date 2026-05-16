@@ -4,6 +4,13 @@ import { useState, useTransition } from 'react'
 import { updateTierConfig, updateEmployeeTier } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  getCurrentPeriod,
+  getPeriodByIndex,
+  formatPeriodLabel,
+  formatShortDate,
+  type PayPeriod,
+} from '@/lib/pay/periods'
 
 type Employee = { id: string; displayName: string; tier: 'top' | 'mid' | 'low' | null }
 type TierRow = { tier: 'top' | 'mid' | 'low'; deductionPct: string }
@@ -30,24 +37,6 @@ function fmt(n: number) {
   return `$${n.toFixed(2)}`
 }
 
-function currentPeriod(): { start: string; end: string } {
-  const today = new Date()
-  const day = today.getDate()
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  if (day < 16) {
-    return {
-      start: `${y}-${m}-01`,
-      end: `${y}-${m}-15`,
-    }
-  }
-  const lastDay = new Date(y, today.getMonth() + 1, 0).getDate()
-  return {
-    start: `${y}-${m}-16`,
-    end: `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
-  }
-}
-
 export function PayClient({
   employees,
   tierRows,
@@ -57,9 +46,7 @@ export function PayClient({
   tierRows: TierRow[]
   isOwner: boolean
 }) {
-  const period = currentPeriod()
-  const [startDate, setStartDate] = useState(period.start)
-  const [endDate, setEndDate] = useState(period.end)
+  const [period, setPeriod] = useState<PayPeriod>(getCurrentPeriod)
   const [selectedUserId, setSelectedUserId] = useState(employees[0]?.id ?? '')
   const [payData, setPayData] = useState<PayResult>(null)
   const [loading, setLoading] = useState(false)
@@ -78,13 +65,22 @@ export function PayClient({
   )
   const [empTierPending, startEmpTierTransition] = useTransition()
 
+  function prevPeriod() {
+    setPeriod((p) => getPeriodByIndex(Math.max(0, p.index - 1)))
+    setPayData(null)
+  }
+  function nextPeriod() {
+    setPeriod((p) => getPeriodByIndex(p.index + 1))
+    setPayData(null)
+  }
+
   async function loadPay() {
     if (!selectedUserId) return
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(
-        `/api/pay?userId=${selectedUserId}&startDate=${startDate}&endDate=${endDate}`
+        `/api/pay?userId=${selectedUserId}&startDate=${period.startStr}&endDate=${period.endStr}`
       )
       if (!res.ok) throw new Error('Failed to load pay data')
       const data = await res.json()
@@ -118,43 +114,51 @@ export function PayClient({
 
   return (
     <div className="space-y-8">
-      {/* Filters */}
-      <div className="rounded-lg border bg-card p-4 flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">Start date</label>
-          <Input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-40"
-          />
+      {/* Period navigator */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={prevPeriod} disabled={period.index === 0}>
+            ←
+          </Button>
+          <div className="flex-1 text-center">
+            <div className="text-sm font-medium text-muted-foreground">Pay period</div>
+            <div className="text-base font-semibold">{formatPeriodLabel(period)}</div>
+          </div>
+          <Button variant="outline" size="sm" onClick={nextPeriod}>
+            →
+          </Button>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">End date</label>
-          <Input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-40"
-          />
+
+        <div className="flex justify-center gap-6 text-xs text-muted-foreground border-t pt-3">
+          <span>
+            <span className="font-medium text-foreground">Payroll deadline:</span>{' '}
+            {formatShortDate(period.deadline)}
+          </span>
+          <span>
+            <span className="font-medium text-foreground">Payday:</span>{' '}
+            {formatShortDate(period.payday)}
+          </span>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">Employee</label>
-          <select
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.displayName}
-              </option>
-            ))}
-          </select>
+
+        <div className="flex items-center gap-3 border-t pt-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Employee</label>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button onClick={loadPay} disabled={loading} className="self-end">
+            {loading ? 'Loading…' : 'Calculate'}
+          </Button>
         </div>
-        <Button onClick={loadPay} disabled={loading}>
-          {loading ? 'Loading…' : 'Calculate'}
-        </Button>
       </div>
 
       {error && (
@@ -166,10 +170,12 @@ export function PayClient({
       {/* Pay table */}
       {payData && (
         <div>
-          <h2 className="text-base font-semibold mb-3">
-            Pay breakdown —{' '}
-            {employees.find((e) => e.id === selectedUserId)?.displayName}
+          <h2 className="text-base font-semibold mb-1">
+            Pay breakdown — {employees.find((e) => e.id === selectedUserId)?.displayName}
           </h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            {formatPeriodLabel(period)} · Payday {formatShortDate(period.payday)}
+          </p>
           {payData.services.length === 0 ? (
             <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground text-sm">
               No completed services in this period.
@@ -181,9 +187,9 @@ export function PayClient({
                   <tr className="border-b bg-muted/40">
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Date</th>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Customer</th>
-                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total Price</th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Price</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground">Tip</th>
-                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Share%</th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Share</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground">Base Pay</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground">Deduction</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground">Net Pay</th>
