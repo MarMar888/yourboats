@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ImportCustomersButton from './import-customers-button'
+import ReminderTestPanel from './reminder-test-panel'
 
 export default async function SettingsPage({
   searchParams,
@@ -53,6 +54,18 @@ export default async function SettingsPage({
                 </a>
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminder emails</CardTitle>
+            <CardDescription>
+              Test the nightly reminder email for any service date. Dry run shows who would receive without sending — useful for checking before you go live.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ReminderTestPanel />
           </CardContent>
         </Card>
 

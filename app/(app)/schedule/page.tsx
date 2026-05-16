@@ -345,7 +345,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                         )}
                       </div>
 
-                      {/* Service type + status + approved */}
+                      {/* Service type + status + reminder tag */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-muted-foreground">
                           {SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType}
@@ -356,14 +356,22 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                         {card.approvedAt && (
                           <span className="text-xs text-green-600 font-medium">✓</span>
                         )}
-                        {card.reminderSentAt && (
+                        {card.reminderSentAt ? (
                           <span
-                            className="text-xs text-sky-600 font-medium"
-                            title={`Reminder sent ${card.reminderSentAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5"
+                            title={`Sent ${card.reminderSentAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
                           >
-                            ✉
+                            ✉ Reminder sent
                           </span>
-                        )}
+                        ) : card.status === 'scheduled' && card.approvedAt && card.serviceDate > toISODate(new Date()) ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                            ⏰ Reminder scheduled
+                          </span>
+                        ) : card.status === 'scheduled' && !card.approvedAt ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5">
+                            No reminder
+                          </span>
+                        ) : null}
                       </div>
 
                       {/* Boats + per-boat assignments */}

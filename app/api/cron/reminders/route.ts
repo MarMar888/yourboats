@@ -40,16 +40,25 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Guard: require email credentials ──────────────────────────────────────
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  const { searchParams } = new URL(req.url)
+  const dryRun = searchParams.get('dryRun') === 'true'
+
+  // ?date=YYYY-MM-DD overrides "tomorrow" — useful for testing
+  const dateOverride = searchParams.get('date')
+  const targetDate = dateOverride
+    ? sql`${dateOverride}::date`
+    : sql`(CURRENT_DATE + INTERVAL '1 day')::date`
+
+  // ── Guard: require email credentials (skip in dry-run mode) ───────────────
+  if (!dryRun && (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)) {
     console.warn('[cron/reminders] GMAIL_USER or GMAIL_APP_PASSWORD not set — aborting')
     return NextResponse.json(
-      { error: 'Email credentials not configured' },
+      { error: 'Email credentials not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in .env.local' },
       { status: 500 }
     )
   }
 
-  // ── Query tomorrow's scheduled services ───────────────────────────────────
+  // ── Query target date's scheduled services ────────────────────────────────
   let rows: TomorrowServiceRow[]
   try {
     const result = await db.execute(sql`
@@ -65,7 +74,7 @@ export async function GET(req: NextRequest) {
       JOIN customers c ON s.customer_id = c.id
       LEFT JOIN service_boats sb ON sb.service_id = s.id
       LEFT JOIN boats b ON b.id = sb.boat_id
-      WHERE s.service_date = (CURRENT_DATE + INTERVAL '1 day')::date
+      WHERE s.service_date = ${targetDate}
         AND s.status = 'scheduled'
         AND s.approved_at IS NOT NULL
         AND c.email IS NOT NULL
@@ -79,8 +88,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (rows.length === 0) {
-    console.log('[cron/reminders] No scheduled services tomorrow — nothing to send')
-    return NextResponse.json({ sent: 0, skipped: 0, errors: [] })
+    const label = dateOverride ?? 'tomorrow'
+    console.log(`[cron/reminders] No approved scheduled services on ${label} — nothing to send`)
+    return NextResponse.json({ sent: 0, skipped: 0, errors: [], dryRun, targetDate: dateOverride ?? null, preview: [] })
   }
 
   // ── Group by customer email ────────────────────────────────────────────────
@@ -106,6 +116,18 @@ export async function GET(req: NextRequest) {
         serviceIds: [row.service_id],
       })
     }
+  }
+
+  // ── Dry-run: return preview without sending ───────────────────────────────
+  if (dryRun) {
+    const preview = Array.from(byCustomer.values()).map((r) => ({
+      to: r.email,
+      customer: r.name,
+      serviceDate: r.serviceDate,
+      boats: r.boats,
+      serviceIds: r.serviceIds,
+    }))
+    return NextResponse.json({ sent: 0, skipped: 0, errors: [], dryRun: true, targetDate: dateOverride ?? null, preview })
   }
 
   // ── Send one email per customer ────────────────────────────────────────────
@@ -145,7 +167,7 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(`[cron/reminders] Done — sent: ${sent}, skipped: ${skipped}, errors: ${errors.length}`)
-  return NextResponse.json({ sent, skipped, errors })
+  return NextResponse.json({ sent, skipped, errors, dryRun: false, targetDate: dateOverride ?? null })
 }
 
 /**
