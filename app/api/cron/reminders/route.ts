@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from 'drizzle-orm'
+import { sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/drizzle'
+import { services } from '@/lib/db/schema'
 import { emailTransport } from '@/lib/email/client'
 import {
   serviceReminderEmail,
@@ -26,6 +27,7 @@ interface CustomerReminder {
   serviceDate: string
   serviceType: string
   boats: string[]
+  serviceIds: string[]
 }
 
 export async function GET(req: NextRequest) {
@@ -90,6 +92,9 @@ export async function GET(req: NextRequest) {
       if (row.boat_label && !existing.boats.includes(row.boat_label)) {
         existing.boats.push(row.boat_label)
       }
+      if (!existing.serviceIds.includes(row.service_id)) {
+        existing.serviceIds.push(row.service_id)
+      }
     } else {
       byCustomer.set(row.customer_email, {
         email: row.customer_email,
@@ -98,6 +103,7 @@ export async function GET(req: NextRequest) {
         serviceDate: formatDate(row.service_date),
         serviceType: formatServiceType(row.service_type),
         boats: row.boat_label ? [row.boat_label] : [],
+        serviceIds: [row.service_id],
       })
     }
   }
@@ -124,6 +130,10 @@ export async function GET(req: NextRequest) {
         text,
         html,
       })
+      await db
+        .update(services)
+        .set({ reminderSentAt: new Date() })
+        .where(inArray(services.id, reminder.serviceIds))
       console.log(`[cron/reminders] Sent reminder to ${reminder.email}`)
       sent++
     } catch (err) {

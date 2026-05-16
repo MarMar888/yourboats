@@ -120,9 +120,10 @@ export default async function SchedulePage({ searchParams }: PageProps) {
       serviceDate:  services.serviceDate,
       serviceType:  services.serviceType,
       status:       services.status,
-      totalPrice:   services.totalPrice,
-      notes:        services.notes,
-      approvedAt:   services.approvedAt,
+      totalPrice:     services.totalPrice,
+      notes:          services.notes,
+      approvedAt:     services.approvedAt,
+      reminderSentAt: services.reminderSentAt,
       customerId:   services.customerId,
       customerName: customers.name,
     })
@@ -186,13 +187,14 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   type ServiceCard = {
     id: string; serviceDate: string; serviceType: string; status: string
     totalPrice: string | null; notes: string | null; approvedAt: Date | null
-    customerId: string; customerName: string; boats: BoatEntry[]
+    reminderSentAt: Date | null; customerId: string; customerName: string; boats: BoatEntry[]
   }
 
   const cards: ServiceCard[] = serviceRows.map((s) => ({
     ...s,
-    totalPrice: s.totalPrice ?? null,
-    approvedAt: s.approvedAt ?? null,
+    totalPrice:     s.totalPrice ?? null,
+    approvedAt:     s.approvedAt ?? null,
+    reminderSentAt: s.reminderSentAt ?? null,
     boats: (boatsByService[s.id] ?? []).map((b) => ({
       ...b,
       assignedIds: assignments[s.id]?.[b.boatId] ?? [],
@@ -349,6 +351,14 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                         </Badge>
                         {card.approvedAt && (
                           <span className="text-xs text-green-600 font-medium">✓</span>
+                        )}
+                        {card.reminderSentAt && (
+                          <span
+                            className="text-xs text-sky-600 font-medium"
+                            title={`Reminder sent ${card.reminderSentAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+                          >
+                            ✉
+                          </span>
                         )}
                       </div>
 

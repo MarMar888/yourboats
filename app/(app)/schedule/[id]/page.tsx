@@ -74,9 +74,10 @@ export default async function ServiceDetailPage({
       notes:        services.notes,
       totalPrice:   services.totalPrice,
       tipAmount:    services.tipAmount,
-      approvedAt:   services.approvedAt,
-      approvedBy:   services.approvedByUserId,
-      completedAt:  services.completedAt,
+      approvedAt:     services.approvedAt,
+      approvedBy:     services.approvedByUserId,
+      completedAt:    services.completedAt,
+      reminderSentAt: services.reminderSentAt,
       customerName: customers.name,
       customerId:   customers.id,
     })
@@ -203,7 +204,7 @@ export default async function ServiceDetailPage({
         </div>
       </div>
 
-      {(svc.approvedAt || svc.completedAt) && (
+      {(svc.approvedAt || svc.completedAt || svc.reminderSentAt) && (
         <div className="flex flex-wrap gap-3 text-xs">
           {svc.approvedAt && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
@@ -214,6 +215,11 @@ export default async function ServiceDetailPage({
           {svc.completedAt && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
               ✓ Completed {fmtDateTime(svc.completedAt)}
+            </span>
+          )}
+          {svc.reminderSentAt && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 px-3 py-1 font-medium">
+              ✉ Reminder sent {fmtDateTime(svc.reminderSentAt)}
             </span>
           )}
         </div>
