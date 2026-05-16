@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { services, customers, invoices } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
 import { cn } from '@/lib/utils'
 import { InvoiceActionsButton } from './invoice-actions-button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
@@ -33,35 +33,55 @@ function statusClass(status: InvoiceStatus) {
 }
 
 export default async function InvoicesPage() {
-  const rows = await db
+  // Draft invoices for completed services — ready to send
+  const pending = await db
     .select({
-      invoiceId:    invoices.id,
-      qboInvoiceId: invoices.qboInvoiceId,
-      amount:       invoices.amount,
-      status:       invoices.status,
-      sentAt:       invoices.sentAt,
-      serviceDate:  services.serviceDate,
+      invoiceId:     invoices.id,
+      qboInvoiceId:  invoices.qboInvoiceId,
+      amount:        invoices.amount,
+      status:        invoices.status,
+      sentAt:        invoices.sentAt,
+      serviceDate:   services.serviceDate,
       serviceStatus: services.status,
-      serviceId:    services.id,
-      customerName: customers.name,
-      customerId:   customers.id,
+      serviceId:     services.id,
+      customerName:  customers.name,
+      customerId:    customers.id,
     })
     .from(invoices)
     .innerJoin(services, eq(invoices.serviceId, services.id))
     .innerJoin(customers, eq(services.customerId, customers.id))
+    .where(and(eq(invoices.status, 'draft'), eq(services.status, 'complete')))
     .orderBy(desc(invoices.createdAt))
 
-  const pending = rows.filter((r) => r.status === 'draft')
-  const sent    = rows.filter((r) => r.status !== 'draft')
+  // Sent / paid / overdue / void
+  const sent = await db
+    .select({
+      invoiceId:     invoices.id,
+      qboInvoiceId:  invoices.qboInvoiceId,
+      amount:        invoices.amount,
+      status:        invoices.status,
+      sentAt:        invoices.sentAt,
+      serviceDate:   services.serviceDate,
+      serviceStatus: services.status,
+      serviceId:     services.id,
+      customerName:  customers.name,
+      customerId:    customers.id,
+    })
+    .from(invoices)
+    .innerJoin(services, eq(invoices.serviceId, services.id))
+    .innerJoin(customers, eq(services.customerId, customers.id))
+    .where(and(eq(services.status, 'complete')))
+    .orderBy(desc(invoices.createdAt))
+    .then((rows) => rows.filter((r) => r.status !== 'draft'))
 
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-6">Invoices</h1>
 
-      {/* ── Pending ── */}
+      {/* ── Ready to send ── */}
       <section className="mb-10">
         <h2 className="text-lg font-medium mb-3">
-          Pending
+          Ready to send
           {pending.length > 0 && (
             <span className="ml-2 text-sm font-normal text-muted-foreground">({pending.length})</span>
           )}
@@ -69,7 +89,7 @@ export default async function InvoicesPage() {
 
         {pending.length === 0 ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No pending invoices.
+            No invoices ready — mark services complete to queue them here.
           </div>
         ) : (
           <div className="rounded-lg border bg-card overflow-hidden">
@@ -79,7 +99,6 @@ export default async function InvoicesPage() {
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground">Customer</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground">Service date</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground">Amount</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Service status</th>
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
@@ -94,16 +113,6 @@ export default async function InvoicesPage() {
                     <td className="px-4 py-3 text-muted-foreground">{fmtDate(inv.serviceDate)}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold">
                       ${Number(inv.amount).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                        inv.serviceStatus === 'complete'
-                          ? 'border-green-200 bg-green-50 text-green-700'
-                          : 'border-border bg-muted text-muted-foreground'
-                      )}>
-                        {inv.serviceStatus}
-                      </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
