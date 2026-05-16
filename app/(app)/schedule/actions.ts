@@ -36,6 +36,30 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
   }
 }
 
+export async function markComplete(serviceId: string): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const [service] = await db
+    .select({ id: services.id, status: services.status })
+    .from(services)
+    .where(eq(services.id, serviceId))
+    .limit(1)
+
+  if (!service) return { error: 'Service not found' }
+  if (service.status !== 'scheduled') return { error: 'Service is not scheduled' }
+
+  await db
+    .update(services)
+    .set({ status: 'complete', completedAt: new Date(), completedByUserId: null })
+    .where(eq(services.id, serviceId))
+
+  await log({ action: 'mark_complete', entityType: 'service', entityId: serviceId })
+  revalidatePath('/dashboard')
+  revalidatePath('/schedule')
+  return {}
+}
+
 export async function deleteService(serviceId: string, redirectTo?: string): Promise<void> {
   const [linkedInvoice] = await db
     .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId })
@@ -55,16 +79,31 @@ export async function deleteService(serviceId: string, redirectTo?: string): Pro
   if (redirectTo) redirect(redirectTo)
 }
 
-export async function approveWeek(formData: FormData): Promise<void> {
+export async function approveWeek(startDate: string, endDate: string): Promise<void> {
   const currentUser = await getCurrentUser()
   if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) return
-
-  const startDate = formData.get('startDate') as string
-  const endDate = formData.get('endDate') as string
 
   await db
     .update(services)
     .set({ approvedAt: new Date(), approvedByUserId: currentUser.id })
+    .where(
+      and(
+        gte(services.serviceDate, startDate),
+        lte(services.serviceDate, endDate),
+        eq(services.status, 'scheduled')
+      )
+    )
+
+  revalidatePath('/schedule')
+}
+
+export async function unapproveWeek(startDate: string, endDate: string): Promise<void> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) return
+
+  await db
+    .update(services)
+    .set({ approvedAt: null, approvedByUserId: null })
     .where(
       and(
         gte(services.serviceDate, startDate),
