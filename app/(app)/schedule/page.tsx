@@ -12,11 +12,9 @@ import {
 } from '@/lib/db/schema'
 import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
 import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { approveWeek, deleteService } from './actions'
-import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
-import AssignInline from './assign-inline'
+import ServiceCard from '@/components/service-card'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,12 +53,6 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   gelcoat_wetsanding:'Gelcoat',
   captaining:        'Captaining',
   other:             'Other',
-}
-
-const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
-  scheduled: 'secondary',
-  complete:  'success',
-  cancelled: 'destructive',
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -328,78 +320,25 @@ export default async function SchedulePage({ searchParams }: PageProps) {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {dayCards.map((card) => (
-                    <div
+                    <ServiceCard
                       key={card.id}
-                      className={cn(
-                        'relative flex flex-col rounded-xl border bg-card shadow-sm p-4 gap-2',
-                        card.approvedAt && 'border-green-200 bg-green-50/30'
-                      )}
-                    >
-                      {/* Top row: customer name → detail link + delete */}
-                      <div className="flex items-start justify-between gap-2">
-                        <Link
-                          href={`/schedule/${card.id}`}
-                          className="font-semibold text-base leading-tight hover:underline"
-                        >
-                          {card.customerName}
-                        </Link>
-                        {isManager && (
-                          <ConfirmDeleteButton
-                            action={deleteService.bind(null, card.id, undefined)}
-                            title="Delete service"
-                            description={`Delete the service for ${card.customerName}? The invoice will also be deleted.`}
-                            triggerLabel="×"
-                          />
-                        )}
-                      </div>
-
-                      {/* Service type + status + approved */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-muted-foreground">
-                          {SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType}
-                        </span>
-                        <Badge variant={STATUS_VARIANT[card.status] ?? 'secondary'} className="capitalize text-xs">
-                          {card.status}
-                        </Badge>
-                        {card.approvedAt && (
-                          <span className="text-xs text-green-600 font-medium">✓</span>
-                        )}
-                      </div>
-
-                      {/* Boats + per-boat assignments */}
-                      {card.boats.length > 0 && (
-                        <div className="space-y-0.5">
-                          {card.boats.map((b) => (
-                            <div key={b.boatId} className="text-sm">
-                              <span className="font-medium">{b.nickname}</span>
-                              {b.assignedIds.length > 0 && (
-                                <span className="text-xs text-muted-foreground ml-1.5">
-                                  — {b.assignedIds.map((id) => userNameMap[id] ?? id).join(', ')}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Inline assignment (manager+) */}
-                      {isManager && (
-                        <AssignInline
-                          serviceId={card.id}
-                          boats={card.boats}
-                          employees={employeeList}
-                        />
-                      )}
-
-                      {/* Price */}
-                      {card.totalPrice && (
-                        <div className="mt-auto pt-1 flex justify-end">
-                          <span className="text-sm font-medium">
-                            ${parseFloat(card.totalPrice).toFixed(2)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                      serviceId={card.id}
+                      customerId={card.customerId}
+                      customerName={card.customerName}
+                      serviceType={card.serviceType}
+                      serviceTypeLabel={SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType}
+                      serviceDate={card.serviceDate}
+                      status={card.status}
+                      notes={card.notes}
+                      totalPrice={card.totalPrice}
+                      approvedAt={card.approvedAt}
+                      boats={card.boats}
+                      userNameMap={userNameMap}
+                      canComplete={isManager}
+                      canManage={isManager}
+                      deleteAction={deleteService.bind(null, card.id, undefined)}
+                      employees={isManager ? employeeList : undefined}
+                    />
                   ))}
                 </div>
               )}
