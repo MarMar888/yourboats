@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { updateCustomer } from './actions'
+import { updateCustomerFromForm } from './actions'
 
 export default async function EditCustomerPage({
   params,
@@ -24,7 +24,7 @@ export default async function EditCustomerPage({
 
   if (!customer) notFound()
 
-  const action = updateCustomer.bind(null, id)
+  const action = updateCustomerFromForm.bind(null, id)
 
   return (
     <div className="max-w-xl space-y-6">

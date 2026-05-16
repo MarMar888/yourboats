@@ -1,88 +1,115 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { customers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { redirect } from 'next/navigation'
 import { getQboClient } from '@/lib/qbo/client'
-import { log } from '@/lib/log'
 
-export async function updateCustomer(customerId: string, formData: FormData) {
-  const name = (formData.get('name') as string)?.trim()
-  const email = (formData.get('email') as string)?.trim() || null
-  const phone = (formData.get('phone') as string)?.trim() || null
-  const address = (formData.get('address') as string)?.trim() || null
-  const notes = (formData.get('notes') as string)?.trim() || null
-  const isPrepaid = formData.get('isPrepaid') === 'on'
+interface UpdateCustomerInput {
+  name: string
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  notes?: string | null
+  isPrepaid?: boolean
+}
 
-  if (!name) throw new Error('Name is required.')
-
-  const [updated] = await db
+export async function updateCustomer(
+  customerId: string,
+  input: UpdateCustomerInput
+): Promise<void> {
+  // 1. Update locally first
+  await db
     .update(customers)
-    .set({ name, email, phone, address, notes, isPrepaid, updatedAt: new Date() })
+    .set({
+      name: input.name,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      address: input.address ?? null,
+      notes: input.notes ?? null,
+      ...(input.isPrepaid !== undefined ? { isPrepaid: input.isPrepaid } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(customers.id, customerId))
-    .returning()
 
-  await log({
-    action: 'update_customer',
-    entityType: 'customer',
-    entityId: customerId,
-    metadata: { name },
-  })
+  // 2. Sync name/email to QBO if this customer has a QBO link
+  const [customer] = await db
+    .select({ qboCustomerId: customers.qboCustomerId })
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1)
 
-  // Sync billing fields to QBO if connected
-  if (updated?.qboCustomerId) {
+  if (customer?.qboCustomerId) {
     try {
       const qbo = await getQboClient()
 
-      // Fetch current SyncToken from QBO (required for sparse updates)
+      // Fetch current SyncToken — required before any QBO update
       const existing = await new Promise<{ Id: string; SyncToken: string }>(
-        (resolve, reject) =>
-          qbo.getCustomer(
-            updated.qboCustomerId!,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (err: unknown, result: any) =>
-              err || !result ? reject(err) : resolve(result)
-          )
-      )
-
-      await new Promise<void>((resolve, reject) =>
-        qbo.updateCustomer(
-          {
-            Id: existing.Id,
-            SyncToken: existing.SyncToken,
-            DisplayName: name,
-            PrimaryEmailAddr: email ? { Address: email } : undefined,
-            PrimaryPhone: phone ? { FreeFormNumber: phone } : undefined,
-            BillAddr: address ? { Line1: address } : undefined,
-            sparse: true,
-          },
+        (resolve, reject) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (err: unknown, _result: any) => (err ? reject(err) : resolve())
-        )
+          qbo.getCustomer(customer.qboCustomerId!, (err: unknown, result: any) =>
+            err ? reject(err) : resolve(result)
+          )
+        }
       )
 
+      // Sparse update: only send the fields we changed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const patch: Record<string, any> = {
+        Id: existing.Id,
+        SyncToken: existing.SyncToken,
+        sparse: true,
+        DisplayName: input.name,
+      }
+
+      if (input.email !== undefined) {
+        patch.PrimaryEmailAddr = input.email ? { Address: input.email } : null
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        qbo.updateCustomer(patch, (err: unknown, _result: any) =>
+          err ? reject(err) : resolve()
+        )
+      })
+
+      // Record sync time
       await db
         .update(customers)
         .set({ lastSyncedAt: new Date() })
         .where(eq(customers.id, customerId))
-
-      await log({
-        action: 'update_customer_qbo',
-        entityType: 'customer',
-        entityId: customerId,
-        metadata: { qboId: updated.qboCustomerId },
-      })
     } catch (err) {
-      await log({
-        action: 'update_customer_qbo',
-        entityType: 'customer',
-        entityId: customerId,
-        error: String(err),
-      })
-      // Don't surface QBO errors to user — local save succeeded
+      // QBO errors are non-fatal — local update already succeeded
+      console.error('[QBO] Failed to sync customer update', customerId, err)
     }
   }
 
-  redirect(`/customers/${customerId}`)
+  revalidatePath(`/customers/${customerId}`)
+  revalidatePath('/customers')
+}
+
+function emptyToNull(v: FormDataEntryValue | null): string | null {
+  if (v === null) return null
+  const s = typeof v === 'string' ? v.trim() : ''
+  return s === '' ? null : s
+}
+
+/** Form action — parses FormData for `<form action={...}>`. */
+export async function updateCustomerFromForm(
+  customerId: string,
+  formData: FormData
+): Promise<void> {
+  const name = formData.get('name')
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new Error('Name is required')
+  }
+  await updateCustomer(customerId, {
+    name: name.trim(),
+    email: emptyToNull(formData.get('email')),
+    phone: emptyToNull(formData.get('phone')),
+    address: emptyToNull(formData.get('address')),
+    notes: emptyToNull(formData.get('notes')),
+    isPrepaid: formData.get('isPrepaid') === 'on',
+  })
 }
