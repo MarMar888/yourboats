@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { customers, boats, services, serviceBoats } from '@/lib/db/schema'
-import { eq, desc, inArray } from 'drizzle-orm'
+import { customers, boats, services, serviceBoats, invoices } from '@/lib/db/schema'
+import { eq, desc, asc, inArray, and } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,13 @@ import AddBoatButton from './customer-detail-client'
 function statusVariant(status: string) {
   if (status === 'complete') return 'success' as const
   if (status === 'cancelled') return 'destructive' as const
+  return 'secondary' as const
+}
+
+function invoiceStatusVariant(status: string) {
+  if (status === 'paid') return 'success' as const
+  if (status === 'overdue') return 'destructive' as const
+  if (status === 'sent') return 'default' as const
   return 'secondary' as const
 }
 
@@ -53,6 +60,33 @@ export default async function CustomerDetailPage({
     .from(boats)
     .where(eq(boats.customerId, id))
     .orderBy(boats.nickname)
+
+  // Fetch upcoming scheduled services
+  const scheduledServices = await db
+    .select()
+    .from(services)
+    .where(and(eq(services.customerId, id), eq(services.status, 'scheduled')))
+    .orderBy(asc(services.serviceDate))
+
+  // Fetch invoices (joined through services)
+  const customerInvoices = await db
+    .select({
+      id:           invoices.id,
+      status:       invoices.status,
+      amount:       invoices.amount,
+      qboInvoiceId: invoices.qboInvoiceId,
+      sentAt:       invoices.sentAt,
+      paidAt:       invoices.paidAt,
+      createdAt:    invoices.createdAt,
+      serviceId:    invoices.serviceId,
+      serviceDate:  services.serviceDate,
+      serviceType:  services.serviceType,
+    })
+    .from(invoices)
+    .innerJoin(services, eq(invoices.serviceId, services.id))
+    .where(eq(services.customerId, id))
+    .orderBy(desc(invoices.createdAt))
+    .limit(50)
 
   // Fetch last 20 services with their boats
   const recentServices = await db
@@ -185,6 +219,91 @@ export default async function CustomerDetailPage({
         )}
       </div>
 
+      {/* Scheduled services */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Scheduled services</h2>
+        {scheduledServices.length === 0 ? (
+          <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
+            No upcoming services.
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card divide-y">
+            {scheduledServices.map((svc) => {
+              const boatNames = boatsByService.get(svc.id) ?? []
+              return (
+                <Link
+                  key={svc.id}
+                  href={`/schedule/${svc.id}`}
+                  className="flex items-start justify-between gap-4 px-4 py-3 text-sm hover:bg-accent/50 transition-colors"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{formatServiceType(svc.serviceType)}</span>
+                      {svc.approvedAt && (
+                        <span className="text-xs text-green-600 font-medium">✓ Approved</span>
+                      )}
+                    </div>
+                    <p className="text-muted-foreground">{formatDate(svc.serviceDate)}</p>
+                    {boatNames.length > 0 && (
+                      <p className="text-muted-foreground">{boatNames.join(', ')}</p>
+                    )}
+                  </div>
+                  {svc.totalPrice && (
+                    <span className="font-medium tabular-nums shrink-0">
+                      ${Number(svc.totalPrice).toFixed(2)}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Invoices */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Invoices</h2>
+        {customerInvoices.length === 0 ? (
+          <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
+            No invoices yet.
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card divide-y">
+            {customerInvoices.map((inv) => (
+              <Link
+                key={inv.id}
+                href={`/invoices`}
+                className="flex items-start justify-between gap-4 px-4 py-3 text-sm hover:bg-accent/50 transition-colors"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={invoiceStatusVariant(inv.status)} className="capitalize">
+                      {inv.status}
+                    </Badge>
+                    <span className="text-muted-foreground">
+                      {formatServiceType(inv.serviceType)} · {formatDate(inv.serviceDate)}
+                    </span>
+                  </div>
+                  {inv.sentAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Sent {new Date(inv.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  )}
+                  {inv.paidAt && (
+                    <p className="text-xs text-green-600">
+                      Paid {new Date(inv.paidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                <span className="font-medium tabular-nums shrink-0">
+                  ${Number(inv.amount).toFixed(2)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Service history */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Service history</h2>
@@ -198,9 +317,10 @@ export default async function CustomerDetailPage({
             {recentServices.map((svc) => {
               const boatNames = boatsByService.get(svc.id) ?? []
               return (
-                <div
+                <Link
                   key={svc.id}
-                  className="flex items-start justify-between gap-4 px-4 py-3 text-sm"
+                  href={`/schedule/${svc.id}`}
+                  className="flex items-start justify-between gap-4 px-4 py-3 text-sm hover:bg-accent/50 transition-colors"
                 >
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -219,7 +339,7 @@ export default async function CustomerDetailPage({
                       ${Number(svc.totalPrice).toFixed(2)}
                     </span>
                   )}
-                </div>
+                </Link>
               )
             })}
           </div>
