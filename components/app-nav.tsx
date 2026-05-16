@@ -39,7 +39,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'text-sm px-3 py-1.5 rounded-md transition-colors hover:bg-muted',
+                  'text-sm px-3 py-2.5 rounded-md transition-colors hover:bg-muted inline-flex items-center min-h-[44px]',
                   pathname.startsWith(item.href)
                     ? 'bg-muted font-medium text-foreground'
                     : 'text-muted-foreground'
