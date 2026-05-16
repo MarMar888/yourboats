@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { complaints, serviceBoatAssignments } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { log } from '@/lib/log'
 
 export async function flagComplaint(
   serviceId: string,
@@ -29,6 +30,7 @@ export async function flagComplaint(
     createdByUserId: user.id,
   })
 
+  await log({ action: 'flag_complaint', entityType: 'service', entityId: serviceId, meta: { customerId, severity } })
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/complaints')
 }
@@ -58,6 +60,7 @@ export async function updateBoatAssignments(
     )
   }
 
+  await log({ action: 'update_boat_assignment', entityType: 'service', entityId: serviceId, meta: { boatId, userIds } })
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/schedule')
 }
