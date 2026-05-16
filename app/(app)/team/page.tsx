@@ -2,8 +2,8 @@ import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { asc } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { updateUserRole, toggleUserActive, updateUserTier } from './actions'
 
 const ROLE_LABELS: Record<string, string> = {
