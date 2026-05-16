@@ -16,6 +16,8 @@ import { relations } from 'drizzle-orm'
 
 export const roleEnum = pgEnum('role', ['owner', 'manager', 'employee'])
 
+export const employeeTierEnum = pgEnum('employee_tier', ['top', 'mid', 'low'])
+
 export const serviceTypeEnum = pgEnum('service_type', [
   'recurring',
   'detailing',
@@ -51,6 +53,7 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull(),
   role: roleEnum('role').notNull().default('employee'),
   active: boolean('active').notNull().default(true),
+  tier: employeeTierEnum('tier'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -95,6 +98,12 @@ export const recurringSchedules = pgTable('recurring_schedules', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+export const tierConfig = pgTable('tier_config', {
+  tier: employeeTierEnum('tier').primaryKey(),
+  deductionPct: numeric('deduction_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
 export const services = pgTable('services', {
   id: uuid('id').primaryKey().defaultRandom(),
   customerId: uuid('customer_id')
@@ -105,6 +114,7 @@ export const services = pgTable('services', {
   status: serviceStatusEnum('status').notNull().default('scheduled'),
   notes: text('notes'),
   totalPrice: numeric('total_price', { precision: 10, scale: 2 }),
+  tipAmount: numeric('tip_amount', { precision: 10, scale: 2 }),
   recurringScheduleId: uuid('recurring_schedule_id').references(
     () => recurringSchedules.id,
     { onDelete: 'set null' }

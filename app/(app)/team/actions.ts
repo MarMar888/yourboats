@@ -20,6 +20,21 @@ export async function updateUserRole(
   return {}
 }
 
+export async function updateUserTier(
+  userId: string,
+  tier: 'top' | 'mid' | 'low' | null
+): Promise<{ error?: string }> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || currentUser.role !== 'owner') {
+    return { error: 'Only owners can change employee tiers.' }
+  }
+
+  await db.update(users).set({ tier }).where(eq(users.id, userId))
+  revalidatePath('/team')
+  revalidatePath('/pay')
+  return {}
+}
+
 export async function toggleUserActive(userId: string): Promise<{ error?: string }> {
   const currentUser = await getCurrentUser()
   if (!currentUser || currentUser.role !== 'owner') {

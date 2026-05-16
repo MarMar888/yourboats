@@ -17,6 +17,7 @@ const navItems: { href: string; label: string; roles: UserRole[] }[] = [
   { href: '/invoices', label: 'Invoices', roles: ['owner', 'manager'] },
   { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'] },
   { href: '/team', label: 'Team', roles: ['owner'] },
+  { href: '/pay', label: 'Pay', roles: ['owner', 'manager'] },
   { href: '/settings', label: 'Settings', roles: ['owner'] },
 ]
 

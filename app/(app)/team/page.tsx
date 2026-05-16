@@ -4,7 +4,7 @@ import { asc } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { updateUserRole, toggleUserActive } from './actions'
+import { updateUserRole, toggleUserActive, updateUserTier } from './actions'
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner',
@@ -28,6 +28,7 @@ export default async function TeamPage() {
         email: users.email,
         role: users.role,
         active: users.active,
+        tier: users.tier,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -57,6 +58,18 @@ export default async function TeamPage() {
                   <Badge variant={ROLE_BADGE_VARIANT[user.role] ?? 'outline'}>
                     {ROLE_LABELS[user.role] ?? user.role}
                   </Badge>
+                  {user.tier && (
+                    <span className={
+                      `text-xs rounded-full px-2 py-0.5 font-medium ` +
+                      (user.tier === 'top'
+                        ? 'bg-green-100 text-green-800'
+                        : user.tier === 'mid'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-orange-100 text-orange-800')
+                    }>
+                      {user.tier.charAt(0).toUpperCase() + user.tier.slice(1)} tier
+                    </span>
+                  )}
                   {!user.active && (
                     <Badge variant="destructive">Inactive</Badge>
                   )}
@@ -66,7 +79,32 @@ export default async function TeamPage() {
 
               {/* Owner-only controls */}
               {isOwner && (
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  {/* Tier selector */}
+                  <form
+                    action={async (formData: FormData) => {
+                      'use server'
+                      const rawTier = formData.get('tier') as string
+                      const tier = rawTier ? rawTier as 'top' | 'mid' | 'low' : null
+                      await updateUserTier(user.id, tier)
+                    }}
+                    className="flex items-center gap-1.5"
+                  >
+                    <select
+                      name="tier"
+                      defaultValue={user.tier ?? ''}
+                      className="text-sm rounded-md border border-input bg-background px-2 py-1.5 text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">No tier</option>
+                      <option value="top">Top</option>
+                      <option value="mid">Mid</option>
+                      <option value="low">Low</option>
+                    </select>
+                    <Button type="submit" variant="outline" size="sm">
+                      Set tier
+                    </Button>
+                  </form>
+
                   {/* Role selector */}
                   <form
                     action={async (formData: FormData) => {
@@ -86,7 +124,7 @@ export default async function TeamPage() {
                       <option value="employee">Employee</option>
                     </select>
                     <Button type="submit" variant="outline" size="sm">
-                      Save
+                      Save role
                     </Button>
                   </form>
 
