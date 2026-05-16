@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import {
   services, customers, serviceBoats, boats,
-  serviceBoatAssignments, invoices,
+  serviceBoatAssignments, invoices, complaints, users,
 } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
@@ -9,9 +9,11 @@ import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { Badge } from '@/components/ui/badge'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteService } from '../actions'
 import { BoatAssignment } from './boat-assignment'
+import FlagComplaintButton from './flag-complaint-button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -135,6 +137,21 @@ export default async function ServiceDetailPage({
   }
   const boatDetails = Array.from(boatMap.values())
 
+  // Fetch complaints
+  const serviceComplaints = await db
+    .select({
+      id:            complaints.id,
+      description:   complaints.description,
+      severity:      complaints.severity,
+      resolved:      complaints.resolved,
+      createdAt:     complaints.createdAt,
+      createdByName: users.displayName,
+    })
+    .from(complaints)
+    .leftJoin(users, eq(complaints.createdByUserId, users.id))
+    .where(eq(complaints.serviceId, id))
+    .orderBy(complaints.createdAt)
+
   // Fetch invoice
   const [invoice] = await db
     .select({
@@ -165,13 +182,16 @@ export default async function ServiceDetailPage({
               {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType} · {fmtDate(svc.serviceDate)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <span className={cn(
               'text-xs px-2.5 py-1 rounded-full border font-medium',
               STATUS_STYLES[svc.status] ?? STATUS_STYLES.scheduled
             )}>
               {svc.status}
             </span>
+            {canManage && (
+              <FlagComplaintButton serviceId={svc.id} customerId={svc.customerId} />
+            )}
             {canManage && (
               <ConfirmDeleteButton
                 action={deleteService.bind(null, svc.id, '/schedule')}
@@ -323,6 +343,33 @@ export default async function ServiceDetailPage({
             )}
           </div>
         </div>
+      )}
+
+      {/* Complaints */}
+      {serviceComplaints.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold mb-3">Complaints</h2>
+          <div className="rounded-lg border bg-card divide-y">
+            {serviceComplaints.map((c) => (
+              <div key={c.id} className="px-4 py-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Badge variant={c.severity === 'major' ? 'destructive' : 'warning'} className="capitalize">
+                    {c.severity}
+                  </Badge>
+                  {c.resolved ? (
+                    <Badge variant="success">Resolved</Badge>
+                  ) : (
+                    <Badge variant="outline">Open</Badge>
+                  )}
+                  {c.createdByName && (
+                    <span className="text-xs text-muted-foreground ml-auto">{c.createdByName}</span>
+                  )}
+                </div>
+                <p className="text-sm">{c.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Customer link */}
