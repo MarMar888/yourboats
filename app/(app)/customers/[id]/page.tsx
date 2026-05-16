@@ -84,7 +84,7 @@ export default async function CustomerDetailPage({
     })
     .from(invoices)
     .innerJoin(services, eq(invoices.serviceId, services.id))
-    .where(eq(services.customerId, id))
+    .where(and(eq(services.customerId, id), eq(services.status, 'complete')))
     .orderBy(desc(invoices.createdAt))
     .limit(50)
 
