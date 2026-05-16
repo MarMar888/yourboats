@@ -79,7 +79,7 @@ export default async function TeamPage() {
 
               {/* Owner-only controls */}
               {isOwner && (
-                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                   {/* Tier selector */}
                   <form
                     action={async (formData: FormData) => {
@@ -90,19 +90,20 @@ export default async function TeamPage() {
                     }}
                     className="flex items-center gap-1.5"
                   >
+                    <label className="text-xs text-muted-foreground">Tier</label>
                     <select
                       name="tier"
                       defaultValue={user.tier ?? ''}
                       className="text-sm rounded-md border border-input bg-background px-2 py-1.5 text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      <option value="">No tier</option>
+                      <option value="">—</option>
                       <option value="top">Top</option>
                       <option value="mid">Mid</option>
                       <option value="low">Low</option>
                     </select>
-                    <Button type="submit" variant="outline" size="sm">
-                      Set tier
-                    </Button>
+                    <button type="submit" className="text-xs text-primary hover:underline">
+                      Save
+                    </button>
                   </form>
 
                   {/* Role selector */}
@@ -114,6 +115,7 @@ export default async function TeamPage() {
                     }}
                     className="flex items-center gap-1.5"
                   >
+                    <label className="text-xs text-muted-foreground">Role</label>
                     <select
                       name="role"
                       defaultValue={user.role}
@@ -123,9 +125,9 @@ export default async function TeamPage() {
                       <option value="manager">Manager</option>
                       <option value="employee">Employee</option>
                     </select>
-                    <Button type="submit" variant="outline" size="sm">
-                      Save role
-                    </Button>
+                    <button type="submit" className="text-xs text-primary hover:underline">
+                      Save
+                    </button>
                   </form>
 
                   {/* Active toggle */}
@@ -135,13 +137,15 @@ export default async function TeamPage() {
                       await toggleUserActive(user.id)
                     }}
                   >
-                    <Button
+                    <button
                       type="submit"
-                      variant={user.active ? 'destructive' : 'secondary'}
-                      size="sm"
+                      className={cn(
+                        'text-xs hover:underline',
+                        user.active ? 'text-destructive' : 'text-muted-foreground'
+                      )}
                     >
                       {user.active ? 'Deactivate' : 'Reactivate'}
-                    </Button>
+                    </button>
                   </form>
                 </div>
               )}
