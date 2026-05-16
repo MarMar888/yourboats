@@ -113,6 +113,7 @@ export default async function ServiceDetailPage({
     .where(eq(serviceBoats.serviceId, id))
     .orderBy(boats.nickname)
 
+  // Deduplicate boats (multiple rows per boat if multiple assignees)
   const userNames = Object.fromEntries(DEV_USERS.map((u) => [u.id, u.displayName]))
 
   type BoatDetail = {
@@ -136,6 +137,22 @@ export default async function ServiceDetailPage({
   }
   const boatDetails = Array.from(boatMap.values())
 
+  // Fetch complaints
+  const serviceComplaints = await db
+    .select({
+      id:            complaints.id,
+      description:   complaints.description,
+      severity:      complaints.severity,
+      resolved:      complaints.resolved,
+      createdAt:     complaints.createdAt,
+      createdByName: users.displayName,
+    })
+    .from(complaints)
+    .leftJoin(users, eq(complaints.createdByUserId, users.id))
+    .where(eq(complaints.serviceId, id))
+    .orderBy(complaints.createdAt)
+
+  // Fetch invoice
   const [invoice] = await db
     .select({
       id:           invoices.id,
@@ -147,20 +164,6 @@ export default async function ServiceDetailPage({
     .from(invoices)
     .where(eq(invoices.serviceId, id))
     .limit(1)
-
-  const serviceComplaints = await db
-    .select({
-      id: complaints.id,
-      description: complaints.description,
-      severity: complaints.severity,
-      resolved: complaints.resolved,
-      createdAt: complaints.createdAt,
-      createdByName: users.displayName,
-    })
-    .from(complaints)
-    .leftJoin(users, eq(complaints.createdByUserId, users.id))
-    .where(eq(complaints.serviceId, id))
-    .orderBy(complaints.createdAt)
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -186,7 +189,9 @@ export default async function ServiceDetailPage({
             )}>
               {svc.status}
             </span>
-            <FlagComplaintButton serviceId={svc.id} customerId={svc.customerId} />
+            {canManage && (
+              <FlagComplaintButton serviceId={svc.id} customerId={svc.customerId} />
+            )}
             {canManage && (
               <ConfirmDeleteButton
                 action={deleteService.bind(null, svc.id, '/schedule')}
@@ -198,6 +203,7 @@ export default async function ServiceDetailPage({
         </div>
       </div>
 
+      {/* Approval / completion */}
       {(svc.approvedAt || svc.completedAt) && (
         <div className="flex flex-wrap gap-3 text-xs">
           {svc.approvedAt && (
@@ -214,6 +220,7 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
+      {/* Service notes */}
       {svc.notes && (
         <div className="rounded-md bg-yellow-50 border border-yellow-200 px-4 py-3">
           <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Service notes</p>
@@ -221,6 +228,7 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
+      {/* Boats */}
       <div>
         <h2 className="text-base font-semibold mb-3">
           Boats
@@ -288,7 +296,7 @@ export default async function ServiceDetailPage({
                     <p className="text-xs text-muted-foreground">
                       Assigned to:{' '}
                       <span className="font-medium text-foreground">
-                        {b.assignedIds.map((uid) => userNames[uid] ?? uid).join(', ')}
+                        {b.assignedIds.map((id) => userNames[id] ?? id).join(', ')}
                       </span>
                     </p>
                   ) : null}
@@ -299,6 +307,7 @@ export default async function ServiceDetailPage({
         )}
       </div>
 
+      {/* Invoice */}
       {invoice && (
         <div>
           <h2 className="text-base font-semibold mb-3">Invoice</h2>
@@ -336,6 +345,7 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
+      {/* Complaints */}
       {serviceComplaints.length > 0 && (
         <section>
           <h2 className="text-base font-semibold mb-3">Complaints</h2>
@@ -362,6 +372,7 @@ export default async function ServiceDetailPage({
         </section>
       )}
 
+      {/* Customer link */}
       <div className="pt-2 border-t">
         <Link
           href={`/customers/${svc.customerId}`}

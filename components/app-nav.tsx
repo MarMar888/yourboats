@@ -4,13 +4,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import type { CurrentUser } from '@/lib/auth/get-current-user'
 import { Button } from '@/components/ui/button'
 import GlobalCreateModal from '@/components/global-create-modal'
+import type { CurrentUser } from '@/lib/auth/get-current-user'
 
-type UserRole = CurrentUser['role']
-
-const navItems: { href: string; label: string; roles: UserRole[] }[] = [
+const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] = [
   { href: '/dashboard', label: 'Today', roles: ['owner', 'manager', 'employee'] },
   { href: '/schedule', label: 'Schedule', roles: ['owner', 'manager', 'employee'] },
   { href: '/customers', label: 'Customers', roles: ['owner', 'manager'] },
@@ -57,24 +55,23 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 + New
               </Button>
             )}
-            <span className="text-sm text-muted-foreground capitalize">{user.role}</span>
             {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
               <Link
                 href="/pick-user"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                {user.displayName}
+                {user.displayName} ({user.role})
               </Link>
             ) : (
-              <span className="text-sm font-medium text-muted-foreground">{user.displayName}</span>
+              <span className="text-sm text-muted-foreground">
+                {user.displayName}
+              </span>
             )}
           </div>
         </div>
       </header>
 
-      {canCreate && (
-        <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />
-      )}
+      <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />
     </>
   )
 }
