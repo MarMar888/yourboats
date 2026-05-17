@@ -174,6 +174,30 @@ export async function createQboInvoice(invoiceId: string): Promise<ActionResult>
   return { ok: true }
 }
 
+// ─── Edit invoice ─────────────────────────────────────────────────────────────
+
+export async function updateInvoice(
+  invoiceId: string,
+  { amount, notes, status }: { amount: string; notes: string; status: string }
+): Promise<ActionResult> {
+  const parsed = Number(amount)
+  if (isNaN(parsed) || parsed < 0) return { ok: false, error: 'Invalid amount.' }
+
+  await db
+    .update(invoices)
+    .set({
+      amount: String(parsed),
+      notes: notes || null,
+      status: status as never,
+      qboNeedsSync: true,
+    })
+    .where(eq(invoices.id, invoiceId))
+
+  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount, status } })
+  revalidatePath('/invoices')
+  return { ok: true }
+}
+
 // ─── Send invoice via QBO (emails the customer) ───────────────────────────────
 
 export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {

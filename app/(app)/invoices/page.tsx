@@ -2,9 +2,11 @@ import { db } from '@/lib/db'
 import { services, customers, invoices } from '@/lib/db/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import { cn } from '@/lib/utils'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { InvoiceActionsButton } from './invoice-actions-button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteInvoice } from './actions'
+import { InvoiceRow } from './invoice-row'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -33,14 +35,20 @@ function statusClass(status: InvoiceStatus) {
 }
 
 export default async function InvoicesPage() {
+  const currentUser = await getCurrentUser()
+  const canManage = currentUser?.role === 'owner' || currentUser?.role === 'manager'
+  const qboEnv = process.env.QBO_ENVIRONMENT
+
   // Draft invoices for completed services — ready to send
   const pending = await db
     .select({
       invoiceId:     invoices.id,
       qboInvoiceId:  invoices.qboInvoiceId,
       amount:        invoices.amount,
+      notes:         invoices.notes,
       status:        invoices.status,
       sentAt:        invoices.sentAt,
+      paidAt:        invoices.paidAt,
       serviceDate:   services.serviceDate,
       serviceStatus: services.status,
       serviceId:     services.id,
@@ -59,8 +67,10 @@ export default async function InvoicesPage() {
       invoiceId:     invoices.id,
       qboInvoiceId:  invoices.qboInvoiceId,
       amount:        invoices.amount,
+      notes:         invoices.notes,
       status:        invoices.status,
       sentAt:        invoices.sentAt,
+      paidAt:        invoices.paidAt,
       serviceDate:   services.serviceDate,
       serviceStatus: services.status,
       serviceId:     services.id,
@@ -104,17 +114,31 @@ export default async function InvoicesPage() {
               </thead>
               <tbody className="divide-y">
                 {pending.map((inv) => (
-                  <tr key={inv.invoiceId} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium">
-                      <a href={`/schedule/${inv.serviceId}`} className="hover:underline">
-                        {inv.customerName}
-                      </a>
-                    </td>
+                  <InvoiceRow
+                    key={inv.invoiceId}
+                    inv={{
+                      invoiceId: inv.invoiceId,
+                      qboInvoiceId: inv.qboInvoiceId,
+                      amount: inv.amount,
+                      notes: inv.notes,
+                      status: inv.status,
+                      sentAt: inv.sentAt,
+                      paidAt: inv.paidAt,
+                      serviceDate: inv.serviceDate,
+                      serviceStatus: inv.serviceStatus,
+                      serviceId: inv.serviceId,
+                      customerName: inv.customerName,
+                      customerId: inv.customerId,
+                      canManage,
+                      qboEnv,
+                    }}
+                  >
+                    <td className="px-4 py-3 font-medium">{inv.customerName}</td>
                     <td className="px-4 py-3 text-muted-foreground">{fmtDate(inv.serviceDate)}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold">
                       ${Number(inv.amount).toFixed(2)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <InvoiceActionsButton
                           invoiceId={inv.invoiceId}
@@ -128,7 +152,7 @@ export default async function InvoicesPage() {
                         />
                       </div>
                     </td>
-                  </tr>
+                  </InvoiceRow>
                 ))}
               </tbody>
             </table>
@@ -164,12 +188,26 @@ export default async function InvoicesPage() {
               </thead>
               <tbody className="divide-y">
                 {sent.map((inv) => (
-                  <tr key={inv.invoiceId} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium">
-                      <a href={`/schedule/${inv.serviceId}`} className="hover:underline">
-                        {inv.customerName}
-                      </a>
-                    </td>
+                  <InvoiceRow
+                    key={inv.invoiceId}
+                    inv={{
+                      invoiceId: inv.invoiceId,
+                      qboInvoiceId: inv.qboInvoiceId,
+                      amount: inv.amount,
+                      notes: inv.notes,
+                      status: inv.status,
+                      sentAt: inv.sentAt,
+                      paidAt: inv.paidAt,
+                      serviceDate: inv.serviceDate,
+                      serviceStatus: inv.serviceStatus,
+                      serviceId: inv.serviceId,
+                      customerName: inv.customerName,
+                      customerId: inv.customerId,
+                      canManage,
+                      qboEnv,
+                    }}
+                  >
+                    <td className="px-4 py-3 font-medium">{inv.customerName}</td>
                     <td className="px-4 py-3 text-muted-foreground">{fmtDate(inv.serviceDate)}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold">
                       ${Number(inv.amount).toFixed(2)}
@@ -189,6 +227,7 @@ export default async function InvoicesPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           #{inv.qboInvoiceId}
                         </a>
@@ -196,14 +235,14 @@ export default async function InvoicesPage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <ConfirmDeleteButton
                         action={deleteInvoice.bind(null, inv.invoiceId)}
                         title="Delete invoice"
                         description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
                       />
                     </td>
-                  </tr>
+                  </InvoiceRow>
                 ))}
               </tbody>
             </table>
