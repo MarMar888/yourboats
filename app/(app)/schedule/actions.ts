@@ -94,6 +94,31 @@ export async function approveWeek(startDate: string, endDate: string): Promise<v
       )
     )
 
+  await log({ action: 'approve_week', entityType: 'week', entityId: startDate, meta: { startDate, endDate } })
+  revalidatePath('/schedule')
+}
+
+export async function unapproveWeek(formData: FormData) {
+  const cookieStore = await cookies()
+  const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
+  const devUser = DEV_USERS.find((u) => u.id === devUserId)
+  if (!devUser || (devUser.role !== 'owner' && devUser.role !== 'manager')) return
+
+  const startDate = formData.get('startDate') as string
+  const endDate = formData.get('endDate') as string
+
+  await db
+    .update(services)
+    .set({ approvedAt: null, approvedByUserId: null })
+    .where(
+      and(
+        gte(services.serviceDate, startDate),
+        lte(services.serviceDate, endDate),
+        eq(services.status, 'scheduled')
+      )
+    )
+
+  await log({ action: 'unapprove_week', entityType: 'week', entityId: startDate, meta: { startDate, endDate } })
   revalidatePath('/schedule')
 }
 
