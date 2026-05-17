@@ -205,6 +205,7 @@ export const invoices = pgTable('invoices', {
   paidAt: timestamp('paid_at'),
   lastSyncedAt: timestamp('last_synced_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 })
 
 export const complaints = pgTable('complaints', {

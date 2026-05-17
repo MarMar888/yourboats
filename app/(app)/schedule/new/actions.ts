@@ -6,6 +6,7 @@ import { getQboClient } from '@/lib/qbo/client'
 import { eq, inArray } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { log } from '@/lib/log'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 // Returns every occurrence of dayOfWeek (0=Sun…6=Sat) between start and end
 // at the given frequency in weeks, as YYYY-MM-DD strings.
@@ -109,6 +110,9 @@ async function pushInvoiceToQbo(opts: {
 // ─── Main action ──────────────────────────────────────────────────────────────
 
 export async function createService(formData: FormData) {
+  const currentUser = await getCurrentUser()
+  const createdByUserId = currentUser?.id ?? null
+
   const mode = formData.get('mode') as 'onetime' | 'recurring'
   const customerId = formData.get('customerId') as string
   const serviceType = formData.get('serviceType') as string
@@ -158,6 +162,7 @@ export async function createService(formData: FormData) {
         serviceId: service.id,
         amount: String(total),
         status: 'draft',
+        createdByUserId,
       })
       .returning()
 
@@ -263,6 +268,7 @@ export async function createService(formData: FormData) {
           serviceId: service.id,
           amount: String(totalPerVisit),
           status: 'draft',
+          createdByUserId,
         })
         .returning()
 

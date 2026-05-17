@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AddBoatButton from './customer-detail-client'
 import ReminderContacts from './reminder-contacts-client'
+import { CustomerNotesEditor } from './customer-notes-editor'
+import { BoatNotesEditor } from './boat-notes-editor'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +48,9 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+
+  const currentUser = await getCurrentUser()
+  const canManage = currentUser?.role === 'owner' || currentUser?.role === 'manager'
 
   // Fetch customer
   const [customer] = await db
@@ -161,14 +167,16 @@ export default async function CustomerDetailPage({
           <CardTitle className="text-base">Customer info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {customer.notes && (
+          {canManage ? (
+            <CustomerNotesEditor customerId={id} notes={customer.notes} />
+          ) : customer.notes ? (
             <div className="rounded-md bg-yellow-50 border border-yellow-200 px-4 py-3">
               <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">
                 Notes / Gate code
               </p>
               <p className="text-sm text-yellow-900 whitespace-pre-wrap">{customer.notes}</p>
             </div>
-          )}
+          ) : null}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div>
@@ -226,7 +234,7 @@ export default async function CustomerDetailPage({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {customerBoats.map((boat) => (
               <Card key={boat.id}>
-                <CardContent className="pt-4 pb-4">
+                <CardContent className="pt-4 pb-4 space-y-2">
                   <p className="font-medium">{boat.nickname}</p>
                   {boat.makeModel && (
                     <p className="text-sm text-muted-foreground">{boat.makeModel}</p>
@@ -234,6 +242,11 @@ export default async function CustomerDetailPage({
                   {boat.lengthFt && (
                     <p className="text-sm text-muted-foreground">{boat.lengthFt} ft</p>
                   )}
+                  {canManage ? (
+                    <BoatNotesEditor boatId={boat.id} customerId={id} notes={boat.notes} />
+                  ) : boat.notes ? (
+                    <p className="text-xs text-muted-foreground italic">{boat.notes}</p>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
