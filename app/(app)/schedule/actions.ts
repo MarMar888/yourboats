@@ -60,6 +60,32 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
   return {}
 }
 
+export async function markIncomplete(serviceId: string): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Not authenticated' }
+  if (user.role !== 'owner' && user.role !== 'manager') return { error: 'Not authorized' }
+
+  const [service] = await db
+    .select({ id: services.id, status: services.status })
+    .from(services)
+    .where(eq(services.id, serviceId))
+    .limit(1)
+
+  if (!service) return { error: 'Service not found' }
+  if (service.status !== 'complete') return { error: 'Service is not complete' }
+
+  await db
+    .update(services)
+    .set({ status: 'scheduled', completedAt: null, completedByUserId: null })
+    .where(eq(services.id, serviceId))
+
+  await log({ action: 'mark_incomplete', entityType: 'service', entityId: serviceId })
+  revalidatePath('/dashboard')
+  revalidatePath('/schedule')
+  revalidatePath(`/schedule/${serviceId}`)
+  return {}
+}
+
 export async function deleteService(serviceId: string, redirectTo?: string): Promise<void> {
   const [linkedInvoice] = await db
     .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId })

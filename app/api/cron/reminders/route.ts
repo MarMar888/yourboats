@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
       WHERE s.service_date = ${targetDate}
         AND s.status = 'scheduled'
         AND s.approved_at IS NOT NULL
+        AND s.reminder_suppressed = false
         AND c.email IS NOT NULL
         AND c.email != ''
     `)
