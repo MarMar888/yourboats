@@ -5,10 +5,14 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import ServiceForm from './service-form'
+import { redirect } from 'next/navigation'
 
 export default async function NewServicePage() {
   const currentUser = await getCurrentUser()
-  const canAssign = currentUser?.role === 'owner' || currentUser?.role === 'manager'
+  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) {
+    redirect('/dashboard')
+  }
+  const canAssign = true // all managers and owners can assign
 
   const [allCustomers, allBoats, allUsers] = await Promise.all([
     db.select().from(customers).orderBy(asc(customers.name)),
