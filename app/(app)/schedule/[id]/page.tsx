@@ -372,6 +372,32 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
+      {/* Debug / admin IDs */}
+      {canManage && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none hover:text-foreground transition-colors">IDs</summary>
+          <div className="mt-1.5 space-y-1 pl-1">
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0">Service ID</span>
+              <span className="font-mono">{svc.id}</span>
+            </div>
+            {invoice && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="w-24 shrink-0">Invoice ID</span>
+                  <span className="font-mono">{invoice.id}</span>
+                </div>
+                {invoice.qboInvoiceId && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-24 shrink-0">QBO Invoice</span>
+                    <span className="font-mono">{invoice.qboInvoiceId}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </details>
+      )}
       {serviceComplaints.length > 0 && (
         <section>
           <h2 className="text-base font-semibold mb-3">Complaints</h2>
