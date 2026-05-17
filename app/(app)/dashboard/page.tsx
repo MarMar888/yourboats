@@ -147,7 +147,7 @@ async function fetchServiceData(dateFilter: { start: string; end: string }): Pro
 export default async function DashboardPage() {
   const cookieStore = await cookies()
   const user = DEV_USERS.find((u) => u.id === cookieStore.get(DEV_USER_COOKIE)?.value)
-  if (!user) redirect('/pick-user')
+  if (!user) redirect('/login')
 
   const today = todayYMD()
   const { start: weekStart, end: weekEnd } = thisWeekBounds()

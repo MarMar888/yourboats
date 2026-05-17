@@ -28,7 +28,7 @@ function reminderSendsLabel(serviceDate: string): string {
 
 export default async function RemindersPage() {
   const user = await getCurrentUser()
-  if (!user) redirect('/pick-user')
+  if (!user) redirect('/login')
 
   const today = toISODate(new Date())
 

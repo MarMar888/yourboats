@@ -5,7 +5,8 @@ import { auth } from '@/lib/auth/server'
 import { syncUser } from '@/lib/auth/sync-user'
 
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string
+  const username = (formData.get('username') as string ?? '').trim().toLowerCase()
+  const email = username.includes('@') ? username : `${username}@squeakycleanboats.com`
   const password = formData.get('password') as string
 
   const { data, error } = await auth.signIn.email({ email, password })

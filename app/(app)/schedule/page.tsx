@@ -65,7 +65,7 @@ interface PageProps {
 
 export default async function SchedulePage({ searchParams }: PageProps) {
   const currentUser = await getCurrentUser()
-  if (!currentUser) redirect('/pick-user')
+  if (!currentUser) redirect('/login')
 
   const isManager = currentUser.role === 'owner' || currentUser.role === 'manager'
 

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import GlobalCreateModal from '@/components/global-create-modal'
+import { logout } from '@/app/(auth)/login/actions'
 import type { CurrentUser } from '@/lib/auth/get-current-user'
 
 const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] = [
@@ -68,6 +69,13 @@ export default function AppNav({ user }: { user: CurrentUser }) {
               <span className="text-sm text-muted-foreground">
                 {user.displayName}
               </span>
+            )}
+            {process.env.NEXT_PUBLIC_DEV_AUTH !== 'true' && (
+              <form action={logout}>
+                <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
+                  Sign out
+                </Button>
+              </form>
             )}
           </div>
         </div>
