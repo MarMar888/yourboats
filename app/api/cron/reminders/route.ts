@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/drizzle'
-import { services } from '@/lib/db/schema'
+import { services, customerReminderContacts } from '@/lib/db/schema'
 import { emailTransport } from '@/lib/email/client'
 import {
   serviceReminderEmail,
@@ -13,6 +13,7 @@ interface TomorrowServiceRow {
   service_id: string
   service_date: string
   service_type: string
+  customer_id: string
   customer_name: string
   customer_email: string
   customer_phone: string | null
@@ -21,7 +22,8 @@ interface TomorrowServiceRow {
 
 // Grouped per-customer data
 interface CustomerReminder {
-  email: string
+  customerId: string
+  primaryEmail: string
   name: string
   phone: string | null
   serviceDate: string
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
         s.id              AS service_id,
         s.service_date    AS service_date,
         s.service_type    AS service_type,
+        c.id              AS customer_id,
         c.name            AS customer_name,
         c.email           AS customer_email,
         c.phone           AS customer_phone,
@@ -107,7 +110,8 @@ export async function GET(req: NextRequest) {
       }
     } else {
       byCustomer.set(row.customer_email, {
-        email: row.customer_email,
+        customerId: row.customer_id,
+        primaryEmail: row.customer_email,
         name: row.customer_name,
         phone: row.customer_phone ?? null,
         serviceDate: formatDate(row.service_date),
@@ -118,19 +122,38 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── Fetch extra reminder contacts ──────────────────────────────────────────
+  const customerIds = Array.from(byCustomer.values()).map((r) => r.customerId)
+  const extraContacts = customerIds.length
+    ? await db
+        .select({ customerId: customerReminderContacts.customerId, email: customerReminderContacts.email })
+        .from(customerReminderContacts)
+        .where(inArray(customerReminderContacts.customerId, customerIds))
+    : []
+
+  const extraByCustomer = new Map<string, string[]>()
+  for (const c of extraContacts) {
+    const list = extraByCustomer.get(c.customerId) ?? []
+    list.push(c.email)
+    extraByCustomer.set(c.customerId, list)
+  }
+
   // ── Dry-run: return preview without sending ───────────────────────────────
   if (dryRun) {
-    const preview = Array.from(byCustomer.values()).map((r) => ({
-      to: r.email,
-      customer: r.name,
-      serviceDate: r.serviceDate,
-      boats: r.boats,
-      serviceIds: r.serviceIds,
-    }))
+    const preview = Array.from(byCustomer.values()).map((r) => {
+      const extras = extraByCustomer.get(r.customerId) ?? []
+      return {
+        to: [r.primaryEmail, ...extras].join(', '),
+        customer: r.name,
+        serviceDate: r.serviceDate,
+        boats: r.boats,
+        serviceIds: r.serviceIds,
+      }
+    })
     return NextResponse.json({ sent: 0, skipped: 0, errors: [], dryRun: true, targetDate: dateOverride ?? null, preview })
   }
 
-  // ── Send one email per customer ────────────────────────────────────────────
+  // ── Send emails via Gmail ──────────────────────────────────────────────────
   let sent = 0
   let skipped = 0
   const errors: string[] = []
@@ -144,10 +167,13 @@ export async function GET(req: NextRequest) {
       businessPhone: reminder.phone ?? undefined,
     })
 
+    const extras = extraByCustomer.get(reminder.customerId) ?? []
+    const allTo = [reminder.primaryEmail, ...extras]
+
     try {
       await emailTransport.sendMail({
         from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
-        to: reminder.email,
+        to: allTo.join(', '),
         subject,
         text,
         html,
@@ -156,12 +182,12 @@ export async function GET(req: NextRequest) {
         .update(services)
         .set({ reminderSentAt: new Date() })
         .where(inArray(services.id, reminder.serviceIds))
-      console.log(`[cron/reminders] Sent reminder to ${reminder.email}`)
+      console.log(`[cron/reminders] Sent reminder to ${allTo.join(', ')}`)
       sent++
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
-      console.error(`[cron/reminders] Failed to send to ${reminder.email}:`, message)
-      errors.push(`${reminder.email}: ${message}`)
+      console.error(`[cron/reminders] Failed to send to ${allTo.join(', ')}:`, message)
+      errors.push(`${reminder.primaryEmail}: ${message}`)
       skipped++
     }
   }
@@ -174,7 +200,6 @@ export async function GET(req: NextRequest) {
  * Convert a YYYY-MM-DD date string to a friendly display like "Tuesday, June 3".
  */
 function formatDate(dateStr: string): string {
-  // Parse as UTC to avoid timezone shifting the date
   const [year, month, day] = dateStr.split('-').map(Number)
   const d = new Date(Date.UTC(year, month - 1, day))
   return d.toLocaleDateString('en-US', {

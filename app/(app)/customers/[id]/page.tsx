@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { customers, boats, services, serviceBoats, invoices } from '@/lib/db/schema'
+import { customers, boats, services, serviceBoats, invoices, customerReminderContacts } from '@/lib/db/schema'
 import { eq, desc, asc, inArray, and } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AddBoatButton from './customer-detail-client'
+import ReminderContacts from './reminder-contacts-client'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,13 @@ export default async function CustomerDetailPage({
           .where(inArray(serviceBoats.serviceId, serviceIds))
       : []
 
+  // Fetch reminder contacts for this customer
+  const reminderContacts = await db
+    .select()
+    .from(customerReminderContacts)
+    .where(eq(customerReminderContacts.customerId, id))
+    .orderBy(customerReminderContacts.createdAt)
+
   // Build a map boatId -> nickname for display
   const boatNicknameMap = new Map(customerBoats.map((b) => [b.id, b.nickname]))
   // Also fetch any boats that might be in serviceBoats but not in current boats list
@@ -186,6 +194,20 @@ export default async function CustomerDetailPage({
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Reminder contacts */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Reminder contacts</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Additional email addresses to receive service reminders (e.g. Google Voice SMS emails).
+            Primary email ({customer.email ?? 'none set'}) is always included.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ReminderContacts customerId={id} contacts={reminderContacts} />
         </CardContent>
       </Card>
 

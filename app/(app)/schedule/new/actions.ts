@@ -162,7 +162,7 @@ export async function createService(formData: FormData) {
       .returning()
 
     await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
-    await log({ action: 'create_service', entityType: 'service', entityId: service.id, meta: { customerId, serviceDate, serviceType, mode: 'onetime' } })
+    await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'onetime' } })
   } else {
     const startDate = formData.get('startDate') as string
     const endDate = formData.get('endDate') as string
@@ -268,7 +268,7 @@ export async function createService(formData: FormData) {
 
       // 4. Link invoice back to service
       await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
-      await log({ action: 'create_service', entityType: 'service', entityId: service.id, meta: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
+      await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
 
       // 5. Push to QBO if connected and we have a customer QBO ID
       if (qboItemId && customer?.qboCustomerId && boatRows.length > 0) {

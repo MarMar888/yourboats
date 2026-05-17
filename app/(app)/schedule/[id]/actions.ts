@@ -27,7 +27,7 @@ export async function flagComplaint(
     createdByUserId: currentUser.id,
   })
 
-  await log({ action: 'flag_complaint', entityType: 'service', entityId: serviceId, meta: { customerId, severity } })
+  await log({ action: 'flag_complaint', entityType: 'service', entityId: serviceId, metadata: { customerId, severity } })
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/complaints')
 }
@@ -55,7 +55,7 @@ export async function updateBoatAssignments(
     )
   }
 
-  await log({ action: 'update_boat_assignment', entityType: 'service', entityId: serviceId, meta: { boatId, userIds } })
+  await log({ action: 'update_boat_assignment', entityType: 'service', entityId: serviceId, metadata: { boatId, userIds } })
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/schedule')
 }
