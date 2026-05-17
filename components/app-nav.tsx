@@ -18,7 +18,7 @@ const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] 
   { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'] },
   { href: '/team', label: 'Team', roles: ['owner'] },
   { href: '/pay', label: 'Pay', roles: ['owner', 'manager'] },
-  { href: '/settings', label: 'Settings', roles: ['owner'] },
+  { href: '/settings', label: 'Settings', roles: ['owner', 'manager'] },
 ]
 
 export default function AppNav({ user }: { user: CurrentUser }) {

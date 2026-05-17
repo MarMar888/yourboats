@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { qboTokens } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -6,12 +7,16 @@ import { Button } from '@/components/ui/button'
 import ImportCustomersButton from './import-customers-button'
 import ReminderTestPanel from './reminder-test-panel'
 import ChangePasswordForm from './change-password-form'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ qbo?: string }>
 }) {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) redirect('/dashboard')
+
   const { qbo } = await searchParams
   const [tokens] = await db.select().from(qboTokens).where(eq(qboTokens.id, 1)).limit(1)
   const connected = !!tokens
