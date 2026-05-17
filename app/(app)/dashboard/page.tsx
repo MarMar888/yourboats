@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { and, eq, gte, lte, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -10,7 +9,7 @@ import {
   serviceBoatAssignments,
   users,
 } from '@/lib/db/schema'
-import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 import ServiceCard from '@/components/service-card'
 import type { ServiceCardBoat, ServiceCardEmployee } from '@/components/service-card'
 
@@ -145,8 +144,7 @@ async function fetchServiceData(dateFilter: { start: string; end: string }): Pro
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies()
-  const user = DEV_USERS.find((u) => u.id === cookieStore.get(DEV_USER_COOKIE)?.value)
+  const user = await getCurrentUser()
   if (!user) redirect('/login')
 
   const today = todayYMD()
@@ -162,14 +160,13 @@ export default async function DashboardPage() {
     showingThisWeek = true
   }
 
-  // Build userNameMap from DEV_USERS + DB users
+  // Build userNameMap from DB users
   let dbUsers: ServiceCardEmployee[] = []
   try {
     dbUsers = await db.select({ id: users.id, displayName: users.displayName }).from(users)
   } catch { /* non-fatal */ }
 
   const userNameMap: Record<string, string> = {}
-  for (const u of DEV_USERS) userNameMap[u.id] = u.displayName
   for (const u of dbUsers) userNameMap[u.id] = u.displayName
 
   const isManager = user.role === 'owner' || user.role === 'manager'
