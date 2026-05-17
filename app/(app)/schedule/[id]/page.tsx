@@ -14,6 +14,7 @@ import { deleteService } from '../actions'
 import { BoatAssignment } from './boat-assignment'
 import FlagComplaintButton from './flag-complaint-button'
 import { AddTipForm } from './add-tip-form'
+import { SyncTipButton } from './sync-tip-button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -351,7 +352,7 @@ export default async function ServiceDetailPage({
       {svc.status === 'complete' && (
         <div>
           <h2 className="text-base font-semibold mb-3">Tip</h2>
-          <div className="rounded-lg border bg-card px-4 py-3">
+          <div className="rounded-lg border bg-card px-4 py-3 space-y-2">
             {svc.tipAmount ? (
               <p className="text-sm font-medium">
                 Tip: <span className="tabular-nums">${Number(svc.tipAmount).toFixed(2)}</span>
@@ -363,6 +364,9 @@ export default async function ServiceDetailPage({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">No tip recorded.</p>
+            )}
+            {canManage && invoice?.qboInvoiceId && (
+              <SyncTipButton serviceId={svc.id} />
             )}
           </div>
         </div>

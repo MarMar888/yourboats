@@ -45,7 +45,7 @@ function parseDateParam(param: string | undefined): Date {
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
-  recurring:         'Recurring',
+  recurring:         'Recurring Clean',
   detailing:         'Detailing',
   buffing_waxing:    'Buff & Wax',
   acid_washing:      'Acid Wash',
@@ -102,31 +102,33 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   }
 
   // ── Services in week ──────────────────────────────────────────────────────
-  const serviceRows = await db
-    .select({
-      id:           services.id,
-      serviceDate:  services.serviceDate,
-      serviceType:  services.serviceType,
-      status:       services.status,
-      totalPrice:     services.totalPrice,
-      notes:          services.notes,
-      approvedAt:     services.approvedAt,
-      reminderSentAt: services.reminderSentAt,
-      customerId:   services.customerId,
-      customerName: customers.name,
-    })
-    .from(services)
-    .innerJoin(customers, eq(services.customerId, customers.id))
-    .where(
-      filteredServiceIds !== null
-        ? and(
-            gte(services.serviceDate, weekStartStr),
-            lte(services.serviceDate, weekEndStr),
-            inArray(services.id, filteredServiceIds.length > 0 ? filteredServiceIds : ['__none__'])
-          )
-        : and(gte(services.serviceDate, weekStartStr), lte(services.serviceDate, weekEndStr))
-    )
-    .orderBy(asc(services.serviceDate))
+  const serviceRows = filteredServiceIds !== null && filteredServiceIds.length === 0
+    ? []
+    : await db
+        .select({
+          id:           services.id,
+          serviceDate:  services.serviceDate,
+          serviceType:  services.serviceType,
+          status:       services.status,
+          totalPrice:     services.totalPrice,
+          notes:          services.notes,
+          approvedAt:     services.approvedAt,
+          reminderSentAt: services.reminderSentAt,
+          customerId:   services.customerId,
+          customerName: customers.name,
+        })
+        .from(services)
+        .innerJoin(customers, eq(services.customerId, customers.id))
+        .where(
+          filteredServiceIds !== null
+            ? and(
+                gte(services.serviceDate, weekStartStr),
+                lte(services.serviceDate, weekEndStr),
+                inArray(services.id, filteredServiceIds)
+              )
+            : and(gte(services.serviceDate, weekStartStr), lte(services.serviceDate, weekEndStr))
+        )
+        .orderBy(asc(services.serviceDate))
 
   const serviceIds = serviceRows.map((s) => s.id)
 
