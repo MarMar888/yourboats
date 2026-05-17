@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ImportCustomersButton from './import-customers-button'
+import SyncQboItemsButton from './sync-qbo-items-button'
 import ReminderTestPanel from './reminder-test-panel'
 import ChangePasswordForm from './change-password-form'
 
@@ -93,6 +94,21 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent>
               <ImportCustomersButton />
+            </CardContent>
+          </Card>
+        )}
+
+        {connected && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Sync QBO items</CardTitle>
+              <CardDescription>
+                Pull your active products/services from QuickBooks into yourboats. These are used
+                when creating invoices — run this after adding or changing items in QBO.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SyncQboItemsButton />
             </CardContent>
           </Card>
         )}

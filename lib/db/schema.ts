@@ -246,6 +246,15 @@ export const qboTokens = pgTable('qbo_tokens', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const qboItems = pgTable('qbo_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  qboItemId: text('qbo_item_id').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  unitPrice: numeric('unit_price', { precision: 10, scale: 2 }),
+  syncedAt: timestamp('synced_at').defaultNow().notNull(),
+})
+
 export type QboTokens = typeof qboTokens.$inferSelect
 
 // ─── Relations ────────────────────────────────────────────────────────────────
@@ -332,3 +341,5 @@ export type Complaint = typeof complaints.$inferSelect
 export type NewComplaint = typeof complaints.$inferInsert
 export type CustomerReminderContact = typeof customerReminderContacts.$inferSelect
 export type NewCustomerReminderContact = typeof customerReminderContacts.$inferInsert
+export type QboItem = typeof qboItems.$inferSelect
+export type NewQboItem = typeof qboItems.$inferInsert
