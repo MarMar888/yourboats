@@ -16,6 +16,8 @@ import FlagComplaintButton from './flag-complaint-button'
 import { AddTipForm } from './add-tip-form'
 import { SyncTipButton } from './sync-tip-button'
 import { MarkIncompleteButton } from './mark-incomplete-button'
+import { EditServicePanel } from './edit-service-panel'
+import { GenerateInvoiceButton } from './generate-invoice-button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,6 +146,15 @@ export default async function ServiceDetailPage({
   }
   const boatDetails = Array.from(boatMap.values())
 
+  // Fetch all boats for this customer (for edit form boat picker)
+  const allCustomerBoats = await db
+    .select({ id: boats.id, nickname: boats.nickname, makeModel: boats.makeModel, lengthFt: boats.lengthFt })
+    .from(boats)
+    .innerJoin(customers, eq(boats.customerId, customers.id))
+    .innerJoin(services, eq(services.customerId, customers.id))
+    .where(eq(services.id, id))
+    .orderBy(boats.nickname)
+
   const [invoice] = await db
     .select({
       id:           invoices.id,
@@ -199,11 +210,36 @@ export default async function ServiceDetailPage({
             )}
             <FlagComplaintButton serviceId={svc.id} customerId={svc.customerId} />
             {canManage && (
-              <ConfirmDeleteButton
-                action={deleteService.bind(null, svc.id, '/schedule')}
-                title="Delete service"
-                description={`Delete the service for ${svc.customerName} on ${fmtDate(svc.serviceDate)}? The associated invoice will also be deleted. This cannot be undone.`}
-              />
+              <>
+                <EditServicePanel
+                  serviceId={svc.id}
+                  initialValues={{
+                    serviceDate: svc.serviceDate,
+                    serviceType: svc.serviceType,
+                    notes: svc.notes,
+                    totalPrice: svc.totalPrice,
+                    status: svc.status,
+                  }}
+                  boats={boatDetails}
+                  allCustomerBoats={allCustomerBoats.map((b) => ({
+                    boatId: b.id,
+                    nickname: b.nickname,
+                    makeModel: b.makeModel,
+                    lengthFt: b.lengthFt,
+                    description: boatMap.get(b.id)?.description ?? null,
+                    notes: boatMap.get(b.id)?.notes ?? null,
+                    rateType: boatMap.get(b.id)?.rateType ?? null,
+                    rate: boatMap.get(b.id)?.rate ?? null,
+                    assignedIds: boatMap.get(b.id)?.assignedIds ?? [],
+                  }))}
+                  employees={allUsers}
+                />
+                <ConfirmDeleteButton
+                  action={deleteService.bind(null, svc.id, '/schedule')}
+                  title="Delete service"
+                  description={`Delete the service for ${svc.customerName} on ${fmtDate(svc.serviceDate)}? The associated invoice will also be deleted. This cannot be undone.`}
+                />
+              </>
             )}
           </div>
         </div>
@@ -315,9 +351,9 @@ export default async function ServiceDetailPage({
         )}
       </div>
 
-      {invoice && (
-        <div>
-          <h2 className="text-base font-semibold mb-3">Invoice</h2>
+      <div>
+        <h2 className="text-base font-semibold mb-3">Invoice</h2>
+        {invoice ? (
           <div className="rounded-lg border bg-card px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className={cn(
@@ -349,8 +385,15 @@ export default async function ServiceDetailPage({
               </a>
             )}
           </div>
-        </div>
-      )}
+        ) : svc.status === 'complete' && canManage ? (
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-sm text-muted-foreground mb-2">No invoice for this service.</p>
+            <GenerateInvoiceButton serviceId={svc.id} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No invoice yet.</p>
+        )}
+      </div>
 
       {/* Tip section — shown for completed services */}
       {svc.status === 'complete' && (
