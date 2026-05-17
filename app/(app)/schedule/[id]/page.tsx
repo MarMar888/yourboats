@@ -15,6 +15,7 @@ import { BoatAssignment } from './boat-assignment'
 import FlagComplaintButton from './flag-complaint-button'
 import { AddTipForm } from './add-tip-form'
 import { SyncTipButton } from './sync-tip-button'
+import { MarkIncompleteButton } from './mark-incomplete-button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -193,6 +194,9 @@ export default async function ServiceDetailPage({
             )}>
               {svc.status}
             </span>
+            {canManage && svc.status === 'complete' && (
+              <MarkIncompleteButton serviceId={svc.id} />
+            )}
             <FlagComplaintButton serviceId={svc.id} customerId={svc.customerId} />
             {canManage && (
               <ConfirmDeleteButton

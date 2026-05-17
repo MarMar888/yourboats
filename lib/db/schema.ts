@@ -134,6 +134,7 @@ export const services = pgTable('services', {
   approvedAt: timestamp('approved_at'),
   approvedByUserId: text('approved_by_user_id'),
   reminderSentAt: timestamp('reminder_sent_at'),
+  reminderSuppressed: boolean('reminder_suppressed').notNull().default(false),
   invoiceId: uuid('invoice_id'), // set after invoice created; FK added below via relation
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })

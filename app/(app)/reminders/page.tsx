@@ -5,6 +5,7 @@ import { services, customers, serviceBoats, boats } from '@/lib/db/schema'
 import { eq, and, gte, isNull, isNotNull, asc, inArray } from 'drizzle-orm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { SuppressButton } from './suppress-button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,17 +31,20 @@ export default async function RemindersPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
+  const isManager = user.role === 'owner' || user.role === 'manager'
+
   const today = toISODate(new Date())
 
-  // Query all upcoming scheduled services that are approved, future, and haven't had a reminder sent
+  // Query all upcoming scheduled services that are approved and future (include suppressed so they show)
   const serviceRows = await db
     .select({
-      id:           services.id,
-      serviceDate:  services.serviceDate,
-      status:       services.status,
-      customerId:   services.customerId,
-      customerName: customers.name,
-      customerEmail: customers.email,
+      id:                 services.id,
+      serviceDate:        services.serviceDate,
+      status:             services.status,
+      customerId:         services.customerId,
+      customerName:       customers.name,
+      customerEmail:      customers.email,
+      reminderSuppressed: services.reminderSuppressed,
     })
     .from(services)
     .innerJoin(customers, eq(services.customerId, customers.id))
@@ -119,15 +123,29 @@ export default async function RemindersPage() {
                 {group.map((s) => {
                   const boatList = boatsByService[s.id] ?? []
                   return (
-                    <Card key={s.id} className="border shadow-sm">
+                    <Card key={s.id} className={s.reminderSuppressed ? 'border border-dashed opacity-60' : 'border shadow-sm'}>
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
                           <CardTitle className="text-base font-semibold leading-tight">
                             {s.customerName}
                           </CardTitle>
-                          <Badge variant="secondary" className="shrink-0 text-xs">
-                            Scheduled
-                          </Badge>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {s.reminderSuppressed ? (
+                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                                Suppressed
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                Scheduled
+                              </Badge>
+                            )}
+                            {isManager && (
+                              <SuppressButton
+                                serviceId={s.id}
+                                suppressed={s.reminderSuppressed}
+                              />
+                            )}
+                          </div>
                         </div>
                         {s.customerEmail && (
                           <p className="text-xs text-muted-foreground">{s.customerEmail}</p>
@@ -146,12 +164,14 @@ export default async function RemindersPage() {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-1.5 pt-1">
-                          <span className="text-xs text-muted-foreground">Sends:</span>
-                          <span className="text-xs font-medium text-foreground">
-                            {reminderSendsLabel(dateStr)}
-                          </span>
-                        </div>
+                        {!s.reminderSuppressed && (
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <span className="text-xs text-muted-foreground">Sends:</span>
+                            <span className="text-xs font-medium text-foreground">
+                              {reminderSendsLabel(dateStr)}
+                            </span>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )

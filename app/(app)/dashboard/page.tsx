@@ -25,14 +25,14 @@ function todayYMD(): string {
 
 function thisWeekBounds(): { start: string; end: string } {
   const now = new Date()
-  const day = now.getDay()
-  const monday = new Date(now)
-  monday.setDate(now.getDate() - ((day + 6) % 7))
-  monday.setHours(0, 0, 0, 0)
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-  sunday.setHours(23, 59, 59, 999)
-  return { start: toYMD(monday), end: toYMD(sunday) }
+  const day = now.getDay() // 0=Sun, 6=Sat
+  const sunday = new Date(now)
+  sunday.setDate(now.getDate() - day)
+  sunday.setHours(0, 0, 0, 0)
+  const saturday = new Date(sunday)
+  saturday.setDate(sunday.getDate() + 6)
+  saturday.setHours(23, 59, 59, 999)
+  return { start: toYMD(sunday), end: toYMD(saturday) }
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
