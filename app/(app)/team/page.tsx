@@ -50,7 +50,7 @@ export default async function TeamPage() {
       ) : (
         <div className="rounded-lg border bg-card divide-y">
           {allUsers.map((user) => (
-            <div key={user.id} className="flex items-center justify-between gap-4 p-4">
+            <div key={user.id} className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
               {/* User info */}
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -74,12 +74,12 @@ export default async function TeamPage() {
                     <Badge variant="destructive">Inactive</Badge>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                <p className="break-words text-sm text-muted-foreground">{user.email}</p>
               </div>
 
               {/* Owner-only controls */}
               {isOwner && (
-                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                   {/* Tier selector */}
                   <form
                     action={async (formData: FormData) => {

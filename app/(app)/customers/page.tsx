@@ -7,7 +7,7 @@ export default async function CustomersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Customers</h1>
       </div>
 
@@ -21,14 +21,14 @@ export default async function CustomersPage() {
             <Link
               key={c.id}
               href={`/customers/${c.id}`}
-              className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+              className="flex flex-col gap-2 p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium">{c.name}</p>
-                <p className="text-sm text-muted-foreground">{c.email ?? c.phone ?? '—'}</p>
+                <p className="break-words text-sm text-muted-foreground">{c.email ?? c.phone ?? '—'}</p>
               </div>
               {c.isPrepaid && (
-                <span className="text-xs bg-blue-100 text-blue-800 rounded-full px-2 py-0.5">
+                <span className="w-fit rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
                   Prepaid
                 </span>
               )}

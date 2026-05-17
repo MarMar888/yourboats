@@ -178,14 +178,14 @@ export default async function ServiceDetailPage({
         >
           ← Schedule
         </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">{svc.customerName}</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-semibold">{svc.customerName}</h1>
             <p className="text-muted-foreground mt-0.5">
               {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType} · {fmtDate(svc.serviceDate)}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
             <span className={cn(
               'text-xs px-2.5 py-1 rounded-full border font-medium',
               STATUS_STYLES[svc.status] ?? STATUS_STYLES.scheduled
@@ -253,17 +253,17 @@ export default async function ServiceDetailPage({
 
               return (
                 <div key={b.boatId} className="rounded-lg border bg-card px-4 py-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <span className="font-medium text-sm">{b.nickname}</span>
-                      {b.makeModel && <span className="text-xs text-muted-foreground ml-2">{b.makeModel}</span>}
-                      {b.lengthFt && <span className="text-xs text-muted-foreground ml-1">· {b.lengthFt} ft</span>}
+                      {b.makeModel && <span className="block text-xs text-muted-foreground sm:ml-2 sm:inline">{b.makeModel}</span>}
+                      {b.lengthFt && <span className="text-xs text-muted-foreground sm:ml-1">· {b.lengthFt} ft</span>}
                     </div>
                     {lineTotal > 0 && (
-                      <span className="text-sm font-semibold tabular-nums shrink-0">
+                      <span className="text-sm font-semibold tabular-nums sm:shrink-0">
                         ${lineTotal.toFixed(2)}
                         {b.rateType === 'per_ft' && b.lengthFt && (
-                          <span className="text-xs font-normal text-muted-foreground ml-1">
+                          <span className="block text-xs font-normal text-muted-foreground sm:ml-1 sm:inline">
                             ({b.lengthFt}ft × ${rate.toFixed(2)})
                           </span>
                         )}
@@ -313,8 +313,8 @@ export default async function ServiceDetailPage({
       {invoice && (
         <div>
           <h2 className="text-base font-semibold mb-3">Invoice</h2>
-          <div className="rounded-lg border bg-card px-4 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
               <span className={cn(
                 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
                 invoice.status === 'paid'    ? 'border-green-200 bg-green-50 text-green-700' :
@@ -338,7 +338,7 @@ export default async function ServiceDetailPage({
                 href={qboInvoiceUrl(invoice.qboInvoiceId)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-mono text-primary hover:underline"
+                className="break-all text-xs font-mono text-primary hover:underline"
               >
                 #{invoice.qboInvoiceId}
               </a>
@@ -374,7 +374,7 @@ export default async function ServiceDetailPage({
           <div className="rounded-lg border bg-card divide-y">
             {serviceComplaints.map((c) => (
               <div key={c.id} className="px-4 py-3 space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={c.severity === 'major' ? 'destructive' : 'warning'} className="capitalize">
                     {c.severity}
                   </Badge>

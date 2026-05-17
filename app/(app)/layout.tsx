@@ -13,9 +13,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
       <AppNav user={user} />
-      <main className="flex-1 container py-6">{children}</main>
+      <main className="flex-1 container w-full max-w-screen-xl px-4 py-4 sm:px-6 sm:py-6">
+        {children}
+      </main>
       <AppFooter />
     </div>
   )

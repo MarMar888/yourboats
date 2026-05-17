@@ -219,11 +219,11 @@ export default async function SchedulePage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Schedule</h1>
         {isManager && allScheduled.length > 0 && (
           weekApproved ? (
-            <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1 font-medium">
+            <span className="w-fit rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
               ✓ Week approved
             </span>
           ) : (
@@ -232,7 +232,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
               <input type="hidden" name="endDate" value={weekEndStr} />
               <button
                 type="submit"
-                className="text-sm font-medium px-4 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:w-auto sm:py-1.5"
               >
                 Approve week
               </button>
@@ -242,9 +242,9 @@ export default async function SchedulePage({ searchParams }: PageProps) {
       </div>
 
       {/* Employee filter */}
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         <Link href={employeeFilterUrl('')} className={cn(
-          'inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors',
+          'inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
           !selectedEmployee
             ? 'bg-primary text-primary-foreground border-transparent'
             : 'bg-background text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground'
@@ -253,7 +253,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         </Link>
         {employeeList.map((emp) => (
           <Link key={emp.id} href={employeeFilterUrl(emp.id)} className={cn(
-            'inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors',
+            'inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
             selectedEmployee === emp.id
               ? 'bg-primary text-primary-foreground border-transparent'
               : 'bg-background text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground'
@@ -264,21 +264,21 @@ export default async function SchedulePage({ searchParams }: PageProps) {
       </div>
 
       {/* Week navigation */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6 grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:flex sm:gap-3">
         <Link
           href={`/schedule?week=${prevWeekStr}${selectedEmployee ? `&employee=${selectedEmployee}` : ''}`}
-          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors hover:bg-accent sm:py-1.5"
         >
           ← Prev
         </Link>
-        <span className="text-sm font-medium">
+        <span className="text-center text-sm font-medium">
           {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           {' – '}
           {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </span>
         <Link
           href={`/schedule?week=${nextWeekStr}${selectedEmployee ? `&employee=${selectedEmployee}` : ''}`}
-          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors hover:bg-accent sm:py-1.5"
         >
           Next →
         </Link>
@@ -319,7 +319,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                     <div
                       key={card.id}
                       className={cn(
-                        'relative flex flex-col rounded-xl border bg-card shadow-sm p-4 gap-2',
+                        'relative flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-4 shadow-sm',
                         card.approvedAt && 'border-green-200 bg-green-50/30'
                       )}
                     >
@@ -327,7 +327,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                       <div className="flex items-start justify-between gap-2">
                         <Link
                           href={`/schedule/${card.id}`}
-                          className="font-semibold text-base leading-tight hover:underline"
+                          className="min-w-0 break-words text-base font-semibold leading-tight hover:underline"
                         >
                           {card.customerName}
                         </Link>
@@ -369,7 +369,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                             <div key={b.boatId} className="text-sm">
                               <span className="font-medium">{b.nickname}</span>
                               {b.assignedIds.length > 0 && (
-                                <span className="text-xs text-muted-foreground ml-1.5">
+                                <span className="block text-xs text-muted-foreground sm:ml-1.5 sm:inline">
                                   — {b.assignedIds.map((id) => userNameMap[id] ?? id).join(', ')}
                                 </span>
                               )}

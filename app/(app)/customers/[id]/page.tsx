@@ -98,14 +98,16 @@ export default async function CustomerDetailPage({
         >
           ← Customers
         </Link>
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-semibold">{customer.name}</h1>
-          {customer.isPrepaid && (
-            <Badge variant="default" className="bg-blue-100 text-blue-800 border-0">
-              Prepaid
-            </Badge>
-          )}
-          <div className="ml-auto">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="break-words text-2xl font-semibold">{customer.name}</h1>
+            {customer.isPrepaid && (
+              <Badge variant="default" className="bg-blue-100 text-blue-800 border-0">
+                Prepaid
+              </Badge>
+            )}
+          </div>
+          <div className="sm:ml-auto">
             <Button asChild variant="outline" size="sm">
               <Link href={`/customers/${id}/edit`}>Edit</Link>
             </Button>
@@ -131,7 +133,7 @@ export default async function CustomerDetailPage({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-muted-foreground text-xs mb-0.5">Email</p>
-              <p>{customer.email ?? '—'}</p>
+              <p className="break-words">{customer.email ?? '—'}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs mb-0.5">Phone</p>
@@ -157,7 +159,7 @@ export default async function CustomerDetailPage({
 
       {/* Boats section */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Boats</h2>
           <AddBoatButton customerId={id} />
         </div>
@@ -215,7 +217,7 @@ export default async function CustomerDetailPage({
                     )}
                   </div>
                   {svc.totalPrice && (
-                    <span className="font-medium tabular-nums shrink-0">
+                    <span className="shrink-0 font-medium tabular-nums">
                       ${Number(svc.totalPrice).toFixed(2)}
                     </span>
                   )}

@@ -13,7 +13,7 @@ export default async function LoginPage({
   const { message } = await searchParams
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40">
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-8">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">yourboats</CardTitle>

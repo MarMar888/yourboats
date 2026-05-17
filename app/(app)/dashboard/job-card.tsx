@@ -62,14 +62,14 @@ export default function JobCard({
     <Card className={cn('transition-opacity', isPending && 'opacity-60')}>
       <CardContent className="pt-5 pb-3 space-y-3">
         {/* Customer + address */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <p className="font-semibold text-base leading-tight">{customerName}</p>
             {customerAddress && (
               <p className="text-sm text-muted-foreground mt-0.5">{customerAddress}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
             <Badge variant={STATUS_VARIANT[status] ?? 'outline'}>
               {status}
             </Badge>
@@ -106,7 +106,7 @@ export default function JobCard({
               >
                 <span className="font-medium">{b.nickname}</span>
                 {(b.makeModel || b.lengthFt) && (
-                  <span className="text-muted-foreground ml-1.5">
+                  <span className="block text-muted-foreground sm:ml-1.5 sm:inline">
                     {[b.makeModel, b.lengthFt ? `${b.lengthFt}ft` : null]
                       .filter(Boolean)
                       .join(' · ')}

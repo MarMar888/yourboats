@@ -70,13 +70,13 @@ export default async function ComplaintsPage({
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 mb-4 border-b">
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b">
         {TAB_ITEMS.map((tab) => (
           <Link
             key={tab.value}
             href={tab.value === 'all' ? '/complaints' : `/complaints?filter=${tab.value}`}
             className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               filter === tab.value
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -95,7 +95,7 @@ export default async function ComplaintsPage({
       ) : (
         <div className="rounded-lg border bg-card divide-y">
           {filtered.map((c) => (
-            <div key={c.id} className="flex items-start gap-4 p-4">
+            <div key={c.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-4">
               {/* Main info */}
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -128,7 +128,7 @@ export default async function ComplaintsPage({
               </div>
 
               {/* Right side: resolved badge + resolve button */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex shrink-0 items-center gap-2 sm:justify-end">
                 {c.resolved ? (
                   <Badge variant="success">Resolved</Badge>
                 ) : (
