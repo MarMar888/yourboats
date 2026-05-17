@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
-  services, customers, serviceAssignments,
+  services, customers, serviceBoatAssignments,
   serviceBoats, boats, users, tierConfig,
 } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
@@ -82,48 +82,74 @@ export async function GET(req: NextRequest) {
     ;(boatsByService[b.serviceId] ??= []).push(b.label)
   }
 
-  // 3. Assignments per service (with user tier)
+  // 3. Assignments per service from serviceBoatAssignments
+  // userId is stored as text (may be UUID string); join to users on cast
   const assignRows = await db
     .select({
-      serviceId:   serviceAssignments.serviceId,
-      userId:      serviceAssignments.userId,
-      sharePct:    serviceAssignments.sharePct,
+      serviceId:   serviceBoatAssignments.serviceId,
+      userId:      serviceBoatAssignments.userId,
       displayName: users.displayName,
       tier:        users.tier,
     })
-    .from(serviceAssignments)
-    .innerJoin(users, eq(serviceAssignments.userId, users.id))
-    .where(inArray(serviceAssignments.serviceId, svcIds))
+    .from(serviceBoatAssignments)
+    .innerJoin(users, sql`${users.id}::text = ${serviceBoatAssignments.userId}`)
+    .where(inArray(serviceBoatAssignments.serviceId, svcIds))
 
   // 4. Tier config for deductions
   const tierRows = await db.select().from(tierConfig)
   const deductionByTier: Record<string, number> = {}
   for (const t of tierRows) deductionByTier[t.tier] = Number(t.deductionPct)
 
-  // 5. Group assignments by service
-  const assignsByService: Record<string, AssignmentRow[]> = {}
+  // 5. Deduplicate: a user may appear multiple times per service (one per boat).
+  //    Build a map: serviceId -> Map<userId, { displayName, tier }>
+  const uniqueByService: Record<string, Map<string, { displayName: string; tier: string | null }>> = {}
   for (const a of assignRows) {
-    const deductionPct = a.tier ? (deductionByTier[a.tier] ?? 0) : 0
-    const basePay = 0 // filled per-service below
-    ;(assignsByService[a.serviceId] ??= []).push({
-      userId: a.userId,
-      displayName: a.displayName,
-      sharePct: a.sharePct,
-      basePay,
-      deductionPct,
-      netPay: 0,
-    })
+    const map = (uniqueByService[a.serviceId] ??= new Map())
+    if (!map.has(a.userId)) {
+      map.set(a.userId, { displayName: a.displayName, tier: a.tier })
+    }
   }
 
   // 6. Assemble rows with pay math
   const result: PeriodServiceRow[] = svcRows.map((s) => {
     const totalPrice = Number(s.totalPrice ?? 0)
     const tipAmount = s.tipAmount != null ? Number(s.tipAmount) : null
-    const assignments = (assignsByService[s.id] ?? []).map((a) => {
-      const basePay = totalPrice * (a.sharePct / 100)
-      const netPay = basePay * (1 - a.deductionPct / 100)
-      return { ...a, basePay, netPay }
+    const userMap = uniqueByService[s.id]
+
+    if (!userMap || userMap.size === 0) {
+      return {
+        serviceId: s.id,
+        serviceDate: s.serviceDate,
+        customerName: s.customerName,
+        boats: boatsByService[s.id] ?? [],
+        totalPrice,
+        tipAmount,
+        assignments: [],
+        totalNetPay: 0,
+      }
+    }
+
+    const userEntries = Array.from(userMap.entries())
+    const count = userEntries.length
+    // Equal split; last employee absorbs any rounding remainder
+    const basePct = Math.floor(100 / count)
+    const remainder = 100 - basePct * count
+
+    const assignments: AssignmentRow[] = userEntries.map(([userId, info], idx) => {
+      const sharePct = idx === count - 1 ? basePct + remainder : basePct
+      const deductionPct = info.tier ? (deductionByTier[info.tier] ?? 0) : 0
+      const basePay = totalPrice * (sharePct / 100)
+      const netPay = basePay * (1 - deductionPct / 100)
+      return {
+        userId,
+        displayName: info.displayName,
+        sharePct,
+        basePay,
+        deductionPct,
+        netPay,
+      }
     })
+
     const totalNetPay = assignments.reduce((sum, a) => sum + a.netPay, 0)
 
     return {
