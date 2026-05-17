@@ -11,6 +11,7 @@ import type { CurrentUser } from '@/lib/auth/get-current-user'
 const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] = [
   { href: '/dashboard', label: 'Today', roles: ['owner', 'manager', 'employee'] },
   { href: '/schedule', label: 'Schedule', roles: ['owner', 'manager', 'employee'] },
+  { href: '/reminders', label: 'Reminders', roles: ['owner', 'manager'] },
   { href: '/customers', label: 'Customers', roles: ['owner', 'manager'] },
   { href: '/invoices', label: 'Invoices', roles: ['owner', 'manager'] },
   { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'] },
