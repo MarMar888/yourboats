@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { InvoiceActionsButton } from './invoice-actions-button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteInvoice } from './actions'
+import { getCachedQboItems } from '@/lib/qbo/items'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -33,6 +34,9 @@ function statusClass(status: InvoiceStatus) {
 }
 
 export default async function InvoicesPage() {
+  const qboItems = await getCachedQboItems()
+  const qboItemOptions = qboItems.map((i) => ({ qboItemId: i.qboItemId, name: i.name }))
+
   // Draft invoices for completed services — ready to send
   const pending = await db
     .select({
@@ -120,6 +124,7 @@ export default async function InvoicesPage() {
                           invoiceId={inv.invoiceId}
                           hasQboId={!!inv.qboInvoiceId}
                           status={inv.status}
+                          qboItems={qboItemOptions}
                         />
                         <ConfirmDeleteButton
                           action={deleteInvoice.bind(null, inv.invoiceId)}

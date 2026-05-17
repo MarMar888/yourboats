@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { services, serviceBoats, serviceBoatAssignments, invoices, recurringSchedules, boats, customers } from '@/lib/db/schema'
 import { getQboClient } from '@/lib/qbo/client'
+import { findBestQboItem } from '@/lib/qbo/items'
 import { eq, inArray } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { log } from '@/lib/log'
@@ -190,24 +191,31 @@ export async function createService(formData: FormData) {
       boatRecords.map((b) => [b.id, b.lengthFt])
     )
 
-    // QBO item ref — look up once, reuse for all invoices
+    // QBO item ref — try cache first, then fall back to live lookup
     let qboItemId: string | null = null
     let qboItemName = 'Services'
     try {
-      const qbo = await getQboClient()
-      const itemsRes = await new Promise<{ QueryResponse?: { Item?: { Id: string; Name: string }[] } }>(
-        (resolve, reject) =>
-          qbo.findItems(
-            [{ field: 'fetchAll', value: true }],
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (err: unknown, result: any) => (err ? reject(err) : resolve(result))
-          )
-      )
-      const items = itemsRes.QueryResponse?.Item ?? []
-      const serviceItem = items.find((i) => i.Name.toLowerCase().includes('recurring') || i.Name.toLowerCase().includes('service')) ?? items[0]
-      if (serviceItem) {
-        qboItemId = serviceItem.Id
-        qboItemName = serviceItem.Name
+      const cachedItem = await findBestQboItem(serviceType)
+      if (cachedItem) {
+        qboItemId = cachedItem.id
+        qboItemName = cachedItem.name
+      } else {
+        // Cache empty — fall back to live QBO lookup
+        const qbo = await getQboClient()
+        const itemsRes = await new Promise<{ QueryResponse?: { Item?: { Id: string; Name: string }[] } }>(
+          (resolve, reject) =>
+            qbo.findItems(
+              [{ field: 'fetchAll', value: true }],
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (err: unknown, result: any) => (err ? reject(err) : resolve(result))
+            )
+        )
+        const items = itemsRes.QueryResponse?.Item ?? []
+        const serviceItem = items.find((i) => i.Name.toLowerCase().includes('recurring') || i.Name.toLowerCase().includes('service')) ?? items[0]
+        if (serviceItem) {
+          qboItemId = serviceItem.Id
+          qboItemName = serviceItem.Name
+        }
       }
     } catch {
       // QBO not connected or item lookup failed — we'll still create DB records
