@@ -30,7 +30,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   // ── Neon Auth ─────────────────────────────────────────────────────────────
   try {
     const { auth } = await import('@/lib/auth/server')
-    const { data: session } = await auth.getSession()
+    const { data: session, error } = await auth.getSession()
+    console.log('[getCurrentUser] session:', JSON.stringify(session), 'error:', JSON.stringify(error))
     if (!session?.user?.email) return null
 
     const [row] = await db
@@ -44,8 +45,10 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       .where(eq(users.email, session.user.email))
       .limit(1)
 
+    console.log('[getCurrentUser] db row:', JSON.stringify(row))
     return row ?? null
-  } catch {
+  } catch (e) {
+    console.error('[getCurrentUser] caught:', e)
     return null
   }
 }
