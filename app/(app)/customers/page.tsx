@@ -1,41 +1,87 @@
 import { db } from '@/lib/db'
-import { customers } from '@/lib/db/schema'
+import { customers, boats, services } from '@/lib/db/schema'
+import { eq, sql, and, gte } from 'drizzle-orm'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import CustomersTable, { type CustomerRow } from './customers-table'
+
+const SEASON_START = `${new Date().getFullYear()}-01-01`
 
 export default async function CustomersPage() {
-  const all = await db.select().from(customers).orderBy(customers.name)
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) {
+    redirect('/dashboard')
+  }
+
+  // Fetch all customers with boat and service counts in one efficient query
+  const rows = await db
+    .select({
+      id:        customers.id,
+      name:      customers.name,
+      email:     customers.email,
+      phone:     customers.phone,
+      notes:     customers.notes,
+      isPrepaid: customers.isPrepaid,
+    })
+    .from(customers)
+    .orderBy(customers.name)
+
+  // Boat counts per customer
+  const boatCounts = await db
+    .select({
+      customerId: boats.customerId,
+      count:      sql<number>`count(*)::int`.as('count'),
+    })
+    .from(boats)
+    .groupBy(boats.customerId)
+
+  // Total service counts per customer
+  const serviceCounts = await db
+    .select({
+      customerId: services.customerId,
+      count:      sql<number>`count(*)::int`.as('count'),
+    })
+    .from(services)
+    .groupBy(services.customerId)
+
+  // This-season service counts per customer
+  const seasonCounts = await db
+    .select({
+      customerId: services.customerId,
+      count:      sql<number>`count(*)::int`.as('count'),
+    })
+    .from(services)
+    .where(gte(services.serviceDate, SEASON_START))
+    .groupBy(services.customerId)
+
+  const boatMap = new Map(boatCounts.map((r) => [r.customerId, r.count]))
+  const svcMap  = new Map(serviceCounts.map((r) => [r.customerId, r.count]))
+  const seasMap = new Map(seasonCounts.map((r) => [r.customerId, r.count]))
+
+  const tableRows: CustomerRow[] = rows.map((c) => ({
+    id:                 c.id,
+    name:               c.name,
+    email:              c.email,
+    phone:              c.phone,
+    notes:              c.notes,
+    isPrepaid:          c.isPrepaid,
+    boatCount:          boatMap.get(c.id) ?? 0,
+    totalServices:      svcMap.get(c.id) ?? 0,
+    thisSeasonServices: seasMap.get(c.id) ?? 0,
+  }))
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Customers</h1>
+        <Button asChild size="sm">
+          <Link href="/customers/new">+ Add customer</Link>
+        </Button>
       </div>
 
-      {all.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          No customers yet.
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-card divide-y">
-          {all.map((c) => (
-            <Link
-              key={c.id}
-              href={`/customers/${c.id}`}
-              className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
-            >
-              <div>
-                <p className="font-medium">{c.name}</p>
-                <p className="text-sm text-muted-foreground">{c.email ?? c.phone ?? '—'}</p>
-              </div>
-              {c.isPrepaid && (
-                <span className="text-xs bg-blue-100 text-blue-800 rounded-full px-2 py-0.5">
-                  Prepaid
-                </span>
-              )}
-            </Link>
-          ))}
-        </div>
-      )}
+      <CustomersTable customers={tableRows} />
     </div>
   )
 }

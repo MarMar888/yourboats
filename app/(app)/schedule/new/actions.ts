@@ -111,8 +111,9 @@ async function pushInvoiceToQbo(opts: {
 // ─── Main action ──────────────────────────────────────────────────────────────
 
 export async function createService(formData: FormData) {
-  const user = await getCurrentUser()
-  if (!user || (user.role !== 'owner' && user.role !== 'manager')) redirect('/dashboard')
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) redirect('/dashboard')
+  const createdByUserId = currentUser.id
 
   const mode = formData.get('mode') as 'onetime' | 'recurring'
   const customerId = formData.get('customerId') as string
@@ -163,6 +164,7 @@ export async function createService(formData: FormData) {
         serviceId: service.id,
         amount: String(total),
         status: 'draft',
+        createdByUserId,
       })
       .returning()
 
@@ -275,6 +277,7 @@ export async function createService(formData: FormData) {
           serviceId: service.id,
           amount: String(totalPerVisit),
           status: 'draft',
+          createdByUserId,
         })
         .returning()
 

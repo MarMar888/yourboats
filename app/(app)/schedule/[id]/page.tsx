@@ -18,6 +18,7 @@ import { SyncTipButton } from './sync-tip-button'
 import { MarkIncompleteButton } from './mark-incomplete-button'
 import { EditServicePanel } from './edit-service-panel'
 import { GenerateInvoiceButton } from './generate-invoice-button'
+import { ServiceNotesEditor } from './service-notes-editor'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,10 +79,11 @@ export default async function ServiceDetailPage({
       notes:        services.notes,
       totalPrice:   services.totalPrice,
       tipAmount:    services.tipAmount,
-      approvedAt:     services.approvedAt,
-      approvedBy:     services.approvedByUserId,
-      completedAt:    services.completedAt,
-      reminderSentAt: services.reminderSentAt,
+      approvedAt:        services.approvedAt,
+      approvedBy:        services.approvedByUserId,
+      completedAt:       services.completedAt,
+      completedByUserId: services.completedByUserId,
+      reminderSentAt:    services.reminderSentAt,
       customerName: customers.name,
       customerId:   customers.id,
     })
@@ -157,11 +159,13 @@ export default async function ServiceDetailPage({
 
   const [invoice] = await db
     .select({
-      id:           invoices.id,
-      status:       invoices.status,
-      amount:       invoices.amount,
-      qboInvoiceId: invoices.qboInvoiceId,
-      sentAt:       invoices.sentAt,
+      id:              invoices.id,
+      status:          invoices.status,
+      amount:          invoices.amount,
+      qboInvoiceId:    invoices.qboInvoiceId,
+      sentAt:          invoices.sentAt,
+      createdAt:       invoices.createdAt,
+      createdByUserId: invoices.createdByUserId,
     })
     .from(invoices)
     .where(eq(invoices.serviceId, id))
@@ -256,6 +260,7 @@ export default async function ServiceDetailPage({
           {svc.completedAt && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
               ✓ Completed {fmtDateTime(svc.completedAt)}
+              {svc.completedByUserId && ` by ${userNames[svc.completedByUserId] ?? svc.completedByUserId}`}
             </span>
           )}
           {svc.reminderSentAt && (
@@ -266,12 +271,14 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
-      {svc.notes && (
+      {canManage ? (
+        <ServiceNotesEditor serviceId={svc.id} notes={svc.notes} />
+      ) : svc.notes ? (
         <div className="rounded-md bg-yellow-50 border border-yellow-200 px-4 py-3">
           <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Service notes</p>
           <p className="text-sm text-yellow-900 whitespace-pre-wrap">{svc.notes}</p>
         </div>
-      )}
+      ) : null}
 
       <div>
         <h2 className="text-base font-semibold mb-3">
@@ -368,6 +375,11 @@ export default async function ServiceDetailPage({
               <span className="text-sm font-semibold tabular-nums">
                 ${Number(invoice.amount).toFixed(2)}
               </span>
+              {invoice.createdByUserId && (
+                <span className="text-xs text-muted-foreground">
+                  Created by {userNames[invoice.createdByUserId] ?? invoice.createdByUserId}
+                </span>
+              )}
               {invoice.sentAt && (
                 <span className="text-xs text-muted-foreground">
                   Sent {fmtDateTime(invoice.sentAt)}
@@ -414,6 +426,49 @@ export default async function ServiceDetailPage({
             )}
             {canManage && invoice?.qboInvoiceId && (
               <SyncTipButton serviceId={svc.id} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Audit trail */}
+      {canManage && (svc.completedAt || svc.approvedAt || invoice?.createdByUserId) && (
+        <div>
+          <h2 className="text-base font-semibold mb-2">Audit trail</h2>
+          <div className="rounded-lg border bg-card px-4 py-3 space-y-1.5 text-xs text-muted-foreground">
+            {svc.completedAt && (
+              <p>
+                <span className="font-medium text-foreground">Completed</span>{' '}
+                by{' '}
+                <span className="font-medium text-foreground">
+                  {svc.completedByUserId ? (userNames[svc.completedByUserId] ?? svc.completedByUserId) : 'unknown'}
+                </span>{' '}
+                on {fmtDateTime(svc.completedAt)}
+              </p>
+            )}
+            {svc.approvedAt && (
+              <p>
+                <span className="font-medium text-foreground">Approved</span>{' '}
+                {svc.approvedBy ? (
+                  <>
+                    by{' '}
+                    <span className="font-medium text-foreground">
+                      {userNames[svc.approvedBy] ?? svc.approvedBy}
+                    </span>{' '}
+                  </>
+                ) : null}
+                on {fmtDateTime(svc.approvedAt)}
+              </p>
+            )}
+            {invoice?.createdByUserId && (
+              <p>
+                <span className="font-medium text-foreground">Invoiced</span>{' '}
+                by{' '}
+                <span className="font-medium text-foreground">
+                  {userNames[invoice.createdByUserId] ?? invoice.createdByUserId}
+                </span>{' '}
+                on {fmtDateTime(invoice.createdAt)}
+              </p>
             )}
           </div>
         </div>
