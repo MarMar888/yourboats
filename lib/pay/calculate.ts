@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { services, serviceAssignments, customers, users, tierConfig } from '@/lib/db/schema'
-import { eq, and, gte, lte } from 'drizzle-orm'
+import { services, serviceBoatAssignments, customers, users, tierConfig } from '@/lib/db/schema'
+import { eq, and, gte, lte, sql } from 'drizzle-orm'
 
 export type ServicePay = {
   serviceId: string
@@ -46,34 +46,77 @@ export async function calculateEmployeePay(params: {
     if (config) deductionPct = Number(config.deductionPct)
   }
 
-  // Query services assigned to this user in date range
-  const rows = await db
-    .select({
-      serviceId: services.id,
-      serviceDate: services.serviceDate,
-      customerId: customers.id,
-      customerName: customers.name,
-      totalPrice: services.totalPrice,
-      tipAmount: services.tipAmount,
-      sharePct: serviceAssignments.sharePct,
-    })
-    .from(serviceAssignments)
-    .innerJoin(services, eq(serviceAssignments.serviceId, services.id))
-    .innerJoin(customers, eq(services.customerId, customers.id))
+  // Find all services where this user is assigned (via serviceBoatAssignments).
+  // userId in serviceBoatAssignments is text; users.id is uuid — cast for comparison.
+  // We need completed services in the date range.
+  const assignedServiceRows = await db
+    .selectDistinct({ serviceId: serviceBoatAssignments.serviceId })
+    .from(serviceBoatAssignments)
+    .innerJoin(services, eq(serviceBoatAssignments.serviceId, services.id))
     .where(
       and(
-        eq(serviceAssignments.userId, userId),
+        sql`${serviceBoatAssignments.userId} = ${userId}::text`,
         gte(services.serviceDate, startDate),
         lte(services.serviceDate, endDate),
         eq(services.status, 'complete')
       )
     )
+
+  if (assignedServiceRows.length === 0) {
+    return { services: [], summary: { totalPay: 0, totalTips: 0, totalDeductions: 0 } }
+  }
+
+  const serviceIds = assignedServiceRows.map((r) => r.serviceId)
+
+  // Fetch full service details for those service IDs
+  const { inArray } = await import('drizzle-orm')
+  const svcRows = await db
+    .select({
+      serviceId:    services.id,
+      serviceDate:  services.serviceDate,
+      customerId:   customers.id,
+      customerName: customers.name,
+      totalPrice:   services.totalPrice,
+      tipAmount:    services.tipAmount,
+    })
+    .from(services)
+    .innerJoin(customers, eq(services.customerId, customers.id))
+    .where(inArray(services.id, serviceIds))
     .orderBy(services.serviceDate)
 
-  const servicePays: ServicePay[] = rows.map((row) => {
+  // For each service, count distinct users assigned to determine this user's share
+  // Fetch all assignments for these services
+  const allAssignRows = await db
+    .selectDistinct({
+      serviceId: serviceBoatAssignments.serviceId,
+      userId:    serviceBoatAssignments.userId,
+    })
+    .from(serviceBoatAssignments)
+    .where(inArray(serviceBoatAssignments.serviceId, serviceIds))
+
+  // Build a map: serviceId -> Set<userId>
+  const userSetByService: Record<string, Set<string>> = {}
+  for (const a of allAssignRows) {
+    ;(userSetByService[a.serviceId] ??= new Set()).add(a.userId)
+  }
+
+  const servicePays: ServicePay[] = svcRows.map((row) => {
     const totalPrice = Number(row.totalPrice ?? 0)
     const tipAmount = Number(row.tipAmount ?? 0)
-    const sharePct = row.sharePct
+
+    const userSet = userSetByService[row.serviceId] ?? new Set([userId])
+    const count = userSet.size
+
+    // Equal split; if user is last alphabetically they absorb remainder — but
+    // for simplicity give each user floor(100/count) and absorb remainder in
+    // the share calculation below. Since we only care about THIS user's share:
+    const basePct = Math.floor(100 / count)
+    const remainder = 100 - basePct * count
+    // Check if this user is the "last" one (to absorb remainder)
+    const sortedUsers = Array.from(userSet).sort()
+    const userIdx = sortedUsers.indexOf(userId)
+    const sharePct = userIdx === count - 1 ? basePct + remainder : basePct
+
     const basePay = totalPrice * (sharePct / 100)
     const deduction = basePay * (deductionPct / 100)
     const netPay = basePay - deduction
