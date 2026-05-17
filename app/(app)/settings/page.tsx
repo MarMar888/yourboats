@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ImportCustomersButton from './import-customers-button'
+import ReminderTestPanel from './reminder-test-panel'
+import ChangePasswordForm from './change-password-form'
 
 export default async function SettingsPage({
   searchParams,
@@ -19,6 +21,18 @@ export default async function SettingsPage({
       <h1 className="text-2xl font-semibold mb-6">Settings</h1>
 
       <div className="space-y-4 max-w-lg">
+        <Card>
+          <CardHeader>
+            <CardTitle>Change password</CardTitle>
+            <CardDescription>
+              Update your login password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangePasswordForm />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>QuickBooks Online</CardTitle>
@@ -53,6 +67,18 @@ export default async function SettingsPage({
                 </a>
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminder emails</CardTitle>
+            <CardDescription>
+              Test the nightly reminder email for any service date. Dry run shows who would receive without sending — useful for checking before you go live.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ReminderTestPanel />
           </CardContent>
         </Card>
 

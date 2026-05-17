@@ -5,15 +5,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { CurrentUser } from '@/lib/auth/get-current-user'
 import { Button } from '@/components/ui/button'
 import GlobalCreateModal from '@/components/global-create-modal'
+import { logout } from '@/app/(auth)/login/actions'
+import type { CurrentUser } from '@/lib/auth/get-current-user'
 
-type UserRole = CurrentUser['role']
-
-const navItems: { href: string; label: string; roles: UserRole[] }[] = [
+const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] = [
   { href: '/dashboard', label: 'Today', roles: ['owner', 'manager', 'employee'] },
   { href: '/schedule', label: 'Schedule', roles: ['owner', 'manager', 'employee'] },
+  { href: '/reminders', label: 'Reminders', roles: ['owner', 'manager'] },
   { href: '/customers', label: 'Customers', roles: ['owner', 'manager'] },
   { href: '/invoices', label: 'Invoices', roles: ['owner', 'manager'] },
   { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'] },
@@ -43,7 +43,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted',
+                  'inline-flex min-h-[44px] shrink-0 items-center rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted',
                   pathname.startsWith(item.href)
                     ? 'bg-muted font-medium text-foreground'
                     : 'text-muted-foreground'
@@ -61,18 +61,24 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 <span className="hidden sm:inline">New</span>
               </Button>
             )}
-            <span className="hidden text-sm text-muted-foreground capitalize lg:inline">{user.role}</span>
             {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
               <Link
                 href="/pick-user"
-                className="hidden max-w-36 truncate text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:block"
+                className="hidden max-w-40 truncate text-sm text-muted-foreground transition-colors hover:text-foreground sm:block"
               >
-                {user.displayName}
+                {user.displayName} ({user.role})
               </Link>
             ) : (
-              <span className="hidden max-w-36 truncate text-sm font-medium text-muted-foreground sm:block">
+              <span className="hidden max-w-40 truncate text-sm text-muted-foreground sm:block">
                 {user.displayName}
               </span>
+            )}
+            {process.env.NEXT_PUBLIC_DEV_AUTH !== 'true' && (
+              <form action={logout} className="hidden sm:block">
+                <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
+                  Sign out
+                </Button>
+              </form>
             )}
             <Button
               type="button"
@@ -119,15 +125,20 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 ) : (
                   <p className="font-medium text-foreground">{user.displayName}</p>
                 )}
+                {process.env.NEXT_PUBLIC_DEV_AUTH !== 'true' && (
+                  <form action={logout} className="mt-2">
+                    <Button variant="outline" size="sm" type="submit">
+                      Sign out
+                    </Button>
+                  </form>
+                )}
               </div>
             </nav>
           </div>
         )}
       </header>
 
-      {canCreate && (
-        <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />
-      )}
+      <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />
     </>
   )
 }

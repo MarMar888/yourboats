@@ -17,5 +17,6 @@ export const auth = createNeonAuth({
   baseUrl: authBaseUrl,
   cookies: {
     secret: cookieSecret,
+    sessionDataTtl: 60 * 60 * 24 * 7, // 7 days
   },
 })

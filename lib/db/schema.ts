@@ -71,6 +71,14 @@ export const customers = pgTable('customers', {
   lastSyncedAt: timestamp('last_synced_at'),
 })
 
+export const customerReminderContacts = pgTable('customer_reminder_contacts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  label: text('label'), // e.g. "voice number", "secondary email"
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const boats = pgTable('boats', {
   id: uuid('id').primaryKey().defaultRandom(),
   customerId: uuid('customer_id')
@@ -247,6 +255,11 @@ export const customersRelations = relations(customers, ({ many }) => ({
   services: many(services),
   recurringSchedules: many(recurringSchedules),
   complaints: many(complaints),
+  reminderContacts: many(customerReminderContacts),
+}))
+
+export const customerReminderContactsRelations = relations(customerReminderContacts, ({ one }) => ({
+  customer: one(customers, { fields: [customerReminderContacts.customerId], references: [customers.id] }),
 }))
 
 export const boatsRelations = relations(boats, ({ one, many }) => ({
@@ -317,3 +330,5 @@ export type Invoice = typeof invoices.$inferSelect
 export type NewInvoice = typeof invoices.$inferInsert
 export type Complaint = typeof complaints.$inferSelect
 export type NewComplaint = typeof complaints.$inferInsert
+export type CustomerReminderContact = typeof customerReminderContacts.$inferSelect
+export type NewCustomerReminderContact = typeof customerReminderContacts.$inferInsert
