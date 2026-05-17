@@ -15,7 +15,6 @@ interface TomorrowServiceRow {
   service_type: string
   customer_id: string
   customer_name: string
-  customer_email: string
   customer_phone: string | null
   boat_label: string | null
 }
@@ -23,7 +22,6 @@ interface TomorrowServiceRow {
 // Grouped per-customer data
 interface CustomerReminder {
   customerId: string
-  primaryEmail: string
   name: string
   phone: string | null
   serviceDate: string
@@ -70,7 +68,6 @@ export async function GET(req: NextRequest) {
         s.service_type    AS service_type,
         c.id              AS customer_id,
         c.name            AS customer_name,
-        c.email           AS customer_email,
         c.phone           AS customer_phone,
         COALESCE(b.nickname, b.make_model, 'Unnamed Boat') AS boat_label
       FROM services s
@@ -80,8 +77,6 @@ export async function GET(req: NextRequest) {
       WHERE s.service_date = ${targetDate}
         AND s.status = 'scheduled'
         AND s.approved_at IS NOT NULL
-        AND c.email IS NOT NULL
-        AND c.email != ''
     `)
     rows = result as unknown as TomorrowServiceRow[]
   } catch (err) {
@@ -96,11 +91,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ sent: 0, skipped: 0, errors: [], dryRun, targetDate: dateOverride ?? null, preview: [] })
   }
 
-  // ── Group by customer email ────────────────────────────────────────────────
+  // ── Group by customer id ──────────────────────────────────────────────────
   const byCustomer = new Map<string, CustomerReminder>()
 
   for (const row of rows) {
-    const existing = byCustomer.get(row.customer_email)
+    const existing = byCustomer.get(row.customer_id)
     if (existing) {
       if (row.boat_label && !existing.boats.includes(row.boat_label)) {
         existing.boats.push(row.boat_label)
@@ -109,9 +104,8 @@ export async function GET(req: NextRequest) {
         existing.serviceIds.push(row.service_id)
       }
     } else {
-      byCustomer.set(row.customer_email, {
+      byCustomer.set(row.customer_id, {
         customerId: row.customer_id,
-        primaryEmail: row.customer_email,
         name: row.customer_name,
         phone: row.customer_phone ?? null,
         serviceDate: formatDate(row.service_date),
@@ -141,9 +135,9 @@ export async function GET(req: NextRequest) {
   // ── Dry-run: return preview without sending ───────────────────────────────
   if (dryRun) {
     const preview = Array.from(byCustomer.values()).map((r) => {
-      const extras = extraByCustomer.get(r.customerId) ?? []
+      const contacts = extraByCustomer.get(r.customerId) ?? []
       return {
-        to: [r.primaryEmail, ...extras].join(', '),
+        to: contacts.join(', ') || '(no reminder contacts)',
         customer: r.name,
         serviceDate: r.serviceDate,
         boats: r.boats,
@@ -159,6 +153,14 @@ export async function GET(req: NextRequest) {
   const errors: string[] = []
 
   for (const reminder of Array.from(byCustomer.values())) {
+    const contacts = extraByCustomer.get(reminder.customerId) ?? []
+
+    if (contacts.length === 0) {
+      console.log(`[cron/reminders] No reminder contacts for ${reminder.name} — skipping`)
+      skipped++
+      continue
+    }
+
     const { subject, text, html } = serviceReminderEmail({
       customerName: reminder.name,
       serviceDate: reminder.serviceDate,
@@ -167,13 +169,10 @@ export async function GET(req: NextRequest) {
       businessPhone: reminder.phone ?? undefined,
     })
 
-    const extras = extraByCustomer.get(reminder.customerId) ?? []
-    const allTo = [reminder.primaryEmail, ...extras]
-
     try {
       await emailTransport.sendMail({
         from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
-        to: allTo.join(', '),
+        to: contacts.join(', '),
         subject,
         text,
         html,
@@ -182,12 +181,12 @@ export async function GET(req: NextRequest) {
         .update(services)
         .set({ reminderSentAt: new Date() })
         .where(inArray(services.id, reminder.serviceIds))
-      console.log(`[cron/reminders] Sent reminder to ${allTo.join(', ')}`)
+      console.log(`[cron/reminders] Sent reminder to ${contacts.join(', ')}`)
       sent++
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
-      console.error(`[cron/reminders] Failed to send to ${allTo.join(', ')}:`, message)
-      errors.push(`${reminder.primaryEmail}: ${message}`)
+      console.error(`[cron/reminders] Failed to send to ${contacts.join(', ')}:`, message)
+      errors.push(`${reminder.name}: ${message}`)
       skipped++
     }
   }
