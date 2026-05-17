@@ -250,6 +250,18 @@ export const qboTokens = pgTable('qbo_tokens', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const timeEntries = pgTable('time_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serviceId: uuid('service_id').notNull().references(() => services.id, { onDelete: 'cascade' }),
+  boatId: uuid('boat_id').references(() => boats.id, { onDelete: 'set null' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clockIn: timestamp('clock_in').notNull(),
+  clockOut: timestamp('clock_out'),
+  notes: text('notes'),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const qboItems = pgTable('qbo_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   qboItemId: text('qbo_item_id').notNull().unique(),
@@ -347,3 +359,5 @@ export type CustomerReminderContact = typeof customerReminderContacts.$inferSele
 export type NewCustomerReminderContact = typeof customerReminderContacts.$inferInsert
 export type QboItem = typeof qboItems.$inferSelect
 export type NewQboItem = typeof qboItems.$inferInsert
+export type TimeEntry = typeof timeEntries.$inferSelect
+export type NewTimeEntry = typeof timeEntries.$inferInsert

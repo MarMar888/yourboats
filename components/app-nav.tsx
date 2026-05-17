@@ -17,6 +17,7 @@ const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] 
   { href: '/invoices', label: 'Invoices', roles: ['owner', 'manager'] },
   { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'] },
   { href: '/team', label: 'Team', roles: ['owner'] },
+  { href: '/time', label: 'Time', roles: ['owner', 'manager'] },
   { href: '/pay', label: 'Pay', roles: ['owner', 'manager'] },
   { href: '/settings', label: 'Settings', roles: ['owner', 'manager'] },
 ]

@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import {
   services, customers, serviceBoats, boats,
-  serviceBoatAssignments, invoices, complaints, users,
+  serviceBoatAssignments, invoices, complaints, users, timeEntries,
 } from '@/lib/db/schema'
 import { eq, and, asc } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
@@ -19,6 +19,7 @@ import { MarkIncompleteButton } from './mark-incomplete-button'
 import { EditServicePanel } from './edit-service-panel'
 import { GenerateInvoiceButton } from './generate-invoice-button'
 import { ServiceNotesEditor } from './service-notes-editor'
+import { TimeTracker } from './time-tracker'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -184,6 +185,31 @@ export default async function ServiceDetailPage({
     .leftJoin(users, eq(complaints.createdByUserId, users.id))
     .where(eq(complaints.serviceId, id))
     .orderBy(complaints.createdAt)
+
+  // Time entries for this service
+  const timeEntryRows = await db
+    .select({
+      id:               timeEntries.id,
+      userId:           timeEntries.userId,
+      boatId:           timeEntries.boatId,
+      clockIn:          timeEntries.clockIn,
+      clockOut:         timeEntries.clockOut,
+      notes:            timeEntries.notes,
+      employeeName:     users.displayName,
+      boatNickname:     boats.nickname,
+    })
+    .from(timeEntries)
+    .leftJoin(users, eq(timeEntries.userId, users.id))
+    .leftJoin(boats, eq(timeEntries.boatId, boats.id))
+    .where(eq(timeEntries.serviceId, id))
+    .orderBy(timeEntries.clockIn)
+
+  // Check if current user is assigned to this service (to show clock-in)
+  const isAssigned = currentUser
+    ? boatDetails.some((b) => b.assignedIds.includes(currentUser.id))
+    : false
+  // Anyone who can see the service can clock in (employees via assignment, managers always)
+  const showTimeTracker = canManage || isAssigned
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -471,6 +497,30 @@ export default async function ServiceDetailPage({
               </p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Time tracking ── */}
+      {showTimeTracker && (
+        <div>
+          <h2 className="text-base font-semibold mb-3">Time</h2>
+          <TimeTracker
+            serviceId={svc.id}
+            entries={timeEntryRows.map((e) => ({
+              id: e.id,
+              userId: e.userId,
+              boatId: e.boatId ?? null,
+              boatNickname: e.boatNickname ?? null,
+              clockIn: e.clockIn,
+              clockOut: e.clockOut ?? null,
+              notes: e.notes ?? null,
+              employeeName: e.employeeName ?? 'Unknown',
+            }))}
+            boats={boatDetails.map((b) => ({ boatId: b.boatId, nickname: b.nickname }))}
+            employees={allUsers}
+            currentUserId={currentUser?.id ?? null}
+            canManage={canManage}
+          />
         </div>
       )}
 

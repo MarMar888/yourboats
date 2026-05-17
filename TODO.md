@@ -1,0 +1,17 @@
+- full editing access on any individual service or invoice - like being able to edit the details
+- regenerate invoice for service - like if you delete an invoice you should be able to regenerate it from a complete service
+- correct linking of product from yourboats to QBO - right now when I create an invoice it has it as acid washing, we need to pull the product from QBO and use that
+- payroll tracking - for some reason it doesnt pull the people that are doing the service, so it doesnt show who will be paid, and also show percentage of share
+- time tracking - we need to be able to track the time spent on a service - prolly needs a new table, but wanna have a whole new tab for time tracking + logs of times for manager or above only
+- change schedule from starting on MON when it was previoulsy on SUN start
+- Customer syncing (does this fully work right now idk?)
+- Calendar view ( calendar view of services for this month)
+- Cancel reminders from reminder page 
+- logs (page for Owner only)
+- track logins on logs
+- qbo should sync automatically
+- better customers page - like show more information in a spreadsheet like view and make it searchable
+- click on invoices from invoice tab (invoice preview) and also have link to invoice in QBO
+- changing back to incomplete services 
+- ability to add notes to services, boats, or customers direclty from frontend
+- track and show what user compelted a service, approved a week or send an invoice
