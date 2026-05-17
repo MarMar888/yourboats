@@ -12,7 +12,7 @@ export function MarkIncompleteButton({ serviceId }: MarkIncompleteButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
-    startTransition(() => markIncomplete(serviceId))
+    startTransition(async () => { await markIncomplete(serviceId) })
   }
 
   return (
