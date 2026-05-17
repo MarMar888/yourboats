@@ -1,9 +1,8 @@
-import { login, loginWithMagicLink } from './actions'
+import { login } from './actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 
 export default async function LoginPage({
   searchParams,
@@ -38,27 +37,6 @@ export default async function LoginPage({
             </Button>
           </form>
 
-          <div className="flex items-center gap-2">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <Separator className="flex-1" />
-          </div>
-
-          <form>
-            <div className="space-y-1">
-              <Label htmlFor="magic-email">Email</Label>
-              <Input
-                id="magic-email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-            <Button formAction={loginWithMagicLink} variant="outline" className="w-full mt-3">
-              Send magic link
-            </Button>
-          </form>
         </CardContent>
       </Card>
     </div>
