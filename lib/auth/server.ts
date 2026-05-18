@@ -1,21 +1,31 @@
 import { createNeonAuth } from '@neondatabase/auth/next/server'
 
 /**
- * Neon Auth requires `baseUrl` + `cookies.secret` (≥32 chars) at init.
- * `next build` often runs without full env (CI, fresh clone) — placeholders let the
- * bundle load; production must set NEON_AUTH_* in the host environment.
+ * Neon Auth server singleton — lazily instantiated so module evaluation during
+ * the build phase doesn't throw when env vars aren't available yet.
+ * Usage: auth.getSession(), auth.handler(), auth.middleware()
  */
-const cookieSecret =
-  process.env.NEON_AUTH_COOKIE_SECRET?.trim() ||
-  '00000000000000000000000000000000' // 32 chars, build-only fallback
+type AuthInstance = ReturnType<typeof createNeonAuth>
 
-const authBaseUrl =
-  process.env.NEON_AUTH_BASE_URL?.trim() ||
-  'https://neon-auth.build-placeholder.invalid'
+let _instance: AuthInstance | null = null
 
-export const auth = createNeonAuth({
-  baseUrl: authBaseUrl,
-  cookies: {
-    secret: cookieSecret,
+function getInstance(): AuthInstance {
+  if (!_instance) {
+    _instance = createNeonAuth({
+      baseUrl: process.env.NEON_AUTH_BASE_URL!,
+      cookies: {
+        secret: process.env.NEON_AUTH_COOKIE_SECRET!,
+        sessionDataTtl: 60 * 60 * 24 * 7, // 7 days
+      },
+    })
+  }
+  return _instance
+}
+
+export const auth: AuthInstance = new Proxy({} as AuthInstance, {
+  get(_, prop: string | symbol) {
+    const instance = getInstance()
+    const value = instance[prop as keyof AuthInstance]
+    return typeof value === 'function' ? value.bind(instance) : value
   },
 })

@@ -1,15 +1,23 @@
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { qboTokens } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ImportCustomersButton from './import-customers-button'
+import SyncQboItemsButton from './sync-qbo-items-button'
+import ReminderTestPanel from './reminder-test-panel'
+import ChangePasswordForm from './change-password-form'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ qbo?: string }>
 }) {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) redirect('/dashboard')
+
   const { qbo } = await searchParams
   const [tokens] = await db.select().from(qboTokens).where(eq(qboTokens.id, 1)).limit(1)
   const connected = !!tokens
@@ -19,6 +27,18 @@ export default async function SettingsPage({
       <h1 className="text-2xl font-semibold mb-6">Settings</h1>
 
       <div className="space-y-4 max-w-lg">
+        <Card>
+          <CardHeader>
+            <CardTitle>Change password</CardTitle>
+            <CardDescription>
+              Update your login password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangePasswordForm />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>QuickBooks Online</CardTitle>
@@ -56,6 +76,18 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminder emails</CardTitle>
+            <CardDescription>
+              Test the nightly reminder email for any service date. Dry run shows who would receive without sending — useful for checking before you go live.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ReminderTestPanel />
+          </CardContent>
+        </Card>
+
         {connected && (
           <Card>
             <CardHeader>
@@ -67,6 +99,21 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent>
               <ImportCustomersButton />
+            </CardContent>
+          </Card>
+        )}
+
+        {connected && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Sync QBO items</CardTitle>
+              <CardDescription>
+                Pull your active products/services from QuickBooks into yourboats. These are used
+                when creating invoices — run this after adding or changing items in QBO.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SyncQboItemsButton />
             </CardContent>
           </Card>
         )}

@@ -71,6 +71,14 @@ export const customers = pgTable('customers', {
   lastSyncedAt: timestamp('last_synced_at'),
 })
 
+export const customerReminderContacts = pgTable('customer_reminder_contacts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  label: text('label'), // e.g. "voice number", "secondary email"
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const boats = pgTable('boats', {
   id: uuid('id').primaryKey().defaultRandom(),
   customerId: uuid('customer_id')
@@ -126,6 +134,7 @@ export const services = pgTable('services', {
   approvedAt: timestamp('approved_at'),
   approvedByUserId: text('approved_by_user_id'),
   reminderSentAt: timestamp('reminder_sent_at'),
+  reminderSuppressed: boolean('reminder_suppressed').notNull().default(false),
   invoiceId: uuid('invoice_id'), // set after invoice created; FK added below via relation
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
@@ -192,11 +201,14 @@ export const invoices = pgTable('invoices', {
     .references(() => services.id, { onDelete: 'cascade' }),
   qboInvoiceId: text('qbo_invoice_id').unique(),
   amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+  notes: text('notes'),
   status: invoiceStatusEnum('status').notNull().default('draft'),
+  qboNeedsSync: boolean('qbo_needs_sync').notNull().default(false),
   sentAt: timestamp('sent_at'),
   paidAt: timestamp('paid_at'),
   lastSyncedAt: timestamp('last_synced_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 })
 
 export const complaints = pgTable('complaints', {
@@ -238,6 +250,27 @@ export const qboTokens = pgTable('qbo_tokens', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const timeEntries = pgTable('time_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serviceId: uuid('service_id').notNull().references(() => services.id, { onDelete: 'cascade' }),
+  boatId: uuid('boat_id').references(() => boats.id, { onDelete: 'set null' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clockIn: timestamp('clock_in').notNull(),
+  clockOut: timestamp('clock_out'),
+  notes: text('notes'),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const qboItems = pgTable('qbo_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  qboItemId: text('qbo_item_id').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  unitPrice: numeric('unit_price', { precision: 10, scale: 2 }),
+  syncedAt: timestamp('synced_at').defaultNow().notNull(),
+})
+
 export type QboTokens = typeof qboTokens.$inferSelect
 
 // ─── Relations ────────────────────────────────────────────────────────────────
@@ -247,6 +280,11 @@ export const customersRelations = relations(customers, ({ many }) => ({
   services: many(services),
   recurringSchedules: many(recurringSchedules),
   complaints: many(complaints),
+  reminderContacts: many(customerReminderContacts),
+}))
+
+export const customerReminderContactsRelations = relations(customerReminderContacts, ({ one }) => ({
+  customer: one(customers, { fields: [customerReminderContacts.customerId], references: [customers.id] }),
 }))
 
 export const boatsRelations = relations(boats, ({ one, many }) => ({
@@ -317,3 +355,9 @@ export type Invoice = typeof invoices.$inferSelect
 export type NewInvoice = typeof invoices.$inferInsert
 export type Complaint = typeof complaints.$inferSelect
 export type NewComplaint = typeof complaints.$inferInsert
+export type CustomerReminderContact = typeof customerReminderContacts.$inferSelect
+export type NewCustomerReminderContact = typeof customerReminderContacts.$inferInsert
+export type QboItem = typeof qboItems.$inferSelect
+export type NewQboItem = typeof qboItems.$inferInsert
+export type TimeEntry = typeof timeEntries.$inferSelect
+export type NewTimeEntry = typeof timeEntries.$inferInsert

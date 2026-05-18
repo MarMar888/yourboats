@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import {
   services, customers, serviceBoats, boats,
-  serviceBoatAssignments, invoices, complaints, users,
+  serviceBoatAssignments, invoices, complaints, users, timeEntries,
 } from '@/lib/db/schema'
 import { eq, and, asc } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
@@ -14,6 +14,12 @@ import { deleteService } from '../actions'
 import { BoatAssignment } from './boat-assignment'
 import FlagComplaintButton from './flag-complaint-button'
 import { AddTipForm } from './add-tip-form'
+import { SyncTipButton } from './sync-tip-button'
+import { MarkIncompleteButton } from './mark-incomplete-button'
+import { EditServicePanel } from './edit-service-panel'
+import { GenerateInvoiceButton } from './generate-invoice-button'
+import { ServiceNotesEditor } from './service-notes-editor'
+import { TimeTracker } from './time-tracker'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,10 +80,11 @@ export default async function ServiceDetailPage({
       notes:        services.notes,
       totalPrice:   services.totalPrice,
       tipAmount:    services.tipAmount,
-      approvedAt:     services.approvedAt,
-      approvedBy:     services.approvedByUserId,
-      completedAt:    services.completedAt,
-      reminderSentAt: services.reminderSentAt,
+      approvedAt:        services.approvedAt,
+      approvedBy:        services.approvedByUserId,
+      completedAt:       services.completedAt,
+      completedByUserId: services.completedByUserId,
+      reminderSentAt:    services.reminderSentAt,
       customerName: customers.name,
       customerId:   customers.id,
     })
@@ -142,13 +149,24 @@ export default async function ServiceDetailPage({
   }
   const boatDetails = Array.from(boatMap.values())
 
+  // Fetch all boats for this customer (for edit form boat picker)
+  const allCustomerBoats = await db
+    .select({ id: boats.id, nickname: boats.nickname, makeModel: boats.makeModel, lengthFt: boats.lengthFt })
+    .from(boats)
+    .innerJoin(customers, eq(boats.customerId, customers.id))
+    .innerJoin(services, eq(services.customerId, customers.id))
+    .where(eq(services.id, id))
+    .orderBy(boats.nickname)
+
   const [invoice] = await db
     .select({
-      id:           invoices.id,
-      status:       invoices.status,
-      amount:       invoices.amount,
-      qboInvoiceId: invoices.qboInvoiceId,
-      sentAt:       invoices.sentAt,
+      id:              invoices.id,
+      status:          invoices.status,
+      amount:          invoices.amount,
+      qboInvoiceId:    invoices.qboInvoiceId,
+      sentAt:          invoices.sentAt,
+      createdAt:       invoices.createdAt,
+      createdByUserId: invoices.createdByUserId,
     })
     .from(invoices)
     .where(eq(invoices.serviceId, id))
@@ -168,6 +186,31 @@ export default async function ServiceDetailPage({
     .where(eq(complaints.serviceId, id))
     .orderBy(complaints.createdAt)
 
+  // Time entries for this service
+  const timeEntryRows = await db
+    .select({
+      id:               timeEntries.id,
+      userId:           timeEntries.userId,
+      boatId:           timeEntries.boatId,
+      clockIn:          timeEntries.clockIn,
+      clockOut:         timeEntries.clockOut,
+      notes:            timeEntries.notes,
+      employeeName:     users.displayName,
+      boatNickname:     boats.nickname,
+    })
+    .from(timeEntries)
+    .leftJoin(users, eq(timeEntries.userId, users.id))
+    .leftJoin(boats, eq(timeEntries.boatId, boats.id))
+    .where(eq(timeEntries.serviceId, id))
+    .orderBy(timeEntries.clockIn)
+
+  // Check if current user is assigned to this service (to show clock-in)
+  const isAssigned = currentUser
+    ? boatDetails.some((b) => b.assignedIds.includes(currentUser.id))
+    : false
+  // Anyone who can see the service can clock in (employees via assignment, managers always)
+  const showTimeTracker = canManage || isAssigned
+
   return (
     <div className="max-w-2xl space-y-6">
       {/* Header */}
@@ -178,27 +221,55 @@ export default async function ServiceDetailPage({
         >
           ← Schedule
         </Link>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="break-words text-2xl font-semibold">{svc.customerName}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">{svc.customerName}</h1>
             <p className="text-muted-foreground mt-0.5">
               {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType} · {fmtDate(svc.serviceDate)}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <span className={cn(
               'text-xs px-2.5 py-1 rounded-full border font-medium',
               STATUS_STYLES[svc.status] ?? STATUS_STYLES.scheduled
             )}>
               {svc.status}
             </span>
+            {canManage && svc.status === 'complete' && (
+              <MarkIncompleteButton serviceId={svc.id} />
+            )}
             <FlagComplaintButton serviceId={svc.id} customerId={svc.customerId} />
             {canManage && (
-              <ConfirmDeleteButton
-                action={deleteService.bind(null, svc.id, '/schedule')}
-                title="Delete service"
-                description={`Delete the service for ${svc.customerName} on ${fmtDate(svc.serviceDate)}? The associated invoice will also be deleted. This cannot be undone.`}
-              />
+              <>
+                <EditServicePanel
+                  serviceId={svc.id}
+                  initialValues={{
+                    serviceDate: svc.serviceDate,
+                    serviceType: svc.serviceType,
+                    notes: svc.notes,
+                    totalPrice: svc.totalPrice,
+                    status: svc.status,
+                  }}
+                  boats={boatDetails}
+                  allCustomerBoats={allCustomerBoats.map((b) => ({
+                    boatId: b.id,
+                    nickname: b.nickname,
+                    makeModel: b.makeModel,
+                    lengthFt: b.lengthFt,
+                    description: boatMap.get(b.id)?.description ?? null,
+                    notes: boatMap.get(b.id)?.notes ?? null,
+                    rateType: boatMap.get(b.id)?.rateType ?? null,
+                    rate: boatMap.get(b.id)?.rate ?? null,
+                    assignedIds: boatMap.get(b.id)?.assignedIds ?? [],
+                  }))}
+                  employees={allUsers}
+                />
+                <ConfirmDeleteButton
+                  action={deleteService.bind(null, svc.id, '/schedule')}
+                  title="Delete service"
+                  description={`Delete the service for ${svc.customerName} on ${fmtDate(svc.serviceDate)}? The associated invoice will also be deleted. This cannot be undone.`}
+                />
+              </>
             )}
           </div>
         </div>
@@ -215,6 +286,7 @@ export default async function ServiceDetailPage({
           {svc.completedAt && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
               ✓ Completed {fmtDateTime(svc.completedAt)}
+              {svc.completedByUserId && ` by ${userNames[svc.completedByUserId] ?? svc.completedByUserId}`}
             </span>
           )}
           {svc.reminderSentAt && (
@@ -225,12 +297,14 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
-      {svc.notes && (
+      {canManage ? (
+        <ServiceNotesEditor serviceId={svc.id} notes={svc.notes} />
+      ) : svc.notes ? (
         <div className="rounded-md bg-yellow-50 border border-yellow-200 px-4 py-3">
           <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Service notes</p>
           <p className="text-sm text-yellow-900 whitespace-pre-wrap">{svc.notes}</p>
         </div>
-      )}
+      ) : null}
 
       <div>
         <h2 className="text-base font-semibold mb-3">
@@ -253,17 +327,17 @@ export default async function ServiceDetailPage({
 
               return (
                 <div key={b.boatId} className="rounded-lg border bg-card px-4 py-3 space-y-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
                       <span className="font-medium text-sm">{b.nickname}</span>
-                      {b.makeModel && <span className="block text-xs text-muted-foreground sm:ml-2 sm:inline">{b.makeModel}</span>}
-                      {b.lengthFt && <span className="text-xs text-muted-foreground sm:ml-1">· {b.lengthFt} ft</span>}
+                      {b.makeModel && <span className="text-xs text-muted-foreground ml-2">{b.makeModel}</span>}
+                      {b.lengthFt && <span className="text-xs text-muted-foreground ml-1">· {b.lengthFt} ft</span>}
                     </div>
                     {lineTotal > 0 && (
-                      <span className="text-sm font-semibold tabular-nums sm:shrink-0">
+                      <span className="text-sm font-semibold tabular-nums shrink-0">
                         ${lineTotal.toFixed(2)}
                         {b.rateType === 'per_ft' && b.lengthFt && (
-                          <span className="block text-xs font-normal text-muted-foreground sm:ml-1 sm:inline">
+                          <span className="text-xs font-normal text-muted-foreground ml-1">
                             ({b.lengthFt}ft × ${rate.toFixed(2)})
                           </span>
                         )}
@@ -310,11 +384,11 @@ export default async function ServiceDetailPage({
         )}
       </div>
 
-      {invoice && (
-        <div>
-          <h2 className="text-base font-semibold mb-3">Invoice</h2>
-          <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
+      <div>
+        <h2 className="text-base font-semibold mb-3">Invoice</h2>
+        {invoice ? (
+          <div className="rounded-lg border bg-card px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
               <span className={cn(
                 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
                 invoice.status === 'paid'    ? 'border-green-200 bg-green-50 text-green-700' :
@@ -327,6 +401,11 @@ export default async function ServiceDetailPage({
               <span className="text-sm font-semibold tabular-nums">
                 ${Number(invoice.amount).toFixed(2)}
               </span>
+              {invoice.createdByUserId && (
+                <span className="text-xs text-muted-foreground">
+                  Created by {userNames[invoice.createdByUserId] ?? invoice.createdByUserId}
+                </span>
+              )}
               {invoice.sentAt && (
                 <span className="text-xs text-muted-foreground">
                   Sent {fmtDateTime(invoice.sentAt)}
@@ -338,20 +417,27 @@ export default async function ServiceDetailPage({
                 href={qboInvoiceUrl(invoice.qboInvoiceId)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="break-all text-xs font-mono text-primary hover:underline"
+                className="text-xs font-mono text-primary hover:underline"
               >
                 #{invoice.qboInvoiceId}
               </a>
             )}
           </div>
-        </div>
-      )}
+        ) : svc.status === 'complete' && canManage ? (
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-sm text-muted-foreground mb-2">No invoice for this service.</p>
+            <GenerateInvoiceButton serviceId={svc.id} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No invoice yet.</p>
+        )}
+      </div>
 
       {/* Tip section — shown for completed services */}
       {svc.status === 'complete' && (
         <div>
           <h2 className="text-base font-semibold mb-3">Tip</h2>
-          <div className="rounded-lg border bg-card px-4 py-3">
+          <div className="rounded-lg border bg-card px-4 py-3 space-y-2">
             {svc.tipAmount ? (
               <p className="text-sm font-medium">
                 Tip: <span className="tabular-nums">${Number(svc.tipAmount).toFixed(2)}</span>
@@ -364,17 +450,113 @@ export default async function ServiceDetailPage({
             ) : (
               <p className="text-sm text-muted-foreground">No tip recorded.</p>
             )}
+            {canManage && invoice?.qboInvoiceId && (
+              <SyncTipButton serviceId={svc.id} />
+            )}
           </div>
         </div>
       )}
 
+      {/* Audit trail */}
+      {canManage && (svc.completedAt || svc.approvedAt || invoice?.createdByUserId) && (
+        <div>
+          <h2 className="text-base font-semibold mb-2">Audit trail</h2>
+          <div className="rounded-lg border bg-card px-4 py-3 space-y-1.5 text-xs text-muted-foreground">
+            {svc.completedAt && (
+              <p>
+                <span className="font-medium text-foreground">Completed</span>{' '}
+                by{' '}
+                <span className="font-medium text-foreground">
+                  {svc.completedByUserId ? (userNames[svc.completedByUserId] ?? svc.completedByUserId) : 'unknown'}
+                </span>{' '}
+                on {fmtDateTime(svc.completedAt)}
+              </p>
+            )}
+            {svc.approvedAt && (
+              <p>
+                <span className="font-medium text-foreground">Approved</span>{' '}
+                {svc.approvedBy ? (
+                  <>
+                    by{' '}
+                    <span className="font-medium text-foreground">
+                      {userNames[svc.approvedBy] ?? svc.approvedBy}
+                    </span>{' '}
+                  </>
+                ) : null}
+                on {fmtDateTime(svc.approvedAt)}
+              </p>
+            )}
+            {invoice?.createdByUserId && (
+              <p>
+                <span className="font-medium text-foreground">Invoiced</span>{' '}
+                by{' '}
+                <span className="font-medium text-foreground">
+                  {userNames[invoice.createdByUserId] ?? invoice.createdByUserId}
+                </span>{' '}
+                on {fmtDateTime(invoice.createdAt)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Time tracking ── */}
+      {showTimeTracker && (
+        <div>
+          <h2 className="text-base font-semibold mb-3">Time</h2>
+          <TimeTracker
+            serviceId={svc.id}
+            entries={timeEntryRows.map((e) => ({
+              id: e.id,
+              userId: e.userId,
+              boatId: e.boatId ?? null,
+              boatNickname: e.boatNickname ?? null,
+              clockIn: e.clockIn,
+              clockOut: e.clockOut ?? null,
+              notes: e.notes ?? null,
+              employeeName: e.employeeName ?? 'Unknown',
+            }))}
+            boats={boatDetails.map((b) => ({ boatId: b.boatId, nickname: b.nickname }))}
+            employees={allUsers}
+            currentUserId={currentUser?.id ?? null}
+            canManage={canManage}
+          />
+        </div>
+      )}
+
+      {/* Debug / admin IDs */}
+      {canManage && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none hover:text-foreground transition-colors">IDs</summary>
+          <div className="mt-1.5 space-y-1 pl-1">
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0">Service ID</span>
+              <span className="font-mono">{svc.id}</span>
+            </div>
+            {invoice && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="w-24 shrink-0">Invoice ID</span>
+                  <span className="font-mono">{invoice.id}</span>
+                </div>
+                {invoice.qboInvoiceId && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-24 shrink-0">QBO Invoice</span>
+                    <span className="font-mono">{invoice.qboInvoiceId}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </details>
+      )}
       {serviceComplaints.length > 0 && (
         <section>
           <h2 className="text-base font-semibold mb-3">Complaints</h2>
           <div className="rounded-lg border bg-card divide-y">
             {serviceComplaints.map((c) => (
               <div key={c.id} className="px-4 py-3 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Badge variant={c.severity === 'major' ? 'destructive' : 'warning'} className="capitalize">
                     {c.severity}
                   </Badge>

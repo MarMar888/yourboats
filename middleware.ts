@@ -23,22 +23,12 @@ function devAuthMiddleware(request: NextRequest): NextResponse {
   return NextResponse.next()
 }
 
-// ── Real Neon Auth middleware ────────────────────────────────────────────────
-async function neonAuthMiddleware(request: NextRequest): Promise<NextResponse> {
-  const { pathname } = request.nextUrl
-
-  if (isPublic(pathname)) return NextResponse.next()
-
-  const { auth } = await import('@/lib/auth/server')
-  return auth.middleware({ loginUrl: '/login' })(request)
-}
-
 // ── Unified export ───────────────────────────────────────────────────────────
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   if (DEV_AUTH) {
     return devAuthMiddleware(request)
   }
-  return neonAuthMiddleware(request)
+  return NextResponse.next()
 }
 
 export const config = {

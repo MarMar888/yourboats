@@ -113,7 +113,7 @@ function PeriodReview({
 
   return (
     <div className="rounded-lg border bg-card overflow-x-auto">
-      <table className="min-w-[840px] w-full text-sm">
+      <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-xs">
             <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Date</th>
@@ -320,7 +320,7 @@ export function PayClient({
           </div>
           <Button variant="outline" size="sm" onClick={nextPeriod}>→</Button>
         </div>
-        <div className="grid gap-2 border-t pt-3 text-center text-xs text-muted-foreground sm:flex sm:justify-center sm:gap-6">
+        <div className="flex justify-center gap-6 text-xs text-muted-foreground border-t pt-3">
           <span>
             <span className="font-medium text-foreground">Payroll deadline:</span>{' '}
             {formatShortDate(period.deadline)}
@@ -341,7 +341,7 @@ export function PayClient({
       {/* Per-employee breakdown */}
       <div>
         <h2 className="text-base font-semibold mb-3">Per-employee breakdown</h2>
-        <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="rounded-lg border bg-card p-4 flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">Employee</label>
             <select
@@ -354,7 +354,7 @@ export function PayClient({
               ))}
             </select>
           </div>
-          <Button onClick={loadPerEmployee} disabled={loading} className="w-full sm:w-auto">
+          <Button onClick={loadPerEmployee} disabled={loading}>
             {loading ? 'Loading…' : 'Calculate'}
           </Button>
         </div>
@@ -374,7 +374,7 @@ export function PayClient({
               </div>
             ) : (
               <div className="rounded-lg border bg-card overflow-x-auto">
-                <table className="min-w-[960px] w-full text-sm">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Date</th>
@@ -427,7 +427,7 @@ export function PayClient({
       {isOwner && (
         <div>
           <h2 className="text-base font-semibold mb-3">Tier deduction settings</h2>
-          <div className="max-w-sm rounded-lg border bg-card p-4 space-y-3">
+          <div className="rounded-lg border bg-card p-4 space-y-3">
             {(['top', 'mid', 'low'] as const).map((tier) => (
               <div key={tier} className="flex items-center gap-3">
                 <span className="w-10 capitalize text-sm font-medium">{tier}</span>
@@ -443,7 +443,7 @@ export function PayClient({
                 </div>
               </div>
             ))}
-            <Button size="sm" onClick={saveTierConfig} disabled={tierPending} className="mt-1 w-full sm:w-auto">
+            <Button size="sm" onClick={saveTierConfig} disabled={tierPending} className="mt-1">
               {tierPending ? 'Saving…' : tierSaved ? 'Saved!' : 'Save tier config'}
             </Button>
           </div>
@@ -454,9 +454,9 @@ export function PayClient({
       {isOwner && employees.length > 0 && (
         <div>
           <h2 className="text-base font-semibold mb-3">Employee tiers</h2>
-          <div className="max-w-md rounded-lg border bg-card divide-y">
+          <div className="rounded-lg border bg-card divide-y">
             {employees.map((emp) => (
-              <div key={emp.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div key={emp.id} className="flex items-center justify-between px-4 py-3 gap-4">
                 <span className="text-sm font-medium">{emp.displayName}</span>
                 <div className="flex items-center gap-2">
                   <select
@@ -470,7 +470,7 @@ export function PayClient({
                     <option value="mid">Mid</option>
                     <option value="low">Low</option>
                   </select>
-                  <Button size="sm" variant="outline" onClick={() => saveEmployeeTier(emp.id)} disabled={empTierPending} className="shrink-0">
+                  <Button size="sm" variant="outline" onClick={() => saveEmployeeTier(emp.id)} disabled={empTierPending}>
                     Save
                   </Button>
                 </div>

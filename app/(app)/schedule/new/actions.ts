@@ -3,8 +3,11 @@
 import { db } from '@/lib/db'
 import { services, serviceBoats, serviceBoatAssignments, invoices, recurringSchedules, boats, customers } from '@/lib/db/schema'
 import { getQboClient } from '@/lib/qbo/client'
+import { findBestQboItem } from '@/lib/qbo/items'
 import { eq, inArray } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
+import { log } from '@/lib/log'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 // Returns every occurrence of dayOfWeek (0=Sun…6=Sat) between start and end
 // at the given frequency in weeks, as YYYY-MM-DD strings.
@@ -108,6 +111,10 @@ async function pushInvoiceToQbo(opts: {
 // ─── Main action ──────────────────────────────────────────────────────────────
 
 export async function createService(formData: FormData) {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) redirect('/dashboard')
+  const createdByUserId = currentUser.id
+
   const mode = formData.get('mode') as 'onetime' | 'recurring'
   const customerId = formData.get('customerId') as string
   const serviceType = formData.get('serviceType') as string
@@ -157,10 +164,12 @@ export async function createService(formData: FormData) {
         serviceId: service.id,
         amount: String(total),
         status: 'draft',
+        createdByUserId,
       })
       .returning()
 
     await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
+    await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'onetime' } })
   } else {
     const startDate = formData.get('startDate') as string
     const endDate = formData.get('endDate') as string
@@ -184,24 +193,31 @@ export async function createService(formData: FormData) {
       boatRecords.map((b) => [b.id, b.lengthFt])
     )
 
-    // QBO item ref — look up once, reuse for all invoices
+    // QBO item ref — try cache first, then fall back to live lookup
     let qboItemId: string | null = null
     let qboItemName = 'Services'
     try {
-      const qbo = await getQboClient()
-      const itemsRes = await new Promise<{ QueryResponse?: { Item?: { Id: string; Name: string }[] } }>(
-        (resolve, reject) =>
-          qbo.findItems(
-            [{ field: 'fetchAll', value: true }],
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (err: unknown, result: any) => (err ? reject(err) : resolve(result))
-          )
-      )
-      const items = itemsRes.QueryResponse?.Item ?? []
-      const serviceItem = items.find((i) => i.Name.toLowerCase().includes('recurring') || i.Name.toLowerCase().includes('service')) ?? items[0]
-      if (serviceItem) {
-        qboItemId = serviceItem.Id
-        qboItemName = serviceItem.Name
+      const cachedItem = await findBestQboItem(serviceType)
+      if (cachedItem) {
+        qboItemId = cachedItem.id
+        qboItemName = cachedItem.name
+      } else {
+        // Cache empty — fall back to live QBO lookup
+        const qbo = await getQboClient()
+        const itemsRes = await new Promise<{ QueryResponse?: { Item?: { Id: string; Name: string }[] } }>(
+          (resolve, reject) =>
+            qbo.findItems(
+              [{ field: 'fetchAll', value: true }],
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (err: unknown, result: any) => (err ? reject(err) : resolve(result))
+            )
+        )
+        const items = itemsRes.QueryResponse?.Item ?? []
+        const serviceItem = items.find((i) => i.Name.toLowerCase().includes('recurring') || i.Name.toLowerCase().includes('service')) ?? items[0]
+        if (serviceItem) {
+          qboItemId = serviceItem.Id
+          qboItemName = serviceItem.Name
+        }
       }
     } catch {
       // QBO not connected or item lookup failed — we'll still create DB records
@@ -261,11 +277,13 @@ export async function createService(formData: FormData) {
           serviceId: service.id,
           amount: String(totalPerVisit),
           status: 'draft',
+          createdByUserId,
         })
         .returning()
 
       // 4. Link invoice back to service
       await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
+      await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
 
       // 5. Push to QBO if connected and we have a customer QBO ID
       if (qboItemId && customer?.qboCustomerId && boatRows.length > 0) {

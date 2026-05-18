@@ -5,6 +5,15 @@ import { customers, boats } from '@/lib/db/schema'
 import { getQboClient } from '@/lib/qbo/client'
 import { eq } from 'drizzle-orm'
 import { log } from '@/lib/log'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
+
+async function requireManager() {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    throw new Error('Unauthorized')
+  }
+  return user
+}
 
 // ─── Create customer ──────────────────────────────────────────────────────────
 
@@ -13,6 +22,7 @@ export type CreateCustomerResult =
   | { ok: false; error: string }
 
 export async function createCustomer(formData: FormData): Promise<CreateCustomerResult> {
+  await requireManager()
   const name = (formData.get('name') as string)?.trim()
   const email = (formData.get('email') as string)?.trim() || null
   const phone = (formData.get('phone') as string)?.trim() || null
@@ -72,6 +82,7 @@ export type CreateBoatResult =
   | { ok: false; error: string }
 
 export async function createBoat(formData: FormData): Promise<CreateBoatResult> {
+  await requireManager()
   const customerId = (formData.get('customerId') as string)?.trim()
   const nickname = (formData.get('nickname') as string)?.trim()
   const makeModel = (formData.get('makeModel') as string)?.trim() || null

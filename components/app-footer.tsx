@@ -4,7 +4,7 @@ export default function AppFooter() {
   return (
     <footer className="border-t py-3 px-6">
       <p className="text-xs text-muted-foreground text-center">
-        yourboats v{version}
+        yourboats v{version} | Squeaky Clean Boat Services LLC
       </p>
     </footer>
   )
