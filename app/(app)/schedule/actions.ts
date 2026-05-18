@@ -36,6 +36,25 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
   }
 }
 
+export async function rescheduleService(serviceId: string, newDate: string): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return { error: 'Not authorized' }
+
+  const [service] = await db
+    .select({ id: services.id, status: services.status })
+    .from(services)
+    .where(eq(services.id, serviceId))
+    .limit(1)
+
+  if (!service) return { error: 'Service not found' }
+  if (service.status === 'complete') return { error: 'Cannot reschedule a completed service' }
+
+  await db.update(services).set({ serviceDate: newDate }).where(eq(services.id, serviceId))
+  await log({ action: 'reschedule_service', entityType: 'service', entityId: serviceId, metadata: { newDate } })
+  revalidatePath('/schedule')
+  return {}
+}
+
 export async function markComplete(serviceId: string): Promise<{ error?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Not authenticated' }

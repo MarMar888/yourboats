@@ -13,8 +13,9 @@ import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { cn } from '@/lib/utils'
 import { ApproveWeekModal, UnapproveWeekButton } from './approve-week-modal'
-import ScheduleCard from './schedule-card'
 import type { ReminderStatus } from './schedule-card'
+import { ScheduleWeekGrid } from './schedule-week-grid'
+import type { GridDayData } from './schedule-week-grid'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -283,69 +284,46 @@ export default async function SchedulePage({ searchParams }: PageProps) {
       </div>
 
       {/* Days */}
-      <div className="space-y-6">
-        {Object.entries(byDay).map(([dateStr, dayCards]) => {
+      {(() => {
+        const todayStr = toISODate(new Date())
+        const gridDays: GridDayData[] = Object.entries(byDay).map(([dateStr, dayCards]) => {
           const dayDate = new Date(dateStr + 'T00:00:00')
-          const isToday = dateStr === toISODate(new Date())
-
-          return (
-            <div key={dateStr}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className={cn(
-                  'text-sm font-semibold uppercase tracking-wide',
-                  isToday ? 'text-primary' : 'text-muted-foreground'
-                )}>
-                  {DAY_LABELS[dayDate.getDay()]}
-                </span>
-                <span className={cn('text-sm font-medium', isToday ? 'text-primary' : 'text-foreground')}>
-                  {dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-                {dayCards.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    ({dayCards.length} {dayCards.length === 1 ? 'job' : 'jobs'})
-                  </span>
-                )}
-              </div>
-
-              {dayCards.length === 0 ? (
-                <div className="rounded-lg border border-dashed bg-card/50 py-4 px-4 text-sm text-muted-foreground">
-                  No services
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {dayCards.map((card) => {
-                    const todayStr = toISODate(new Date())
-                    const reminderStatus: ReminderStatus = card.reminderSentAt
-                      ? 'sent'
-                      : card.status === 'scheduled' && card.approvedAt && card.serviceDate > todayStr
-                        ? 'scheduled'
-                        : 'none'
-                    return (
-                      <ScheduleCard
-                        key={card.id}
-                        serviceId={card.id}
-                        customerId={card.customerId}
-                        customerName={card.customerName}
-                        serviceType={SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType}
-                        serviceDate={card.serviceDate}
-                        status={card.status}
-                        totalPrice={card.totalPrice}
-                        notes={card.notes}
-                        approvedAt={card.approvedAt}
-                        reminderStatus={reminderStatus}
-                        reminderSentAt={card.reminderSentAt}
-                        boats={card.boats}
-                        employees={employeeList}
-                        isManager={isManager}
-                      />
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+          return {
+            dateStr,
+            dayLabel: DAY_LABELS[dayDate.getDay()],
+            dateLabel: dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            isToday: dateStr === todayStr,
+            cards: dayCards.map((card) => {
+              const reminderStatus: ReminderStatus = card.reminderSentAt
+                ? 'sent'
+                : card.status === 'scheduled' && card.approvedAt && card.serviceDate > todayStr
+                  ? 'scheduled'
+                  : 'none'
+              return {
+                id: card.id,
+                serviceDate: card.serviceDate,
+                serviceType: SERVICE_TYPE_LABELS[card.serviceType] ?? card.serviceType,
+                status: card.status,
+                totalPrice: card.totalPrice,
+                notes: card.notes,
+                approvedAt: card.approvedAt,
+                reminderStatus,
+                reminderSentAt: card.reminderSentAt,
+                customerId: card.customerId,
+                customerName: card.customerName,
+                boats: card.boats,
+              }
+            }),
+          }
+        })
+        return (
+          <ScheduleWeekGrid
+            days={gridDays}
+            employees={employeeList}
+            isManager={isManager}
+          />
+        )
+      })()}
     </div>
   )
 }
