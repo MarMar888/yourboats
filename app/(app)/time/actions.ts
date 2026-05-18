@@ -148,6 +148,7 @@ export async function updateTimeEntry(
     .set({ clockIn: clockInDate, clockOut: clockOutDate, notes: data.notes || null })
     .where(eq(timeEntries.id, entryId))
 
+  await log({ action: 'update_time_entry', entityType: 'service', entityId: entry.serviceId, metadata: { entryId } })
   revalidatePath(`/schedule/${entry.serviceId}`)
   revalidatePath('/time')
   return { ok: true }
