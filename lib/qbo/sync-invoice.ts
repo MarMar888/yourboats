@@ -38,6 +38,7 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
     .select({
       serviceDate:   services.serviceDate,
       serviceType:   services.serviceType,
+      qboItemId:     services.qboItemId,
       qboCustomerId: customers.qboCustomerId,
     })
     .from(services)
@@ -65,11 +66,22 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
 
   if (sbRows.length === 0) return { ok: false, error: 'No boats on this service.' }
 
-  // Look up the best matching QBO item from the cache
-  const qboItem = await findBestQboItem(service.serviceType)
+  // Use the stored QBO item ID if available, else fall back to fuzzy match
+  let qboItem: { id: string; name: string } | null = null
+  if (service.qboItemId) {
+    const { getCachedQboItems } = await import('./items')
+    const cached = await getCachedQboItems()
+    const found = cached.find((i) => i.qboItemId === service.qboItemId)
+    if (found) qboItem = { id: found.qboItemId, name: found.name }
+  }
+  if (!qboItem) {
+    qboItem = await findBestQboItem(service.serviceType)
+  }
   if (!qboItem) {
     return { ok: false, error: 'No QBO items found in cache. Sync items from Settings first.' }
   }
+
+  const resolvedItem = qboItem  // narrowed non-null for use inside callbacks
 
   const dueDate = new Date(service.serviceDate + 'T00:00:00')
   dueDate.setDate(dueDate.getDate() + 30)
@@ -82,7 +94,7 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
       DetailType: 'SalesItemLineDetail',
       Description: b.description ?? b.nickname ?? '',
       SalesItemLineDetail: {
-        ItemRef: { value: qboItem.id, name: qboItem.name },
+        ItemRef: { value: resolvedItem.id, name: resolvedItem.name },
         UnitPrice: rate,
         Qty: qty,
         ServiceDate: service.serviceDate,

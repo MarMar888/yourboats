@@ -118,6 +118,7 @@ export async function createService(formData: FormData) {
   const mode = formData.get('mode') as 'onetime' | 'recurring'
   const customerId = formData.get('customerId') as string
   const serviceType = formData.get('serviceType') as string
+  const qboItemId = (formData.get('qboItemId') as string) || null
   const boatRows = parseBoatRows(formData)
 
   if (mode === 'onetime') {
@@ -143,7 +144,8 @@ export async function createService(formData: FormData) {
       .values({
         customerId,
         serviceDate,
-        serviceType: serviceType as never,
+        serviceType,
+        qboItemId,
         status: 'scheduled',
         notes: notes || null,
         totalPrice: total > 0 ? String(total) : null,
@@ -193,34 +195,20 @@ export async function createService(formData: FormData) {
       boatRecords.map((b) => [b.id, b.lengthFt])
     )
 
-    // QBO item ref — try cache first, then fall back to live lookup
-    let qboItemId: string | null = null
-    let qboItemName = 'Services'
-    try {
-      const cachedItem = await findBestQboItem(serviceType)
-      if (cachedItem) {
-        qboItemId = cachedItem.id
-        qboItemName = cachedItem.name
-      } else {
-        // Cache empty — fall back to live QBO lookup
-        const qbo = await getQboClient()
-        const itemsRes = await new Promise<{ QueryResponse?: { Item?: { Id: string; Name: string }[] } }>(
-          (resolve, reject) =>
-            qbo.findItems(
-              [{ field: 'fetchAll', value: true }],
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (err: unknown, result: any) => (err ? reject(err) : resolve(result))
-            )
-        )
-        const items = itemsRes.QueryResponse?.Item ?? []
-        const serviceItem = items.find((i) => i.Name.toLowerCase().includes('recurring') || i.Name.toLowerCase().includes('service')) ?? items[0]
-        if (serviceItem) {
-          qboItemId = serviceItem.Id
-          qboItemName = serviceItem.Name
+    // QBO item ref — use the ID from the form (selected by user), or fall back to fuzzy match
+    let resolvedQboItemId: string | null = qboItemId
+    let qboItemName = serviceType // display name is the serviceType text
+    if (!resolvedQboItemId) {
+      // Fallback: fuzzy match from cache (for old services without explicit qboItemId)
+      try {
+        const cachedItem = await findBestQboItem(serviceType)
+        if (cachedItem) {
+          resolvedQboItemId = cachedItem.id
+          qboItemName = cachedItem.name
         }
+      } catch {
+        // QBO not connected — still create DB records
       }
-    } catch {
-      // QBO not connected or item lookup failed — we'll still create DB records
     }
 
     // ── Create recurring schedule ─────────────────────────────────────────────
@@ -229,7 +217,7 @@ export async function createService(formData: FormData) {
       .insert(recurringSchedules)
       .values({
         customerId,
-        serviceType: serviceType as never,
+        serviceType,
         startDate,
         endDate,
         frequencyWeeks,
@@ -255,7 +243,8 @@ export async function createService(formData: FormData) {
         .values({
           customerId,
           serviceDate,
-          serviceType: serviceType as never,
+          serviceType,
+          qboItemId,
           status: 'scheduled',
           recurringScheduleId: schedule.id,
           totalPrice: totalPerVisit > 0 ? String(totalPerVisit) : null,
@@ -286,14 +275,14 @@ export async function createService(formData: FormData) {
       await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
 
       // 5. Push to QBO if connected and we have a customer QBO ID
-      if (qboItemId && customer?.qboCustomerId && boatRows.length > 0) {
+      if (resolvedQboItemId && customer?.qboCustomerId && boatRows.length > 0) {
         try {
           const qboInvoiceId = await pushInvoiceToQbo({
             qboCustomerId: customer.qboCustomerId,
             serviceDate,
             boatLines: boatRows,
             boatLengths,
-            qboItemId,
+            qboItemId: resolvedQboItemId,
             qboItemName,
           })
 
