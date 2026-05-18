@@ -2,6 +2,12 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { EditServiceForm } from './edit-service-form'
 
 type Employee = { id: string; displayName: string }
@@ -35,25 +41,31 @@ type Props = {
 export function EditServicePanel({ serviceId, initialValues, boats, allCustomerBoats, employees }: Props) {
   const [open, setOpen] = useState(false)
 
-  if (!open) {
-    return (
+  return (
+    <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         Edit
       </Button>
-    )
-  }
 
-  return (
-    <div className="rounded-lg border bg-card px-4 py-4 mt-4">
-      <h2 className="text-base font-semibold mb-4">Edit service</h2>
-      <EditServiceForm
-        serviceId={serviceId}
-        initialValues={initialValues}
-        boats={boats}
-        allCustomerBoats={allCustomerBoats}
-        employees={employees}
-        onClose={() => setOpen(false)}
-      />
-    </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <DialogTitle>Edit service</DialogTitle>
+          </DialogHeader>
+
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 px-6 py-5">
+            <EditServiceForm
+              serviceId={serviceId}
+              initialValues={initialValues}
+              boats={boats}
+              allCustomerBoats={allCustomerBoats}
+              employees={employees}
+              onClose={() => setOpen(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
