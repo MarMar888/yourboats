@@ -152,9 +152,9 @@ export function InvoiceRow({
               onClose={() => { setEditing(false); setOpen(false) }}
             />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 p-1">
               {/* Status + Amount */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4 mb-1">
                 <span className={cn(
                   'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
                   statusClass(inv.status as InvoiceStatus)
@@ -167,35 +167,35 @@ export function InvoiceRow({
               </div>
 
               {/* Details */}
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Customer</dt>
-                  <dd className="mt-0.5 font-medium">{inv.customerName}</dd>
+                  <dd className="mt-1 font-medium">{inv.customerName}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Service date</dt>
-                  <dd className="mt-0.5">{fmtDate(inv.serviceDate)}</dd>
+                  <dd className="mt-1">{fmtDate(inv.serviceDate)}</dd>
                 </div>
                 {inv.sentAt && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sent</dt>
-                    <dd className="mt-0.5">{fmtDateTime(inv.sentAt)}</dd>
+                    <dd className="mt-1">{fmtDateTime(inv.sentAt)}</dd>
                   </div>
                 )}
                 {inv.paidAt && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Paid</dt>
-                    <dd className="mt-0.5">{fmtDateTime(inv.paidAt)}</dd>
+                    <dd className="mt-1">{fmtDateTime(inv.paidAt)}</dd>
                   </div>
                 )}
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Invoice ID</dt>
-                  <dd className="mt-0.5 font-mono text-xs">{inv.invoiceId}</dd>
+                  <dd className="mt-1 font-mono text-xs">{inv.invoiceId}</dd>
                 </div>
                 {inv.qboInvoiceId && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">QBO Invoice</dt>
-                    <dd className="mt-0.5 font-mono text-xs">#{inv.qboInvoiceId}</dd>
+                    <dd className="mt-1 font-mono text-xs">#{inv.qboInvoiceId}</dd>
                   </div>
                 )}
               </dl>
@@ -208,7 +208,7 @@ export function InvoiceRow({
               )}
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
+              <div className="flex flex-wrap items-center gap-2 mt-2 pt-3 border-t">
                 <a
                   href={`/schedule/${inv.serviceId}`}
                   className="text-sm text-primary hover:underline"
