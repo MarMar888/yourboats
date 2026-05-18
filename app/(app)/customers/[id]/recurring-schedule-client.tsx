@@ -225,7 +225,7 @@ function EditScheduleModal({
           <DialogTitle>Edit recurring schedule</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="space-y-4 px-6 py-4">
           {/* Service type */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -335,7 +335,7 @@ function EditScheduleModal({
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={savePending || regenPending}>
             Cancel
           </Button>

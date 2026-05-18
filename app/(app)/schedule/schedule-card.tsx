@@ -37,6 +37,7 @@ interface ScheduleCardProps {
   totalPrice: string | null
   notes: string | null
   customerNotes: string | null
+  customerAddress: string | null
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
@@ -115,6 +116,7 @@ export default function ScheduleCard({
   totalPrice,
   notes,
   customerNotes,
+  customerAddress,
   approvedAt,
   reminderStatus,
   reminderSentAt,
@@ -271,6 +273,19 @@ export default function ScheduleCard({
 
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <div className="relative z-10 px-4 py-2.5 border-t bg-muted/20 flex items-center gap-2">
+        {/* Address */}
+        {customerAddress && (
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 text-xs text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            📍 {customerAddress}
+          </a>
+        )}
+
         {/* Price */}
         {totalPrice && (
           <span className="text-sm font-semibold tabular-nums text-foreground">

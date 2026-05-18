@@ -121,8 +121,9 @@ export default async function SchedulePage({ searchParams }: PageProps) {
           approvedAt:     services.approvedAt,
           reminderSentAt: services.reminderSentAt,
           customerId:    services.customerId,
-          customerName:  customers.name,
-          customerNotes: customers.notes,
+          customerName:    customers.name,
+          customerNotes:   customers.notes,
+          customerAddress: customers.address,
         })
         .from(services)
         .innerJoin(customers, eq(services.customerId, customers.id))
@@ -190,16 +191,17 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   type BoatEntry = { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }
   type ServiceCard = {
     id: string; serviceDate: string; serviceType: string; status: string
-    totalPrice: string | null; notes: string | null; customerNotes: string | null; approvedAt: Date | null
+    totalPrice: string | null; notes: string | null; customerNotes: string | null; customerAddress: string | null; approvedAt: Date | null
     reminderSentAt: Date | null; customerId: string; customerName: string; boats: BoatEntry[]
   }
 
   const cards: ServiceCard[] = serviceRows.map((s) => ({
     ...s,
-    totalPrice:     s.totalPrice ?? null,
-    approvedAt:     s.approvedAt ?? null,
-    reminderSentAt: s.reminderSentAt ?? null,
-    customerNotes:  s.customerNotes ?? null,
+    totalPrice:      s.totalPrice ?? null,
+    approvedAt:      s.approvedAt ?? null,
+    reminderSentAt:  s.reminderSentAt ?? null,
+    customerNotes:   s.customerNotes ?? null,
+    customerAddress: s.customerAddress ?? null,
     boats: (boatsByService[s.id] ?? []).map((b) => ({
       ...b,
       assignedIds: assignments[s.id]?.[b.boatId] ?? [],
@@ -290,6 +292,12 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         >
           Next →
         </Link>
+        <Link
+          href="/schedule/calendar"
+          className="ml-auto text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          Calendar view →
+        </Link>
       </div>
 
       {/* Days */}
@@ -316,6 +324,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 totalPrice: card.totalPrice,
                 notes: card.notes,
                 customerNotes: card.customerNotes,
+                customerAddress: card.customerAddress,
                 approvedAt: card.approvedAt,
                 reminderStatus,
                 reminderSentAt: card.reminderSentAt,
@@ -328,6 +337,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         })
         return (
           <ScheduleWeekGrid
+            key={weekStartStr}
             days={gridDays}
             employees={employeeList}
             isManager={isManager}

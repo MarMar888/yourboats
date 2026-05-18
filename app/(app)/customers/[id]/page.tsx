@@ -4,7 +4,6 @@ import { eq, desc, asc, inArray, and, gte, sql, count } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AddBoatButton from './customer-detail-client'
 import ReminderContacts from './reminder-contacts-client'
@@ -15,6 +14,7 @@ import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteScheduledServices } from './service-actions'
 import { RecurringScheduleList } from './recurring-schedule-client'
 import type { RecurringScheduleRow } from './recurring-schedule-client'
+import { EditCustomerModal } from './edit-customer-modal'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -227,11 +227,19 @@ export default async function CustomerDetailPage({
               </Badge>
             )}
           </div>
-          <div className="sm:ml-auto">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/customers/${id}/edit`}>Edit</Link>
-            </Button>
-          </div>
+          {canManage && (
+            <div className="sm:ml-auto">
+              <EditCustomerModal
+                customerId={id}
+                initialValues={{
+                  name: customer.name,
+                  phone: customer.phone,
+                  email: customer.email,
+                  address: customer.address,
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 

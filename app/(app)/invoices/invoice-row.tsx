@@ -144,15 +144,17 @@ export function InvoiceRow({
           </DialogHeader>
 
           {editing ? (
-            <EditInvoiceForm
-              invoiceId={inv.invoiceId}
-              initialAmount={inv.amount}
-              initialNotes={inv.notes}
-              initialStatus={inv.status}
-              onClose={() => { setEditing(false); setOpen(false) }}
-            />
+            <div className="px-6 py-4">
+              <EditInvoiceForm
+                invoiceId={inv.invoiceId}
+                initialAmount={inv.amount}
+                initialNotes={inv.notes}
+                initialStatus={inv.status}
+                onClose={() => { setEditing(false); setOpen(false) }}
+              />
+            </div>
           ) : (
-            <div className="space-y-4 p-1">
+            <div className="space-y-4 px-6 py-4">
               {/* Status + Amount */}
               <div className="flex items-center gap-4 mb-1">
                 <span className={cn(
@@ -208,7 +210,7 @@ export function InvoiceRow({
               )}
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 mt-2 pt-3 border-t">
+              <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
                 <a
                   href={`/schedule/${inv.serviceId}`}
                   className="text-sm text-primary hover:underline"

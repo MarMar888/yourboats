@@ -28,17 +28,19 @@ export default function AppNav({ user }: { user: CurrentUser }) {
   const pathname = usePathname()
   const visible = navItems.filter((item) => item.roles.includes(user.role))
   const [createOpen, setCreateOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const canCreate = user.role === 'owner' || user.role === 'manager'
 
   return (
     <>
-      <header className="border-b bg-background sticky top-0 z-40">
+      <header className="border-b bg-background sticky top-0 z-40 relative">
         <div className="container flex h-14 items-center gap-6">
-          <Link href="/dashboard" className="font-semibold text-primary">
+          <Link href="/dashboard" className="font-semibold text-primary shrink-0">
             yourboats
           </Link>
 
-          <nav className="flex items-center gap-1 flex-1">
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-1 flex-1">
             {visible.map((item) => (
               <Link
                 key={item.href}
@@ -55,33 +57,75 @@ export default function AppNav({ user }: { user: CurrentUser }) {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 ml-auto">
             {canCreate && (
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Button size="sm" onClick={() => setCreateOpen(true)} className="hidden md:inline-flex">
                 + New
               </Button>
             )}
-            {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
-              <Link
-                href="/pick-user"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {user.displayName} ({user.role})
-              </Link>
-            ) : (
-              <span className="text-sm text-muted-foreground">
-                {user.displayName}
-              </span>
-            )}
-            {process.env.NEXT_PUBLIC_DEV_AUTH !== 'true' && (
-              <form action={logout}>
-                <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
-                  Sign out
-                </Button>
-              </form>
-            )}
+            <div className="hidden md:flex items-center gap-3">
+              {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
+                <Link
+                  href="/pick-user"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {user.displayName} ({user.role})
+                </Link>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {user.displayName}
+                </span>
+              )}
+              {process.env.NEXT_PUBLIC_DEV_AUTH !== 'true' && (
+                <form action={logout}>
+                  <Button variant="ghost" size="sm" type="submit" className="text-muted-foreground">
+                    Sign out
+                  </Button>
+                </form>
+              )}
+            </div>
+
+            {/* Hamburger for mobile */}
+            <button
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-label="Toggle menu"
+            >
+              <span className="text-xl leading-none">{menuOpen ? '✕' : '☰'}</span>
+            </button>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {menuOpen && (
+          <div className="md:hidden absolute top-14 left-0 right-0 border-b bg-background shadow-lg z-50 py-2">
+            {visible.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+                className={cn(
+                  'block px-4 py-2.5 text-sm transition-colors hover:bg-muted',
+                  pathname.startsWith(item.href)
+                    ? 'bg-muted font-medium text-foreground'
+                    : 'text-muted-foreground'
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {canCreate && (
+              <div className="px-4 py-2 border-t mt-1">
+                <button
+                  onClick={() => { setMenuOpen(false); setCreateOpen(true) }}
+                  className="w-full text-left text-sm text-primary font-medium"
+                >
+                  + New service
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />

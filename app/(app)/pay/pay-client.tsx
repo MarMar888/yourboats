@@ -11,7 +11,7 @@ import {
   formatShortDate,
   type PayPeriod,
 } from '@/lib/pay/periods'
-import type { PeriodServiceRow } from '@/app/api/pay/period/route'
+import type { PeriodServiceRow, AssignmentRow } from '@/app/api/pay/period/route'
 
 type Employee = { id: string; displayName: string; tier: 'top' | 'mid' | 'low' | null }
 type TierRow = { tier: 'top' | 'mid' | 'low'; deductionPct: string }
@@ -50,6 +50,11 @@ function PeriodReview({
   const [tipInputs, setTipInputs] = useState<Record<string, string>>({})
   const [savingTip, setSavingTip] = useState<Record<string, boolean>>({})
 
+  // splitOverrides[serviceId][userId] = string value of the override %
+  const [splitOverrides, setSplitOverrides] = useState<Record<string, Record<string, string>>>({})
+  // excludedUsers[serviceId] = Set of userIds excluded from pay calc
+  const [excludedUsers, setExcludedUsers] = useState<Record<string, Set<string>>>({})
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -64,6 +69,8 @@ function PeriodReview({
         seeds[s.serviceId] = s.tipAmount != null ? String(s.tipAmount) : ''
       }
       setTipInputs(seeds)
+      setSplitOverrides({})
+      setExcludedUsers({})
     } finally {
       setLoading(false)
     }
@@ -88,6 +95,69 @@ function PeriodReview({
     }
   }
 
+  function setSplitOverride(serviceId: string, userId: string, value: string) {
+    setSplitOverrides((prev) => ({
+      ...prev,
+      [serviceId]: { ...(prev[serviceId] ?? {}), [userId]: value },
+    }))
+  }
+
+  function toggleExclude(serviceId: string, userId: string) {
+    setExcludedUsers((prev) => {
+      const current = new Set(prev[serviceId] ?? [])
+      if (current.has(userId)) {
+        current.delete(userId)
+      } else {
+        current.add(userId)
+        // Clear any split override for this user when excluding
+        setSplitOverrides((sp) => {
+          const overrides = { ...(sp[serviceId] ?? {}) }
+          delete overrides[userId]
+          return { ...sp, [serviceId]: overrides }
+        })
+      }
+      return { ...prev, [serviceId]: current }
+    })
+  }
+
+  // Compute effective assignments for a row, applying overrides and exclusions
+  function computeAssignments(row: PeriodServiceRow): {
+    assignments: (AssignmentRow & { effectiveSplitPct: number; computedNetPay: number })[]
+    splitsValid: boolean
+  } {
+    const excluded = excludedUsers[row.serviceId] ?? new Set<string>()
+    const overrides = splitOverrides[row.serviceId] ?? {}
+
+    const activeAssignments = row.assignments.filter((a) => !excluded.has(a.userId))
+
+    if (activeAssignments.length === 0) {
+      return { assignments: [], splitsValid: true }
+    }
+
+    // Recalculate base equal splits for active assignments (mirrors server logic)
+    const count = activeAssignments.length
+    const basePct = Math.floor(100 / count)
+    const remainder = 100 - basePct * count
+
+    const computed = activeAssignments.map((a, idx) => {
+      const defaultSplit = idx === count - 1 ? basePct + remainder : basePct
+      const overrideRaw = overrides[a.userId]
+      const effectiveSplitPct =
+        overrideRaw !== undefined && overrideRaw !== ''
+          ? parseFloat(overrideRaw)
+          : defaultSplit
+      const split = isNaN(effectiveSplitPct) ? defaultSplit : effectiveSplitPct
+      const effectivePct = Math.max(0, split - a.deductionPct)
+      const computedNetPay = row.employeePool * (effectivePct / 100)
+      return { ...a, effectiveSplitPct: split, computedNetPay }
+    })
+
+    const totalSplit = computed.reduce((sum, a) => sum + (isNaN(a.effectiveSplitPct) ? 0 : a.effectiveSplitPct), 0)
+    const splitsValid = Math.abs(totalSplit - 100) < 0.01
+
+    return { assignments: computed, splitsValid }
+  }
+
   if (loading) {
     return (
       <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
@@ -104,7 +174,11 @@ function PeriodReview({
     )
   }
 
-  const grandTotal = rows.reduce((sum, r) => sum + r.totalNetPay, 0)
+  const grandTotal = rows.reduce((sum, r) => {
+    const { assignments } = computeAssignments(r)
+    return sum + assignments.reduce((s, a) => s + a.computedNetPay, 0)
+  }, 0)
+
   const grandTips = rows.reduce((sum, r) => {
     return sum + (parseFloat(tipInputs[r.serviceId] ?? '') || r.tipAmount || 0)
   }, 0)
@@ -129,6 +203,10 @@ function PeriodReview({
           {rows.map((row) => {
             const tipRaw = tipInputs[row.serviceId] ?? ''
             const tipNum = parseFloat(tipRaw) || 0
+            const excluded = excludedUsers[row.serviceId] ?? new Set<string>()
+            const overrides = splitOverrides[row.serviceId] ?? {}
+            const { assignments: computed, splitsValid } = computeAssignments(row)
+            const rowTotal = computed.reduce((s, a) => s + a.computedNetPay, 0)
 
             return (
               <tr key={row.serviceId} className="hover:bg-muted/20 align-top">
@@ -147,19 +225,66 @@ function PeriodReview({
                 <td className="px-3 py-2.5 text-muted-foreground text-xs">
                   {row.boats.length > 0 ? row.boats.join(', ') : '—'}
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 min-w-[180px]">
                   {row.assignments.length === 0 ? (
                     <span className="text-muted-foreground text-xs">Unassigned</span>
                   ) : (
-                    <div className="space-y-0.5">
-                      {row.assignments.map((a) => (
-                        <div key={a.userId} className="text-xs">
-                          <span className="font-medium">{a.displayName}</span>
-                          <span className="text-muted-foreground ml-1">
-                            ({a.splitPct}%{a.deductionPct > 0 ? `−${a.deductionPct}%` : ''})
-                          </span>
+                    <div className="space-y-1">
+                      {row.assignments.map((a, idx) => {
+                        const isExcluded = excluded.has(a.userId)
+                        const overrideVal = overrides[a.userId]
+
+                        // Default split recalculated for currently active people
+                        const activeCount = row.assignments.filter((x) => !excluded.has(x.userId)).length
+                        const activeIdx = row.assignments
+                          .filter((x) => !excluded.has(x.userId))
+                          .findIndex((x) => x.userId === a.userId)
+                        const defaultSplit = activeCount > 0
+                          ? activeIdx === activeCount - 1
+                            ? Math.floor(100 / activeCount) + (100 - Math.floor(100 / activeCount) * activeCount)
+                            : Math.floor(100 / activeCount)
+                          : 0
+
+                        return (
+                          <div key={a.userId} className={`flex items-center gap-1.5 ${isExcluded ? 'opacity-40' : ''}`}>
+                            <button
+                              type="button"
+                              onClick={() => toggleExclude(row.serviceId, a.userId)}
+                              className="text-muted-foreground hover:text-destructive text-[10px] leading-none w-3.5 h-3.5 flex items-center justify-center flex-shrink-0 transition-colors"
+                              title={isExcluded ? 'Re-include' : 'Exclude from pay'}
+                            >
+                              {isExcluded ? '+' : '×'}
+                            </button>
+                            <span className={`text-xs font-medium ${isExcluded ? 'line-through' : ''}`}>
+                              {a.displayName}
+                            </span>
+                            {!isExcluded && (
+                              <div className="flex items-center gap-0.5 ml-auto">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  placeholder={String(defaultSplit)}
+                                  value={overrideVal ?? ''}
+                                  onChange={(e) => setSplitOverride(row.serviceId, a.userId, e.target.value)}
+                                  className="w-12 h-5 text-xs text-right border border-input rounded px-1 bg-background tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                                  title="Split %"
+                                />
+                                <span className="text-muted-foreground text-[10px]">%</span>
+                                {a.deductionPct > 0 && (
+                                  <span className="text-muted-foreground text-[10px] ml-0.5">−{a.deductionPct}%</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {!splitsValid && computed.length > 0 && (
+                        <div className="text-[10px] text-amber-600 mt-0.5">
+                          ⚠ splits don&apos;t add to 100
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </td>
@@ -167,25 +292,28 @@ function PeriodReview({
                 <td className="px-3 py-2.5 text-right tabular-nums text-xs text-muted-foreground">
                   {fmt(row.employeePool)}
                 </td>
-                {/* Their Pay = pool × effectivePct */}
+                {/* Their Pay = pool × effectivePct (uses overrides) */}
                 <td className="px-3 py-2.5 text-right">
-                  {row.assignments.length === 0 ? (
+                  {computed.length === 0 ? (
                     <span className="text-muted-foreground text-xs">—</span>
                   ) : (
-                    <div className="space-y-0.5">
-                      {row.assignments.map((a) => (
-                        <div key={a.userId} className="text-xs tabular-nums">
-                          {fmt(a.netPay)}
-                          <span className="text-muted-foreground ml-1 text-[10px]">
-                            ({a.effectivePct.toFixed(1)}%)
-                          </span>
-                        </div>
-                      ))}
+                    <div className="space-y-1">
+                      {computed.map((a) => {
+                        const effectivePct = Math.max(0, a.effectiveSplitPct - a.deductionPct)
+                        return (
+                          <div key={a.userId} className="text-xs tabular-nums">
+                            {fmt(a.computedNetPay)}
+                            <span className="text-muted-foreground ml-1 text-[10px]">
+                              ({effectivePct.toFixed(1)}%)
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                  {fmt(row.totalNetPay)}
+                  {fmt(rowTotal)}
                 </td>
                 <td className="px-3 py-2.5">
                   {isOwnerOrManager ? (
@@ -214,12 +342,12 @@ function PeriodReview({
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-right">
-                  {tipNum > 0 && row.assignments.length > 0 ? (
-                    <div className="space-y-0.5">
-                      {row.assignments.map((a) => (
+                  {tipNum > 0 && computed.length > 0 ? (
+                    <div className="space-y-1">
+                      {computed.map((a) => (
                         <div key={a.userId} className="text-xs tabular-nums">
                           <span className="text-muted-foreground">{a.displayName}:</span>{' '}
-                          {fmt(tipNum * (a.splitPct / 100))}
+                          {fmt(tipNum * (a.effectiveSplitPct / 100))}
                         </div>
                       ))}
                     </div>

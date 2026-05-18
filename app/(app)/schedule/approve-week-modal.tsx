@@ -65,38 +65,40 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
             <DialogTitle>Approve week</DialogTitle>
           </DialogHeader>
 
-          <p className="text-sm text-muted-foreground">
-            Approving this week enables reminder emails. Each customer will receive a
-            message the evening before their service.
-          </p>
-
-          {upcomingServices.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-1 py-3">
-              No upcoming services need reminders.
+          <div className="px-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Approving this week enables reminder emails. Each customer will receive a
+              message the evening before their service.
             </p>
-          ) : (
-            <div className="divide-y rounded-lg border overflow-hidden text-sm">
-              {upcomingServices.map((svc) => (
-                <div key={svc.id} className="flex items-start justify-between gap-4 px-4 py-3">
-                  <div className="space-y-0.5">
-                    <p className="font-medium leading-tight">{svc.customerName}</p>
-                    <p className="text-xs text-muted-foreground">{svc.serviceDate}</p>
-                    {svc.boats.length > 0 && (
-                      <p className="text-xs text-muted-foreground">{svc.boats.join(', ')}</p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-muted-foreground">Reminder</p>
-                    <p className="text-xs font-medium text-sky-700 tabular-nums mt-0.5">
-                      {reminderLabel(svc.serviceDate)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
-          <DialogFooter className="gap-2 mt-2">
+            {upcomingServices.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                No upcoming services need reminders.
+              </p>
+            ) : (
+              <div className="divide-y rounded-lg border overflow-hidden text-sm">
+                {upcomingServices.map((svc) => (
+                  <div key={svc.id} className="flex items-start justify-between gap-4 px-4 py-3">
+                    <div className="space-y-0.5">
+                      <p className="font-medium leading-tight">{svc.customerName}</p>
+                      <p className="text-xs text-muted-foreground">{svc.serviceDate}</p>
+                      {svc.boats.length > 0 && (
+                        <p className="text-xs text-muted-foreground">{svc.boats.join(', ')}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground">Reminder</p>
+                      <p className="text-xs font-medium text-sky-700 tabular-nums mt-0.5">
+                        {reminderLabel(svc.serviceDate)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
               Cancel
             </Button>
