@@ -8,6 +8,7 @@ import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export { syncInvoiceToQbo }
 
@@ -42,8 +43,11 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
 // ─── Delete invoice ───────────────────────────────────────────────────────────
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return
+
   const [invoice] = await db
-    .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId })
+    .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId, serviceId: invoices.serviceId })
     .from(invoices)
     .where(eq(invoices.id, invoiceId))
     .limit(1)
@@ -54,9 +58,15 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
     await voidQboInvoice(invoice.qboInvoiceId)
   }
 
+  // Clear the FK on the service so markComplete can create a fresh invoice later
+  if (invoice.serviceId) {
+    await db.update(services).set({ invoiceId: null }).where(eq(services.id, invoice.serviceId))
+  }
+
   await db.delete(invoices).where(eq(invoices.id, invoiceId))
   await log({ action: 'delete_invoice', entityType: 'invoice', entityId: invoiceId })
   revalidatePath('/invoices')
+  revalidatePath('/schedule')
 }
 
 // ─── Create invoice in QBO (draft stays draft, just gets a qboInvoiceId) ──────

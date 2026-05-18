@@ -1,0 +1,191 @@
+'use client'
+
+import { useState, useRef, useTransition } from 'react'
+import { cn } from '@/lib/utils'
+import ScheduleCard from './schedule-card'
+import type { ScheduleCardEmployee, ReminderStatus } from './schedule-card'
+import { rescheduleService } from './actions'
+
+export type GridCardData = {
+  id: string
+  serviceDate: string
+  serviceType: string      // display label
+  status: string
+  totalPrice: string | null
+  notes: string | null
+  approvedAt: Date | null
+  reminderStatus: ReminderStatus
+  reminderSentAt: Date | null
+  customerId: string
+  customerName: string
+  boats: { boatId: string; nickname: string; assignedIds: string[] }[]
+}
+
+export type GridDayData = {
+  dateStr: string
+  dayLabel: string   // "Mon"
+  dateLabel: string  // "May 19"
+  isToday: boolean
+  cards: GridCardData[]
+}
+
+interface Props {
+  days: GridDayData[]
+  employees: ScheduleCardEmployee[]
+  isManager: boolean
+}
+
+export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Props) {
+  const [days, setDays] = useState(initialDays)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [overDate, setOverDate] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+  const dragSourceDate = useRef<string | null>(null)
+
+  function handleDragStart(cardId: string, fromDate: string) {
+    setDraggingId(cardId)
+    dragSourceDate.current = fromDate
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null)
+    setOverDate(null)
+    dragSourceDate.current = null
+  }
+
+  function handleDragOver(e: React.DragEvent, dateStr: string) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setOverDate(dateStr)
+  }
+
+  function handleDrop(e: React.DragEvent, targetDate: string) {
+    e.preventDefault()
+    const cardId = draggingId
+    const sourceDate = dragSourceDate.current
+    setDraggingId(null)
+    setOverDate(null)
+    dragSourceDate.current = null
+
+    if (!cardId || !sourceDate || sourceDate === targetDate) return
+
+    // Optimistic update
+    setDays((prev) => {
+      const next = prev.map((day) => ({ ...day, cards: [...day.cards] }))
+      const srcDay = next.find((d) => d.dateStr === sourceDate)
+      const tgtDay = next.find((d) => d.dateStr === targetDate)
+      if (!srcDay || !tgtDay) return prev
+      const idx = srcDay.cards.findIndex((c) => c.id === cardId)
+      if (idx === -1) return prev
+      const [card] = srcDay.cards.splice(idx, 1)
+      tgtDay.cards.push({ ...card, serviceDate: targetDate })
+      return next
+    })
+
+    startTransition(async () => {
+      const result = await rescheduleService(cardId, targetDate)
+      if (result?.error) {
+        // Roll back on error
+        setDays(initialDays)
+      }
+    })
+  }
+
+  const draggingCard = draggingId
+    ? days.flatMap((d) => d.cards).find((c) => c.id === draggingId)
+    : null
+
+  return (
+    <div className="space-y-6">
+      {days.map((day) => {
+        const isDropTarget = isManager && overDate === day.dateStr && draggingId !== null
+        const canDrop = isDropTarget && dragSourceDate.current !== day.dateStr
+
+        return (
+          <div
+            key={day.dateStr}
+            onDragOver={isManager ? (e) => handleDragOver(e, day.dateStr) : undefined}
+            onDragLeave={isManager ? () => setOverDate(null) : undefined}
+            onDrop={isManager ? (e) => handleDrop(e, day.dateStr) : undefined}
+          >
+            {/* Day header */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className={cn(
+                'text-sm font-semibold uppercase tracking-wide',
+                day.isToday ? 'text-primary' : 'text-muted-foreground'
+              )}>
+                {day.dayLabel}
+              </span>
+              <span className={cn('text-sm font-medium', day.isToday ? 'text-primary' : 'text-foreground')}>
+                {day.dateLabel}
+              </span>
+              {day.cards.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  ({day.cards.length} {day.cards.length === 1 ? 'job' : 'jobs'})
+                </span>
+              )}
+            </div>
+
+            {/* Cards grid */}
+            {day.cards.length === 0 ? (
+              <div className={cn(
+                'rounded-lg border border-dashed py-4 px-4 text-sm text-muted-foreground transition-colors',
+                canDrop
+                  ? 'border-primary/50 bg-primary/5 text-primary'
+                  : 'bg-card/50'
+              )}>
+                {canDrop && draggingCard
+                  ? `Move "${draggingCard.customerName}" here`
+                  : 'No services'}
+              </div>
+            ) : (
+              <div className={cn(
+                'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 rounded-xl transition-colors p-1 -m-1',
+                canDrop && 'bg-primary/5 ring-2 ring-primary/30 ring-inset'
+              )}>
+                {day.cards.map((card) => {
+                  const canDrag = isManager && card.status === 'scheduled'
+                  return (
+                    <div
+                      key={card.id}
+                      draggable={canDrag}
+                      onDragStart={canDrag ? () => handleDragStart(card.id, day.dateStr) : undefined}
+                      onDragEnd={canDrag ? handleDragEnd : undefined}
+                      className={cn(
+                        canDrag && 'cursor-grab active:cursor-grabbing',
+                        draggingId === card.id && 'opacity-40 scale-95 transition-transform'
+                      )}
+                    >
+                      <ScheduleCard
+                        serviceId={card.id}
+                        customerId={card.customerId}
+                        customerName={card.customerName}
+                        serviceType={card.serviceType}
+                        serviceDate={card.serviceDate}
+                        status={card.status}
+                        totalPrice={card.totalPrice}
+                        notes={card.notes}
+                        approvedAt={card.approvedAt}
+                        reminderStatus={card.reminderStatus}
+                        reminderSentAt={card.reminderSentAt}
+                        boats={card.boats}
+                        employees={employees}
+                        isManager={isManager}
+                      />
+                    </div>
+                  )
+                })}
+                {/* Drop indicator appended when target day already has cards */}
+                {canDrop && draggingCard && (
+                  <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[80px] flex items-center justify-center text-sm text-primary/70 font-medium">
+                    Drop here
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
