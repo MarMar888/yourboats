@@ -2,7 +2,7 @@
   "name": "yourboats",
   "repository": "https://github.com/MarMar888/yourboats.git",
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
