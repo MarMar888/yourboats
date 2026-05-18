@@ -88,8 +88,8 @@ export default async function TimePage({
         }))}
         employees={allEmployees}
         totalByUser={Object.fromEntries(totalByUser)}
-        defaultFrom={fromDate.toISOString().slice(0, 10)}
-        defaultTo={toDate.toISOString().slice(0, 10)}
+        defaultFrom={[fromDate.getFullYear(), String(fromDate.getMonth()+1).padStart(2,'0'), String(fromDate.getDate()).padStart(2,'0')].join('-')}
+        defaultTo={[toDate.getFullYear(), String(toDate.getMonth()+1).padStart(2,'0'), String(toDate.getDate()).padStart(2,'0')].join('-')}
         defaultUserId={filterUserId ?? ''}
       />
     </div>
