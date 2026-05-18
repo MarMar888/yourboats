@@ -121,7 +121,10 @@ function ManualEntryForm({
   onDone: () => void
 }) {
   const [pending, startTransition] = useTransition()
-  const today = new Date().toISOString().slice(0, 16) // datetime-local format
+  const now = new Date()
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000)
+  const today = now.toISOString().slice(0, 16)            // datetime-local: clock-in default
+  const todayPlusOne = oneHourLater.toISOString().slice(0, 16) // datetime-local: clock-out default
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -176,7 +179,7 @@ function ManualEntryForm({
           <input
             type="datetime-local"
             name="clockOut"
-            defaultValue={today}
+            defaultValue={todayPlusOne}
             required
             className="w-full text-sm border rounded-md px-2 py-1.5 bg-background"
           />
@@ -317,12 +320,9 @@ export function TimeTracker({
               )}
             </div>
             {!showForm && (
-              <button
-                className="text-xs text-primary hover:underline"
-                onClick={() => setShowForm(true)}
-              >
+              <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => setShowForm(true)}>
                 + Add entry
-              </button>
+              </Button>
             )}
           </div>
 
@@ -336,7 +336,7 @@ export function TimeTracker({
           )}
 
           {entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No time entries yet.</p>
+            <p className="text-sm text-muted-foreground italic">No time logged for this service yet.</p>
           ) : (
             <div>
               {entries.map((e) => (

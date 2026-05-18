@@ -196,9 +196,9 @@ export default function ServiceCard({
         <button
           onClick={() => setComplaintOpen(true)}
           className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium"
-          title="Flag complaint"
+          title="Flag a complaint"
         >
-          ! Flag
+          Flag issue
         </button>
 
         {/* Price */}

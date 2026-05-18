@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { deleteTimeEntry } from './actions'
 import { toast } from 'sonner'
 
@@ -153,12 +154,9 @@ export function TimePageClient({
             ))}
           </select>
         </div>
-        <button
-          onClick={applyFilter}
-          className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
+        <Button onClick={applyFilter} size="sm">
           Filter
-        </button>
+        </Button>
       </div>
 
       {/* Summary */}
