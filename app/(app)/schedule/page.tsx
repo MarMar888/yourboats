@@ -354,7 +354,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         })
         return (
           <ScheduleWeekGrid
-            key={weekStartStr}
+            key={`${weekStartStr}-${selectedEmployee}`}
             days={gridDays}
             employees={employeeList}
             isManager={isManager}
