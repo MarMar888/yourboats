@@ -358,6 +358,9 @@ export const payroll = pgTable(
     totalPay: numeric('total_pay', { precision: 10, scale: 2 }).notNull(),
     savedByUserId: text('saved_by_user_id'),
     savedAt: timestamp('saved_at').defaultNow().notNull(),
+    approvedAt: timestamp('approved_at'),
+    approvedByUserId: text('approved_by_user_id'),
+    approvedByName: text('approved_by_name'),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.serviceId, t.userId] }),

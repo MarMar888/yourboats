@@ -101,17 +101,20 @@ export async function savePayrollEntries(
 }
 
 export type SavedPayrollRow = {
-  serviceId:     string
-  userId:        string
-  displayName:   string
-  splitPct:      string
-  deductionPct:  string
-  effectivePct:  string
-  netPay:        string
-  tipShare:      string | null
-  totalPay:      string
-  savedAt:       Date
-  savedByUserId: string | null
+  serviceId:        string
+  userId:           string
+  displayName:      string
+  splitPct:         string
+  deductionPct:     string
+  effectivePct:     string
+  netPay:           string
+  tipShare:         string | null
+  totalPay:         string
+  savedAt:          Date
+  savedByUserId:    string | null
+  approvedAt:       Date | null
+  approvedByUserId: string | null
+  approvedByName:   string | null
 }
 
 // Return all saved payroll entries for services whose dates fall in [startDate, endDate].
@@ -125,17 +128,20 @@ export async function getPayrollForPeriod(
 
   return db
     .select({
-      serviceId:     payroll.serviceId,
-      userId:        payroll.userId,
-      displayName:   payroll.displayName,
-      splitPct:      payroll.splitPct,
-      deductionPct:  payroll.deductionPct,
-      effectivePct:  payroll.effectivePct,
-      netPay:        payroll.netPay,
-      tipShare:      payroll.tipShare,
-      totalPay:      payroll.totalPay,
-      savedAt:       payroll.savedAt,
-      savedByUserId: payroll.savedByUserId,
+      serviceId:        payroll.serviceId,
+      userId:           payroll.userId,
+      displayName:      payroll.displayName,
+      splitPct:         payroll.splitPct,
+      deductionPct:     payroll.deductionPct,
+      effectivePct:     payroll.effectivePct,
+      netPay:           payroll.netPay,
+      tipShare:         payroll.tipShare,
+      totalPay:         payroll.totalPay,
+      savedAt:          payroll.savedAt,
+      savedByUserId:    payroll.savedByUserId,
+      approvedAt:       payroll.approvedAt,
+      approvedByUserId: payroll.approvedByUserId,
+      approvedByName:   payroll.approvedByName,
     })
     .from(payroll)
     .where(
@@ -144,4 +150,40 @@ export async function getPayrollForPeriod(
         lte(payroll.serviceDate, endDate)
       )
     )
+}
+
+// Approve all saved payroll rows for a period. Sets approved_at / approved_by on every row.
+export async function approvePayrollForPeriod(
+  startDate: string,
+  endDate: string
+): Promise<{ error?: string; approved?: number }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+
+  const now = new Date()
+  const result = await db
+    .update(payroll)
+    .set({
+      approvedAt:       now,
+      approvedByUserId: user.id,
+      approvedByName:   user.displayName,
+    })
+    .where(
+      and(
+        gte(payroll.serviceDate, startDate),
+        lte(payroll.serviceDate, endDate)
+      )
+    )
+
+  await log({
+    action: 'approve_payroll',
+    entityType: 'payroll',
+    entityId: startDate,
+    metadata: { startDate, endDate, approvedBy: user.displayName },
+  })
+
+  revalidatePath('/pay')
+  return { approved: (result as unknown as { rowCount?: number }).rowCount ?? 0 }
 }
