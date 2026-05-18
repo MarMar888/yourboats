@@ -11,6 +11,8 @@ import ReminderContacts from './reminder-contacts-client'
 import { CustomerNotesEditor } from './customer-notes-editor'
 import { BoatNotesEditor } from './boat-notes-editor'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
+import { deleteScheduledServices } from './service-actions'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -256,7 +258,17 @@ export default async function CustomerDetailPage({
 
       {/* Scheduled services */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Scheduled services</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">Scheduled services</h2>
+          {canManage && scheduledServices.length > 0 && (
+            <ConfirmDeleteButton
+              action={deleteScheduledServices.bind(null, id)}
+              title="Delete all scheduled services?"
+              description={`This will permanently delete all ${scheduledServices.length} upcoming scheduled service${scheduledServices.length === 1 ? '' : 's'} for ${customer.name}. This cannot be undone.`}
+              triggerLabel="Delete all scheduled"
+            />
+          )}
+        </div>
         {scheduledServices.length === 0 ? (
           <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
             No upcoming services.
