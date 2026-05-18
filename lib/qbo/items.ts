@@ -70,20 +70,23 @@ export async function getCachedQboItems() {
 
 /**
  * Find the best matching QBO item for a service type string.
- * Tries a case-insensitive partial match on item name, then falls back to first item.
+ * Now that serviceType is stored as the QBO item name directly, tries exact
+ * match first, then partial, then generic fallback.
  */
 export async function findBestQboItem(serviceType: string): Promise<{ id: string; name: string } | null> {
   const items = await getCachedQboItems()
   if (items.length === 0) return null
 
   const lower = serviceType.toLowerCase().replace(/_/g, ' ')
-  // First try: item name contains the service type keyword
-  const match = items.find((i) => i.name.toLowerCase().includes(lower))
-  // Second try: look for 'recurring' or 'service' as generic fallback
+  // First try: exact case-insensitive match (serviceType IS the QBO item name for new services)
+  const exact = items.find((i) => i.name.toLowerCase() === lower)
+  // Second try: partial match on name
+  const partial = items.find((i) => i.name.toLowerCase().includes(lower))
+  // Third try: generic fallback
   const generic =
     items.find((i) => i.name.toLowerCase().includes('recurring')) ??
     items.find((i) => i.name.toLowerCase().includes('service'))
 
-  const chosen = match ?? generic ?? items[0]
+  const chosen = exact ?? partial ?? generic ?? items[0]
   return { id: chosen.qboItemId, name: chosen.name }
 }
