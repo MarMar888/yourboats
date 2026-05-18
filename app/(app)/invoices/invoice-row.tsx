@@ -90,11 +90,13 @@ export function InvoiceRow({
                 status={inv.status}
                 qboItems={qboItemOptions}
               />
-              <ConfirmDeleteButton
-                action={deleteAction}
-                title="Delete invoice"
-                description={`Delete the draft invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
-              />
+              {inv.canManage && (
+                <ConfirmDeleteButton
+                  action={deleteAction}
+                  title="Delete invoice"
+                  description={`Delete the draft invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+                />
+              )}
             </div>
           </td>
         ) : (
@@ -123,11 +125,13 @@ export function InvoiceRow({
               )}
             </td>
             <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-              <ConfirmDeleteButton
-                action={deleteAction}
-                title="Delete invoice"
-                description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
-              />
+              {inv.canManage && (
+                <ConfirmDeleteButton
+                  action={deleteAction}
+                  title="Delete invoice"
+                  description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+                />
+              )}
             </td>
           </>
         )}
@@ -218,7 +222,7 @@ export function InvoiceRow({
                     href={qboInvoiceUrl(inv.qboInvoiceId, inv.qboEnv)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline ml-auto"
+                    className="text-sm text-primary hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     View in QBO ↗
@@ -226,14 +230,20 @@ export function InvoiceRow({
                 )}
 
                 {inv.canManage && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="ml-auto"
-                    onClick={(e) => { e.stopPropagation(); setEditing(true) }}
-                  >
-                    Edit
-                  </Button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <ConfirmDeleteButton
+                      action={async () => { await deleteAction(); setOpen(false) }}
+                      title="Delete invoice"
+                      description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+                    >
+                      Edit
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
