@@ -7,6 +7,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { EditInvoiceForm } from './edit-invoice-form'
+import { InvoiceActionsButton } from './invoice-actions-button'
+import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -58,10 +60,12 @@ export type InvoiceRowData = {
 
 export function InvoiceRow({
   inv,
-  children,
+  qboItemOptions,
+  deleteAction,
 }: {
   inv: InvoiceRowData
-  children: React.ReactNode
+  qboItemOptions: { qboItemId: string; name: string }[]
+  deleteAction: () => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -72,7 +76,61 @@ export function InvoiceRow({
         className="hover:bg-muted/30 transition-colors cursor-pointer"
         onClick={() => setOpen(true)}
       >
-        {children}
+        <td className="px-4 py-3 font-medium">{inv.customerName}</td>
+        <td className="px-4 py-3 text-muted-foreground">{fmtDate(inv.serviceDate)}</td>
+        <td className="px-4 py-3 text-right tabular-nums font-semibold">
+          ${Number(inv.amount).toFixed(2)}
+        </td>
+        {inv.status === 'draft' ? (
+          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-end gap-1">
+              <InvoiceActionsButton
+                invoiceId={inv.invoiceId}
+                hasQboId={!!inv.qboInvoiceId}
+                status={inv.status}
+                qboItems={qboItemOptions}
+              />
+              <ConfirmDeleteButton
+                action={deleteAction}
+                title="Delete invoice"
+                description={`Delete the draft invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+              />
+            </div>
+          </td>
+        ) : (
+          <>
+            <td className="px-4 py-3">
+              <span className={cn(
+                'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                statusClass(inv.status as InvoiceStatus)
+              )}>
+                {inv.status}
+              </span>
+            </td>
+            <td className="px-4 py-3 font-mono text-xs">
+              {inv.qboInvoiceId ? (
+                <a
+                  href={qboInvoiceUrl(inv.qboInvoiceId, inv.qboEnv)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  #{inv.qboInvoiceId}
+                </a>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </td>
+            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+              <ConfirmDeleteButton
+                action={deleteAction}
+                title="Delete invoice"
+                description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+              />
+            </td>
+          </>
+        )}
       </tr>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(false) }}>
