@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { services, invoices } from '@/lib/db/schema'
+import { services, invoices, customers } from '@/lib/db/schema'
 import { and, eq, gte, lte } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
@@ -65,8 +65,10 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
       status: services.status,
       invoiceId: services.invoiceId,
       totalPrice: services.totalPrice,
+      isPrepaid: customers.isPrepaid,
     })
     .from(services)
+    .innerJoin(customers, eq(services.customerId, customers.id))
     .where(eq(services.id, serviceId))
     .limit(1)
 
@@ -78,8 +80,8 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
     .set({ status: 'complete', completedAt: new Date(), completedByUserId: user.id })
     .where(eq(services.id, serviceId))
 
-  // Create a draft invoice if one doesn't exist yet (recurring services have none at creation)
-  if (!service.invoiceId) {
+  // Prepaid customers never get invoices
+  if (!service.invoiceId && !service.isPrepaid) {
     const total = Number(service.totalPrice ?? 0)
     const [invoice] = await db
       .insert(invoices)

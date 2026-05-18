@@ -87,6 +87,7 @@ export default async function ServiceDetailPage({
       reminderSentAt:    services.reminderSentAt,
       customerName: customers.name,
       customerId:   customers.id,
+      isPrepaid:    customers.isPrepaid,
     })
     .from(services)
     .innerJoin(customers, eq(services.customerId, customers.id))
@@ -390,7 +391,11 @@ export default async function ServiceDetailPage({
 
       <div>
         <h2 className="text-base font-semibold mb-3">Invoice</h2>
-        {invoice ? (
+        {svc.isPrepaid ? (
+          <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            Prepaid customer — no invoice required
+          </div>
+        ) : invoice ? (
           <div className="rounded-lg border bg-card px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className={cn(

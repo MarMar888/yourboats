@@ -121,6 +121,14 @@ export async function createService(formData: FormData) {
   const qboItemId = (formData.get('qboItemId') as string) || null
   const boatRows = parseBoatRows(formData)
 
+  // Check if this customer is prepaid (no invoicing for prepaid)
+  const [customerRow] = await db
+    .select({ isPrepaid: customers.isPrepaid })
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1)
+  const isPrepaid = customerRow?.isPrepaid ?? false
+
   if (mode === 'onetime') {
     const serviceDate = formData.get('serviceDate') as string
     const notes = formData.get('notes') as string
@@ -159,18 +167,20 @@ export async function createService(formData: FormData) {
       await insertBoatAssignments(service.id, boatRows)
     }
 
-    // Create a draft invoice so it appears in the invoice queue
-    const [invoice] = await db
-      .insert(invoices)
-      .values({
-        serviceId: service.id,
-        amount: String(total),
-        status: 'draft',
-        createdByUserId,
-      })
-      .returning()
+    // Create a draft invoice only for non-prepaid customers
+    if (!isPrepaid) {
+      const [invoice] = await db
+        .insert(invoices)
+        .values({
+          serviceId: service.id,
+          amount: String(total),
+          status: 'draft',
+          createdByUserId,
+        })
+        .returning()
+      await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
+    }
 
-    await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
     await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'onetime' } })
   } else {
     const startDate = formData.get('startDate') as string
