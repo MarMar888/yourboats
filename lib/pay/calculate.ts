@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { services, serviceBoatAssignments, customers, users, tierConfig } from '@/lib/db/schema'
 import { eq, and, gte, lte, sql } from 'drizzle-orm'
-import { getServiceTypeShare } from './service-type-shares'
+import { getServiceTypeShareMap, lookupSharePct } from './service-type-shares'
 
 export type ServicePay = {
   serviceId: string
@@ -68,6 +68,8 @@ export async function calculateEmployeePay(params: {
 
   const serviceIds = assignedServiceRows.map((r) => r.serviceId)
 
+  const shareMap = await getServiceTypeShareMap()
+
   const { inArray } = await import('drizzle-orm')
   const svcRows = await db
     .select({
@@ -103,7 +105,7 @@ export async function calculateEmployeePay(params: {
     const tipAmount = Number(row.tipAmount ?? 0)
 
     // Step 1: service-type share → employee pool
-    const serviceTypeShare = getServiceTypeShare(row.serviceType)
+    const serviceTypeShare = lookupSharePct(shareMap, row.serviceType)
     const employeePool = totalPrice * (serviceTypeShare / 100)
 
     // Step 2: equal split among workers

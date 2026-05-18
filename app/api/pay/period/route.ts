@@ -6,7 +6,7 @@ import {
   serviceBoats, boats, users, tierConfig,
 } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
-import { getServiceTypeShare } from '@/lib/pay/service-type-shares'
+import { getServiceTypeShareMap, lookupSharePct } from '@/lib/pay/service-type-shares'
 
 export type AssignmentRow = {
   userId: string
@@ -98,8 +98,11 @@ export async function GET(req: NextRequest) {
     .innerJoin(users, sql`${users.id}::text = ${serviceBoatAssignments.userId}`)
     .where(inArray(serviceBoatAssignments.serviceId, svcIds))
 
-  // 4. Tier deduction config
-  const tierRows = await db.select().from(tierConfig)
+  // 4. Tier deduction config + service type share map (both fetched once)
+  const [tierRows, shareMap] = await Promise.all([
+    db.select().from(tierConfig),
+    getServiceTypeShareMap(),
+  ])
   const deductionByTier: Record<string, number> = {}
   for (const t of tierRows) deductionByTier[t.tier] = Number(t.deductionPct)
 
@@ -118,7 +121,7 @@ export async function GET(req: NextRequest) {
     const tipAmount = s.tipAmount != null ? Number(s.tipAmount) : null
 
     // Service-type share determines the employee pay pool
-    const serviceTypeShare = getServiceTypeShare(s.serviceType)
+    const serviceTypeShare = lookupSharePct(shareMap, s.serviceType)
     const employeePool = totalPrice * (serviceTypeShare / 100)
 
     const userMap = uniqueByService[s.id]

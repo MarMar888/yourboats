@@ -104,6 +104,11 @@ export const tierConfig = pgTable('tier_config', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const serviceTypeShares = pgTable('service_type_shares', {
+  serviceType: text('service_type').primaryKey(),
+  employeeSharePct: numeric('employee_share_pct', { precision: 5, scale: 2 }).notNull(),
+})
+
 export const services = pgTable('services', {
   id: uuid('id').primaryKey().defaultRandom(),
   customerId: uuid('customer_id')
@@ -354,3 +359,4 @@ export type QboItem = typeof qboItems.$inferSelect
 export type NewQboItem = typeof qboItems.$inferInsert
 export type TimeEntry = typeof timeEntries.$inferSelect
 export type NewTimeEntry = typeof timeEntries.$inferInsert
+export type ServiceTypeShare = typeof serviceTypeShares.$inferSelect

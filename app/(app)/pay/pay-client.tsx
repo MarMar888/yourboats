@@ -507,39 +507,6 @@ export function PayClient({
         </div>
       )}
 
-      {/* Service type share reference */}
-      <div>
-        <h2 className="text-base font-semibold mb-3">Service type pay shares</h2>
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-xs">
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Service type</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Employee share</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {[
-                ['Recurring Services', 55],
-                ['Detailing Services', 50],
-                ['Buffing/Waxing Services', 45],
-                ['Acid Washing Services', 40],
-                ['Powerwashing Services', 50],
-                ['Gelcoat/Wetsanding Services', 50],
-                ['Captaining Services', 83],
-                ['SIO2 Coating', 40],
-                ['Other Services', 50],
-                ['Training Pay', 100],
-              ].map(([name, pct]) => (
-                <tr key={name as string} className="hover:bg-muted/20">
-                  <td className="px-4 py-2">{name}</td>
-                  <td className="px-4 py-2 text-right tabular-nums font-medium">{pct}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   )
 }
