@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
 import { saveTip, updateTierConfig, updateEmployeeTier } from './actions'
-import { savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod } from './payroll-actions'
+import { savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod } from './payroll-actions'
 import type { SavedPayrollRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,6 +50,7 @@ function PeriodReview({
   // Approval state
   const [approval, setApproval] = useState<{ at: Date; byName: string } | null>(null)
   const [approvePending, startApprove] = useTransition()
+  const [unapprovePending, startUnapprove] = useTransition()
   const [saveDraftPending, startSaveDraft] = useTransition()
 
   // Per-employee breakdown
@@ -187,6 +188,16 @@ function PeriodReview({
         tipShare:     tipPerPerson,
         totalPay:     a.computedNetPay + tipPerPerson,
       }))
+    })
+  }
+
+  function handleUnapprove() {
+    startUnapprove(async () => {
+      const result = await unapprovePayrollForPeriod(period.startStr, period.endStr)
+      if (!result.error) {
+        setApproval(null)
+        setIsDirty(false)
+      }
     })
   }
 
@@ -483,14 +494,25 @@ function PeriodReview({
               </p>
             )}
           </div>
-          <Button
-            size="sm"
-            variant={approval ? 'outline' : 'default'}
-            disabled={approvePending || rows.length === 0}
-            onClick={handleApprove}
-          >
-            {approvePending ? 'Approving…' : approval ? 'Re-approve' : 'Approve payroll'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {approval && (
+              <button
+                onClick={handleUnapprove}
+                disabled={unapprovePending}
+                className="text-xs text-muted-foreground hover:text-destructive underline-offset-2 hover:underline transition-colors disabled:opacity-50"
+              >
+                {unapprovePending ? 'Unapproving…' : 'Unapprove'}
+              </button>
+            )}
+            <Button
+              size="sm"
+              variant={approval ? 'outline' : 'default'}
+              disabled={approvePending || rows.length === 0}
+              onClick={handleApprove}
+            >
+              {approvePending ? 'Approving…' : approval ? 'Re-approve' : 'Approve payroll'}
+            </Button>
+          </div>
         </div>
       )}
 

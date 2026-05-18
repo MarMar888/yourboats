@@ -6,6 +6,9 @@ import { and, gte, inArray, lte } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
+import { emailTransport } from '@/lib/email/client'
+
+const OWNER_ALERT_EMAIL = 'marley@squeakycleanboats.com'
 
 export type PayrollEntryInput = {
   serviceId: string
@@ -186,4 +189,71 @@ export async function approvePayrollForPeriod(
 
   revalidatePath('/pay')
   return { approved: (result as unknown as { rowCount?: number }).rowCount ?? 0 }
+}
+
+// Clear approval on all payroll rows for a period and notify the owner by email.
+export async function unapprovePayrollForPeriod(
+  startDate: string,
+  endDate: string
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+
+  await db
+    .update(payroll)
+    .set({ approvedAt: null, approvedByUserId: null, approvedByName: null })
+    .where(
+      and(
+        gte(payroll.serviceDate, startDate),
+        lte(payroll.serviceDate, endDate)
+      )
+    )
+
+  await log({
+    action: 'unapprove_payroll',
+    entityType: 'payroll',
+    entityId: startDate,
+    metadata: { startDate, endDate, unapprovedBy: user.displayName },
+  })
+
+  // Email alert — non-fatal if email isn't configured
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    const periodLabel = `${startDate} – ${endDate}`
+    const timestamp = new Date().toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+    try {
+      await emailTransport.sendMail({
+        from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
+        to: OWNER_ALERT_EMAIL,
+        subject: `⚠ Payroll unapproved — ${periodLabel}`,
+        text: [
+          `Payroll for the period ${periodLabel} was unapproved.`,
+          ``,
+          `Unapproved by: ${user.displayName} (${user.role})`,
+          `Time: ${timestamp} ET`,
+          ``,
+          `Review at: https://yourboats.vercel.app/pay`,
+        ].join('\n'),
+        html: `
+          <p>Payroll for the period <strong>${periodLabel}</strong> was unapproved.</p>
+          <table style="border-collapse:collapse;margin-top:12px">
+            <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Unapproved by</td><td><strong>${user.displayName}</strong> (${user.role})</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Time</td><td>${timestamp} ET</td></tr>
+          </table>
+          <p style="margin-top:16px"><a href="https://yourboats.vercel.app/pay">Review payroll →</a></p>
+        `,
+      })
+    } catch (err) {
+      console.error('[payroll] Failed to send unapproval alert email:', err)
+      // Don't fail the action — unapproval itself succeeded
+    }
+  }
+
+  revalidatePath('/pay')
+  return {}
 }
