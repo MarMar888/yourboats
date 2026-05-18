@@ -1,20 +1,23 @@
 import { db } from '@/lib/db'
 import { services, serviceBoatAssignments, customers, users, tierConfig } from '@/lib/db/schema'
 import { eq, and, gte, lte, sql } from 'drizzle-orm'
+import { getServiceTypeShare } from './service-type-shares'
 
 export type ServicePay = {
   serviceId: string
   serviceDate: string
+  serviceType: string
   customerId: string
   customerName: string
-  totalPrice: number        // service total (before tip)
-  tipAmount: number         // tip for this service
-  sharePct: number          // this employee's share %
-  basePay: number           // totalPrice × sharePct/100
-  deductionPct: number      // from tier config
-  deduction: number         // basePay × deductionPct/100
-  netPay: number            // basePay - deduction
-  tipShare: number          // tipAmount × sharePct/100
+  totalPrice: number        // full service revenue
+  serviceTypeShare: number  // % of revenue going to employee pool (e.g. 55)
+  employeePool: number      // totalPrice × serviceTypeShare/100
+  tipAmount: number
+  splitPct: number          // this employee's raw split of the pool (e.g. 50)
+  deductionPct: number      // tier deduction subtracted from split (e.g. 7.5)
+  effectivePct: number      // splitPct − deductionPct (e.g. 42.5)
+  netPay: number            // employeePool × effectivePct/100
+  tipShare: number          // tipAmount × splitPct/100
   totalPay: number          // netPay + tipShare
 }
 
@@ -24,18 +27,17 @@ export async function calculateEmployeePay(params: {
   endDate: string     // YYYY-MM-DD
 }): Promise<{
   services: ServicePay[]
-  summary: { totalPay: number; totalTips: number; totalDeductions: number }
+  summary: { totalPay: number; totalTips: number }
 }> {
   const { userId, startDate, endDate } = params
 
-  // Get employee tier
+  // Get employee tier + deduction
   const [employee] = await db
     .select({ tier: users.tier })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1)
 
-  // Get deduction pct for tier
   let deductionPct = 0
   if (employee?.tier) {
     const [config] = await db
@@ -46,9 +48,7 @@ export async function calculateEmployeePay(params: {
     if (config) deductionPct = Number(config.deductionPct)
   }
 
-  // Find all services where this user is assigned (via serviceBoatAssignments).
-  // userId in serviceBoatAssignments is text; users.id is uuid — cast for comparison.
-  // We need completed services in the date range.
+  // Find all completed services in range where this user is assigned
   const assignedServiceRows = await db
     .selectDistinct({ serviceId: serviceBoatAssignments.serviceId })
     .from(serviceBoatAssignments)
@@ -63,17 +63,17 @@ export async function calculateEmployeePay(params: {
     )
 
   if (assignedServiceRows.length === 0) {
-    return { services: [], summary: { totalPay: 0, totalTips: 0, totalDeductions: 0 } }
+    return { services: [], summary: { totalPay: 0, totalTips: 0 } }
   }
 
   const serviceIds = assignedServiceRows.map((r) => r.serviceId)
 
-  // Fetch full service details for those service IDs
   const { inArray } = await import('drizzle-orm')
   const svcRows = await db
     .select({
       serviceId:    services.id,
       serviceDate:  services.serviceDate,
+      serviceType:  services.serviceType,
       customerId:   customers.id,
       customerName: customers.name,
       totalPrice:   services.totalPrice,
@@ -84,8 +84,7 @@ export async function calculateEmployeePay(params: {
     .where(inArray(services.id, serviceIds))
     .orderBy(services.serviceDate)
 
-  // For each service, count distinct users assigned to determine this user's share
-  // Fetch all assignments for these services
+  // Unique user set per service
   const allAssignRows = await db
     .selectDistinct({
       serviceId: serviceBoatAssignments.serviceId,
@@ -94,7 +93,6 @@ export async function calculateEmployeePay(params: {
     .from(serviceBoatAssignments)
     .where(inArray(serviceBoatAssignments.serviceId, serviceIds))
 
-  // Build a map: serviceId -> Set<userId>
   const userSetByService: Record<string, Set<string>> = {}
   for (const a of allAssignRows) {
     ;(userSetByService[a.serviceId] ??= new Set()).add(a.userId)
@@ -104,36 +102,39 @@ export async function calculateEmployeePay(params: {
     const totalPrice = Number(row.totalPrice ?? 0)
     const tipAmount = Number(row.tipAmount ?? 0)
 
+    // Step 1: service-type share → employee pool
+    const serviceTypeShare = getServiceTypeShare(row.serviceType)
+    const employeePool = totalPrice * (serviceTypeShare / 100)
+
+    // Step 2: equal split among workers
     const userSet = userSetByService[row.serviceId] ?? new Set([userId])
     const count = userSet.size
-
-    // Equal split; if user is last alphabetically they absorb remainder — but
-    // for simplicity give each user floor(100/count) and absorb remainder in
-    // the share calculation below. Since we only care about THIS user's share:
     const basePct = Math.floor(100 / count)
     const remainder = 100 - basePct * count
-    // Check if this user is the "last" one (to absorb remainder)
     const sortedUsers = Array.from(userSet).sort()
     const userIdx = sortedUsers.indexOf(userId)
-    const sharePct = userIdx === count - 1 ? basePct + remainder : basePct
+    const splitPct = userIdx === count - 1 ? basePct + remainder : basePct
 
-    const basePay = totalPrice * (sharePct / 100)
-    const deduction = basePay * (deductionPct / 100)
-    const netPay = basePay - deduction
-    const tipShare = tipAmount * (sharePct / 100)
+    // Step 3: deduction reduces effective split percentage
+    // netPay = pool × (splitPct − deductionPct) / 100
+    const effectivePct = Math.max(0, splitPct - deductionPct)
+    const netPay = employeePool * (effectivePct / 100)
+    const tipShare = tipAmount * (splitPct / 100)
     const totalPay = netPay + tipShare
 
     return {
       serviceId: row.serviceId,
       serviceDate: row.serviceDate,
+      serviceType: row.serviceType,
       customerId: row.customerId,
       customerName: row.customerName,
       totalPrice,
+      serviceTypeShare,
+      employeePool,
       tipAmount,
-      sharePct,
-      basePay,
+      splitPct,
       deductionPct,
-      deduction,
+      effectivePct,
       netPay,
       tipShare,
       totalPay,
@@ -144,9 +145,8 @@ export async function calculateEmployeePay(params: {
     (acc, s) => ({
       totalPay: acc.totalPay + s.totalPay,
       totalTips: acc.totalTips + s.tipShare,
-      totalDeductions: acc.totalDeductions + s.deduction,
     }),
-    { totalPay: 0, totalTips: 0, totalDeductions: 0 }
+    { totalPay: 0, totalTips: 0 }
   )
 
   return { services: servicePays, summary }
