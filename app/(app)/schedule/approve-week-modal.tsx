@@ -16,6 +16,7 @@ export type ScheduledService = {
   serviceDate: string   // YYYY-MM-DD
   customerName: string
   boats: string[]
+  reminderEmails: string[]
 }
 
 function reminderLabel(serviceDate: string): string {
@@ -67,8 +68,8 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
 
           <div className="px-6 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Approving this week enables reminder emails. Each customer will receive a
-              message the evening before their service.
+              Approving this week enables reminder emails. Reminders are sent the evening
+              before each service to the voice/SMS addresses on file.
             </p>
 
             {upcomingServices.length === 0 ? (
@@ -78,20 +79,39 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
             ) : (
               <div className="divide-y rounded-lg border overflow-hidden text-sm">
                 {upcomingServices.map((svc) => (
-                  <div key={svc.id} className="flex items-start justify-between gap-4 px-4 py-3">
-                    <div className="space-y-0.5">
-                      <p className="font-medium leading-tight">{svc.customerName}</p>
-                      <p className="text-xs text-muted-foreground">{svc.serviceDate}</p>
-                      {svc.boats.length > 0 && (
-                        <p className="text-xs text-muted-foreground">{svc.boats.join(', ')}</p>
-                      )}
+                  <div key={svc.id} className="px-4 py-3 space-y-1.5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <p className="font-medium leading-tight">{svc.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{svc.serviceDate}</p>
+                        {svc.boats.length > 0 && (
+                          <p className="text-xs text-muted-foreground">{svc.boats.join(', ')}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-muted-foreground">Sends</p>
+                        <p className="text-xs font-medium text-sky-700 tabular-nums mt-0.5">
+                          {reminderLabel(svc.serviceDate)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground">Reminder</p>
-                      <p className="text-xs font-medium text-sky-700 tabular-nums mt-0.5">
-                        {reminderLabel(svc.serviceDate)}
+                    {/* Email addresses reminder will go to */}
+                    {svc.reminderEmails.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {svc.reminderEmails.map((email) => (
+                          <span
+                            key={email}
+                            className="inline-block text-[10px] bg-sky-50 text-sky-700 border border-sky-200 rounded px-1.5 py-0.5 font-mono"
+                          >
+                            {email}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-amber-600">
+                        ⚠ No voice/SMS email — reminder will be skipped
                       </p>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>

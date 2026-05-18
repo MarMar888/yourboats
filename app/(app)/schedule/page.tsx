@@ -8,6 +8,7 @@ import {
   serviceBoatAssignments,
   boats,
   customers,
+  customerReminderContacts,
 } from '@/lib/db/schema'
 import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
@@ -214,6 +215,21 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     if (byDay[card.serviceDate]) byDay[card.serviceDate].push(card)
   }
 
+  // ── Reminder contacts for the week's customers ────────────────────────────
+  const scheduledCustomerIds = Array.from(new Set(cards.filter(c => c.status === 'scheduled').map(c => c.customerId)))
+  const reminderContactRows = scheduledCustomerIds.length
+    ? await db
+        .select({ customerId: customerReminderContacts.customerId, email: customerReminderContacts.email })
+        .from(customerReminderContacts)
+        .where(inArray(customerReminderContacts.customerId, scheduledCustomerIds))
+    : []
+  const reminderEmailsByCustomer = new Map<string, string[]>()
+  for (const r of reminderContactRows) {
+    const list = reminderEmailsByCustomer.get(r.customerId) ?? []
+    list.push(r.email)
+    reminderEmailsByCustomer.set(r.customerId, list)
+  }
+
   const allScheduled = cards.filter((c) => c.status === 'scheduled')
   const weekApproved = allScheduled.length > 0 && allScheduled.every((c) => c.approvedAt)
 
@@ -245,6 +261,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 serviceDate: c.serviceDate,
                 customerName: c.customerName,
                 boats: c.boats.map((b) => b.nickname),
+                reminderEmails: reminderEmailsByCustomer.get(c.customerId) ?? [],
               }))}
             />
           )

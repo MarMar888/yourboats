@@ -292,8 +292,8 @@ export default async function CustomerDetailPage({
         <CardHeader>
           <CardTitle className="text-base">Reminder contacts</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Additional email addresses to receive service reminders (e.g. Google Voice SMS emails).
-            Primary email ({customer.email ?? 'none set'}) is always included.
+            Voice/SMS email addresses that receive service reminders (e.g. a Google Voice number).
+            Only these addresses are used — the primary email is not included.
           </p>
         </CardHeader>
         <CardContent>
