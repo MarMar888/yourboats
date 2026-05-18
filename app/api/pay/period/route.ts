@@ -6,22 +6,26 @@ import {
   serviceBoats, boats, users, tierConfig,
 } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { getServiceTypeShare } from '@/lib/pay/service-type-shares'
 
 export type AssignmentRow = {
   userId: string
   displayName: string
-  sharePct: number
-  basePay: number
-  deductionPct: number
-  netPay: number
+  splitPct: number        // raw split of the pool (e.g. 50)
+  deductionPct: number    // tier deduction subtracted from split
+  effectivePct: number    // splitPct − deductionPct
+  netPay: number          // employeePool × effectivePct/100
 }
 
 export type PeriodServiceRow = {
   serviceId: string
   serviceDate: string
+  serviceType: string
+  serviceTypeShare: number   // % of revenue going to employee pool
   customerName: string
   boats: string[]
   totalPrice: number
+  employeePool: number       // totalPrice × serviceTypeShare/100
   tipAmount: number | null
   assignments: AssignmentRow[]
   totalNetPay: number
@@ -45,9 +49,9 @@ export async function GET(req: NextRequest) {
     .select({
       id:          services.id,
       serviceDate: services.serviceDate,
+      serviceType: services.serviceType,
       totalPrice:  services.totalPrice,
       tipAmount:   services.tipAmount,
-      customerId:  services.customerId,
       customerName: customers.name,
     })
     .from(services)
@@ -82,8 +86,7 @@ export async function GET(req: NextRequest) {
     ;(boatsByService[b.serviceId] ??= []).push(b.label)
   }
 
-  // 3. Assignments per service from serviceBoatAssignments
-  // userId is stored as text (may be UUID string); join to users on cast
+  // 3. Assignments per service (deduplicated — one row per user per service)
   const assignRows = await db
     .select({
       serviceId:   serviceBoatAssignments.serviceId,
@@ -95,13 +98,12 @@ export async function GET(req: NextRequest) {
     .innerJoin(users, sql`${users.id}::text = ${serviceBoatAssignments.userId}`)
     .where(inArray(serviceBoatAssignments.serviceId, svcIds))
 
-  // 4. Tier config for deductions
+  // 4. Tier deduction config
   const tierRows = await db.select().from(tierConfig)
   const deductionByTier: Record<string, number> = {}
   for (const t of tierRows) deductionByTier[t.tier] = Number(t.deductionPct)
 
-  // 5. Deduplicate: a user may appear multiple times per service (one per boat).
-  //    Build a map: serviceId -> Map<userId, { displayName, tier }>
+  // 5. Deduplicate: a user may appear multiple times per service (one per boat)
   const uniqueByService: Record<string, Map<string, { displayName: string; tier: string | null }>> = {}
   for (const a of assignRows) {
     const map = (uniqueByService[a.serviceId] ??= new Map())
@@ -110,42 +112,51 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 6. Assemble rows with pay math
+  // 6. Assemble rows with full pay math
   const result: PeriodServiceRow[] = svcRows.map((s) => {
     const totalPrice = Number(s.totalPrice ?? 0)
     const tipAmount = s.tipAmount != null ? Number(s.tipAmount) : null
+
+    // Service-type share determines the employee pay pool
+    const serviceTypeShare = getServiceTypeShare(s.serviceType)
+    const employeePool = totalPrice * (serviceTypeShare / 100)
+
     const userMap = uniqueByService[s.id]
 
     if (!userMap || userMap.size === 0) {
       return {
-        serviceId: s.id,
-        serviceDate: s.serviceDate,
-        customerName: s.customerName,
-        boats: boatsByService[s.id] ?? [],
+        serviceId:       s.id,
+        serviceDate:     s.serviceDate,
+        serviceType:     s.serviceType,
+        serviceTypeShare,
+        customerName:    s.customerName,
+        boats:           boatsByService[s.id] ?? [],
         totalPrice,
+        employeePool,
         tipAmount,
-        assignments: [],
-        totalNetPay: 0,
+        assignments:     [],
+        totalNetPay:     0,
       }
     }
 
     const userEntries = Array.from(userMap.entries())
     const count = userEntries.length
-    // Equal split; last employee absorbs any rounding remainder
+    // Equal split; last employee absorbs rounding remainder
     const basePct = Math.floor(100 / count)
     const remainder = 100 - basePct * count
 
     const assignments: AssignmentRow[] = userEntries.map(([userId, info], idx) => {
-      const sharePct = idx === count - 1 ? basePct + remainder : basePct
+      const splitPct = idx === count - 1 ? basePct + remainder : basePct
       const deductionPct = info.tier ? (deductionByTier[info.tier] ?? 0) : 0
-      const basePay = totalPrice * (sharePct / 100)
-      const netPay = basePay * (1 - deductionPct / 100)
+      // Deduction reduces effective split: netPay = pool × (splitPct − deductionPct)/100
+      const effectivePct = Math.max(0, splitPct - deductionPct)
+      const netPay = employeePool * (effectivePct / 100)
       return {
         userId,
         displayName: info.displayName,
-        sharePct,
-        basePay,
+        splitPct,
         deductionPct,
+        effectivePct,
         netPay,
       }
     })
@@ -155,9 +166,12 @@ export async function GET(req: NextRequest) {
     return {
       serviceId: s.id,
       serviceDate: s.serviceDate,
+      serviceType: s.serviceType,
+      serviceTypeShare,
       customerName: s.customerName,
       boats: boatsByService[s.id] ?? [],
       totalPrice,
+      employeePool,
       tipAmount,
       assignments,
       totalNetPay,
