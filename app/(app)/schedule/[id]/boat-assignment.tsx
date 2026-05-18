@@ -36,7 +36,7 @@ export function BoatAssignment({ serviceId, boatId, employees, assignedIds }: Pr
             className={cn(
               'px-2.5 py-0.5 rounded-full border text-xs font-medium transition-colors',
               active
-                ? 'bg-secondary text-secondary-foreground border-secondary'
+                ? 'bg-foreground text-background border-transparent shadow-sm'
                 : 'border-border text-muted-foreground hover:bg-muted'
             )}
           >

@@ -370,12 +370,16 @@ export default async function ServiceDetailPage({
                       />
                     </div>
                   ) : b.assignedIds.length > 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      Assigned to:{' '}
-                      <span className="font-medium text-foreground">
-                        {b.assignedIds.map((uid) => userNames[uid] ?? uid).join(', ')}
-                      </span>
-                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {b.assignedIds.map((uid) => (
+                        <span
+                          key={uid}
+                          className="bg-foreground text-background border-transparent shadow-sm rounded-full px-2.5 py-0.5 text-xs font-medium border"
+                        >
+                          {userNames[uid] ?? uid}
+                        </span>
+                      ))}
+                    </div>
                   ) : null}
                 </div>
               )

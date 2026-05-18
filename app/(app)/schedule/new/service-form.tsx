@@ -24,19 +24,16 @@ const FALLBACK_SERVICE_TYPES = [
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const BOAT_SERVICES = ['Interior', 'Exterior', 'Cabin', 'Engine Bay', 'Canvas']
 
-type Employee = { id: string; displayName: string }
-
 type BoatConfig = {
   included: boolean
   services: string[]
   notes: string
   rateType: 'per_ft' | 'flat'
   rate: string
-  assignedUserIds: string[]
 }
 
 function defaultConfig(): BoatConfig {
-  return { included: false, services: ['Interior', 'Exterior'], notes: '', rateType: 'per_ft', rate: '3', assignedUserIds: [] }
+  return { included: false, services: ['Interior', 'Exterior'], notes: '', rateType: 'per_ft', rate: '3' }
 }
 
 function SubmitButton({ label }: { label: string }) {
@@ -48,12 +45,10 @@ function SubmitButton({ label }: { label: string }) {
   )
 }
 
-function BoatRow({ boat, config, onChange, employees, canAssign }: {
+function BoatRow({ boat, config, onChange }: {
   boat: Boat
   config: BoatConfig
   onChange: (next: BoatConfig) => void
-  employees: Employee[]
-  canAssign: boolean
 }) {
   const amount = config.rateType === 'per_ft'
     ? (boat.lengthFt ?? 0) * Number(config.rate || 0)
@@ -64,13 +59,6 @@ function BoatRow({ boat, config, onChange, employees, canAssign }: {
       ? config.services.filter((s) => s !== svc)
       : [...config.services, svc]
     onChange({ ...config, services: next })
-  }
-
-  const toggleEmployee = (uid: string) => {
-    const next = config.assignedUserIds.includes(uid)
-      ? config.assignedUserIds.filter((id) => id !== uid)
-      : [...config.assignedUserIds, uid]
-    onChange({ ...config, assignedUserIds: next })
   }
 
   return (
@@ -183,30 +171,6 @@ function BoatRow({ boat, config, onChange, employees, canAssign }: {
             )}
           </div>
 
-          {/* Employee assignment (manager+) */}
-          {canAssign && employees.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assign to</p>
-              <div className="flex flex-wrap gap-2">
-                {employees.map((emp) => (
-                  <label key={emp.id} className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs cursor-pointer transition-colors',
-                    config.assignedUserIds.includes(emp.id)
-                      ? 'bg-secondary text-secondary-foreground border-secondary'
-                      : 'border-border hover:bg-muted'
-                  )}>
-                    <input
-                      type="checkbox"
-                      checked={config.assignedUserIds.includes(emp.id)}
-                      onChange={() => toggleEmployee(emp.id)}
-                      className="sr-only"
-                    />
-                    {emp.displayName}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -217,23 +181,18 @@ function BoatRow({ boat, config, onChange, employees, canAssign }: {
           <input type="hidden" name={`boat_notes_${boat.id}`} value={config.notes} />
           <input type="hidden" name={`boat_rateType_${boat.id}`} value={config.rateType} />
           <input type="hidden" name={`boat_rate_${boat.id}`} value={config.rate} />
-          {config.assignedUserIds.map((uid) => (
-            <input key={uid} type="hidden" name={`boat_employees_${boat.id}`} value={uid} />
-          ))}
         </>
       )}
     </div>
   )
 }
 
-function BoatsSection({ boats, boatConfigs, onConfigChange, onAddBoat, total, employees, canAssign }: {
+function BoatsSection({ boats, boatConfigs, onConfigChange, onAddBoat, total }: {
   boats: Boat[]
   boatConfigs: Record<string, BoatConfig>
   onConfigChange: (id: string, next: BoatConfig) => void
   onAddBoat: () => void
   total: number
-  employees: Employee[]
-  canAssign: boolean
 }) {
   return (
     <div className="space-y-2">
@@ -252,8 +211,6 @@ function BoatsSection({ boats, boatConfigs, onConfigChange, onAddBoat, total, em
               boat={b}
               config={boatConfigs[b.id] ?? defaultConfig()}
               onChange={(next) => onConfigChange(b.id, next)}
-              employees={employees}
-              canAssign={canAssign}
             />
           ))}
         </div>
@@ -282,14 +239,10 @@ function BoatsSection({ boats, boatConfigs, onConfigChange, onAddBoat, total, em
 export default function ServiceForm({
   customers: initialCustomers,
   boatsByCustomer: initialBoatsByCustomer,
-  employees,
-  canAssign,
   qboItems = [],
 }: {
   customers: Customer[]
   boatsByCustomer: Record<string, Boat[]>
-  employees: Employee[]
-  canAssign: boolean
   qboItems?: { id: string; name: string }[]
 }) {
   const [mode, setMode] = useState<'onetime' | 'recurring'>('onetime')
@@ -442,8 +395,6 @@ export default function ServiceForm({
                 onConfigChange={(id, next) => setBoatConfigs((prev) => ({ ...prev, [id]: next }))}
                 onAddBoat={() => setModal({ open: true, mode: 'boat' })}
                 total={total}
-                employees={employees}
-                canAssign={canAssign}
               />
             )}
 
@@ -514,8 +465,6 @@ export default function ServiceForm({
                 onConfigChange={(id, next) => setBoatConfigs((prev) => ({ ...prev, [id]: next }))}
                 onAddBoat={() => setModal({ open: true, mode: 'boat' })}
                 total={total}
-                employees={employees}
-                canAssign={canAssign}
               />
             )}
 

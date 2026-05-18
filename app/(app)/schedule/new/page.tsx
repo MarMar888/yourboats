@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { customers, boats, users } from '@/lib/db/schema'
-import { asc, eq } from 'drizzle-orm'
+import { customers, boats } from '@/lib/db/schema'
+import { asc } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
@@ -13,12 +13,10 @@ export default async function NewServicePage() {
   if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) {
     redirect('/dashboard')
   }
-  const canAssign = true // all managers and owners can assign
 
-  const [allCustomers, allBoats, allUsers, qboItems] = await Promise.all([
+  const [allCustomers, allBoats, qboItems] = await Promise.all([
     db.select().from(customers).orderBy(asc(customers.name)),
     db.select().from(boats),
-    db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq(users.active, true)).orderBy(asc(users.displayName)),
     getCachedQboItems(),
   ])
 
@@ -29,8 +27,6 @@ export default async function NewServicePage() {
     },
     {}
   )
-
-  const employees = allUsers
 
   return (
     <div>
@@ -44,8 +40,6 @@ export default async function NewServicePage() {
       <ServiceForm
         customers={allCustomers}
         boatsByCustomer={boatsByCustomer}
-        employees={employees}
-        canAssign={canAssign}
         qboItems={qboItems.map((i) => ({ id: i.qboItemId, name: i.name }))}
       />
     </div>
