@@ -3,6 +3,10 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth/server'
 import { syncUser } from '@/lib/auth/sync-user'
+import { log } from '@/lib/log'
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export async function login(formData: FormData) {
   const username = (formData.get('username') as string ?? '').trim().toLowerCase()
@@ -17,7 +21,21 @@ export async function login(formData: FormData) {
 
   // Sync the authenticated user into our users table
   if (data?.user) {
-    await syncUser(data.user.email, data.user.name ?? email)
+    const userId = await syncUser(data.user.email, data.user.name ?? email)
+
+    // Fetch role for the log entry
+    const [row] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    await log({
+      action: 'login',
+      entityType: 'user',
+      entityId: userId,
+      metadata: { role: row?.role ?? 'unknown' },
+    })
   }
 
   redirect('/dashboard')
