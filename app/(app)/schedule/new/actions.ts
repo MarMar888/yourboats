@@ -259,41 +259,8 @@ export async function createService(formData: FormData) {
         await insertBoatAssignments(service.id, boatRows)
       }
 
-      // 3. Invoice row (draft by default)
-      const [invoice] = await db
-        .insert(invoices)
-        .values({
-          serviceId: service.id,
-          amount: String(totalPerVisit),
-          status: 'draft',
-          createdByUserId,
-        })
-        .returning()
-
-      // 4. Link invoice back to service
-      await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
+      // No invoice at schedule time — created when the service is marked complete
       await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
-
-      // 5. Push to QBO if connected and we have a customer QBO ID
-      if (resolvedQboItemId && customer?.qboCustomerId && boatRows.length > 0) {
-        try {
-          const qboInvoiceId = await pushInvoiceToQbo({
-            qboCustomerId: customer.qboCustomerId,
-            serviceDate,
-            boatLines: boatRows,
-            boatLengths,
-            qboItemId: resolvedQboItemId,
-            qboItemName,
-          })
-
-          await db
-            .update(invoices)
-            .set({ qboInvoiceId, status: 'sent', sentAt: new Date(), lastSyncedAt: new Date() })
-            .where(eq(invoices.id, invoice.id))
-        } catch {
-          // QBO push failed for this occurrence — invoice stays as draft
-        }
-      }
     }
   }
 

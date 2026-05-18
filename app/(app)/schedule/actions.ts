@@ -41,7 +41,12 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
   if (!user) return { error: 'Not authenticated' }
 
   const [service] = await db
-    .select({ id: services.id, status: services.status })
+    .select({
+      id: services.id,
+      status: services.status,
+      invoiceId: services.invoiceId,
+      totalPrice: services.totalPrice,
+    })
     .from(services)
     .where(eq(services.id, serviceId))
     .limit(1)
@@ -54,9 +59,25 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
     .set({ status: 'complete', completedAt: new Date(), completedByUserId: user.id })
     .where(eq(services.id, serviceId))
 
+  // Create a draft invoice if one doesn't exist yet (recurring services have none at creation)
+  if (!service.invoiceId) {
+    const total = Number(service.totalPrice ?? 0)
+    const [invoice] = await db
+      .insert(invoices)
+      .values({
+        serviceId: service.id,
+        amount: String(total),
+        status: 'draft',
+        createdByUserId: user.id,
+      })
+      .returning()
+    await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, serviceId))
+  }
+
   await log({ action: 'mark_complete', entityType: 'service', entityId: serviceId })
   revalidatePath('/dashboard')
   revalidatePath('/schedule')
+  revalidatePath('/invoices')
   return {}
 }
 
