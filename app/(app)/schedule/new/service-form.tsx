@@ -10,7 +10,7 @@ import QuickCreateModal from '@/components/quick-create-modal'
 import { cn } from '@/lib/utils'
 import type { Customer, Boat } from '@/lib/db/schema'
 
-const SERVICE_TYPES = [
+const FALLBACK_SERVICE_TYPES = [
   { value: 'recurring', label: 'Standard Clean' },
   { value: 'detailing', label: 'Detailing' },
   { value: 'buffing_waxing', label: 'Buffing & Waxing' },
@@ -284,11 +284,13 @@ export default function ServiceForm({
   boatsByCustomer: initialBoatsByCustomer,
   employees,
   canAssign,
+  qboItems = [],
 }: {
   customers: Customer[]
   boatsByCustomer: Record<string, Boat[]>
   employees: Employee[]
   canAssign: boolean
+  qboItems?: { id: string; name: string }[]
 }) {
   const [mode, setMode] = useState<'onetime' | 'recurring'>('onetime')
   const [customers, setCustomers] = useState(initialCustomers)
@@ -388,7 +390,7 @@ export default function ServiceForm({
           </select>
         </div>
 
-        {/* Service type */}
+        {/* Service type — uses QBO items when synced, fallback to hardcoded list */}
         <div className="space-y-1.5">
           <Label htmlFor="serviceType">Service type</Label>
           <select
@@ -398,10 +400,20 @@ export default function ServiceForm({
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">Select a type…</option>
-            {SERVICE_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
+            {qboItems.length > 0
+              ? qboItems.map((item) => (
+                  <option key={item.id} value={item.name}>{item.name}</option>
+                ))
+              : FALLBACK_SERVICE_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))
+            }
           </select>
+          {qboItems.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Sync QBO items in Settings to use your QuickBooks products here.
+            </p>
+          )}
         </div>
 
         {mode === 'onetime' ? (

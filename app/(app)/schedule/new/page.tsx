@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import ServiceForm from './service-form'
 import { redirect } from 'next/navigation'
+import { getCachedQboItems } from '@/lib/qbo/items'
 
 export default async function NewServicePage() {
   const currentUser = await getCurrentUser()
@@ -14,10 +15,11 @@ export default async function NewServicePage() {
   }
   const canAssign = true // all managers and owners can assign
 
-  const [allCustomers, allBoats, allUsers] = await Promise.all([
+  const [allCustomers, allBoats, allUsers, qboItems] = await Promise.all([
     db.select().from(customers).orderBy(asc(customers.name)),
     db.select().from(boats),
     db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq(users.active, true)).orderBy(asc(users.displayName)),
+    getCachedQboItems(),
   ])
 
   const boatsByCustomer = allBoats.reduce<Record<string, typeof allBoats>>(
@@ -44,6 +46,7 @@ export default async function NewServicePage() {
         boatsByCustomer={boatsByCustomer}
         employees={employees}
         canAssign={canAssign}
+        qboItems={qboItems.map((i) => ({ id: i.qboItemId, name: i.name }))}
       />
     </div>
   )
