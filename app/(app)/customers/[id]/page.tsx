@@ -139,6 +139,27 @@ export default async function CustomerDetailPage({
       ? await db.select().from(serviceBoats).where(inArray(serviceBoats.serviceId, serviceIds))
       : []
 
+  // Fetch existing boat config from the first scheduled service per recurring schedule
+  // so the edit modal can pre-populate the boat picker
+  const firstServiceBySchedule = new Map<string, string>()
+  for (const svc of scheduledServices) {
+    if (svc.recurringScheduleId && !firstServiceBySchedule.has(svc.recurringScheduleId)) {
+      firstServiceBySchedule.set(svc.recurringScheduleId, svc.id)
+    }
+  }
+  const templateServiceIds = Array.from(firstServiceBySchedule.values())
+  const templateBoatRows = templateServiceIds.length > 0
+    ? await db
+        .select({
+          serviceId: serviceBoats.serviceId,
+          boatId:    serviceBoats.boatId,
+          rateType:  serviceBoats.rateType,
+          rate:      serviceBoats.rate,
+        })
+        .from(serviceBoats)
+        .where(inArray(serviceBoats.serviceId, templateServiceIds))
+    : []
+
   // Build a map boatId -> nickname for display
   const boatNicknameMap = new Map(customerBoats.map((b) => [b.id, b.nickname]))
   // Also fetch any boats that might be in serviceBoats but not in current boats list
@@ -158,6 +179,21 @@ export default async function CustomerDetailPage({
     futureCounts.map((r) => [r.recurringScheduleId, Number(r.count)])
   )
 
+  // Build existing-boat lookup per schedule from template service rows
+  const existingBoatsBySchedule = new Map<string, { boatId: string; rateType: 'per_ft' | 'flat'; rate: string | null }[]>()
+  for (const [schedId, svcId] of Array.from(firstServiceBySchedule.entries())) {
+    existingBoatsBySchedule.set(
+      schedId,
+      templateBoatRows
+        .filter((r) => r.serviceId === svcId)
+        .map((r) => ({
+          boatId: r.boatId,
+          rateType: (r.rateType ?? 'per_ft') as 'per_ft' | 'flat',
+          rate: r.rate ?? null,
+        }))
+    )
+  }
+
   const recurringScheduleRows: RecurringScheduleRow[] = customerSchedules.map((s) => ({
     id: s.id,
     serviceType: s.serviceType,
@@ -167,6 +203,7 @@ export default async function CustomerDetailPage({
     endDate: s.endDate,
     active: s.active,
     futureCount: futureCountBySchedule.get(s.id) ?? 0,
+    existingBoats: existingBoatsBySchedule.get(s.id) ?? [],
   }))
 
   const isQboSynced = !!customer.qboCustomerId
@@ -298,6 +335,7 @@ export default async function CustomerDetailPage({
           <RecurringScheduleList
             schedules={recurringScheduleRows}
             canManage={canManage}
+            boats={customerBoats.map((b) => ({ id: b.id, nickname: b.nickname, lengthFt: b.lengthFt }))}
           />
         </div>
       )}

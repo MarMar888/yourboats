@@ -6,8 +6,9 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { updateRecurringSchedule, regenerateRecurringServices } from './recurring-schedule-actions'
-import type { UpdateScheduleInput } from './recurring-schedule-actions'
+import type { UpdateScheduleInput, RegenBoatRow } from './recurring-schedule-actions'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -15,6 +16,12 @@ function fmtDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
+}
+
+export type CustomerBoat = {
+  id: string
+  nickname: string
+  lengthFt: number | null
 }
 
 export type RecurringScheduleRow = {
@@ -25,15 +32,116 @@ export type RecurringScheduleRow = {
   startDate: string
   endDate: string
   active: boolean
-  futureCount: number  // # of future scheduled services still tied to this schedule
+  futureCount: number
+  existingBoats: { boatId: string; rateType: 'per_ft' | 'flat'; rate: string | null }[]
 }
+
+// ─── Boat picker ──────────────────────────────────────────────────────────────
+
+type BoatConfig = {
+  boatId: string
+  rateType: 'per_ft' | 'flat'
+  rate: string
+}
+
+function BoatPicker({
+  customerBoats,
+  value,
+  onChange,
+}: {
+  customerBoats: CustomerBoat[]
+  value: BoatConfig[]
+  onChange: (v: BoatConfig[]) => void
+}) {
+  if (customerBoats.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground italic">No boats on file for this customer.</p>
+    )
+  }
+
+  function toggle(boatId: string) {
+    const existing = value.find((b) => b.boatId === boatId)
+    if (existing) {
+      onChange(value.filter((b) => b.boatId !== boatId))
+    } else {
+      onChange([...value, { boatId, rateType: 'per_ft', rate: '' }])
+    }
+  }
+
+  function update(boatId: string, field: 'rateType' | 'rate', val: string) {
+    onChange(value.map((b) =>
+      b.boatId === boatId
+        ? { ...b, [field]: field === 'rateType' ? (val as 'per_ft' | 'flat') : val }
+        : b
+    ))
+  }
+
+  return (
+    <div className="space-y-2">
+      {customerBoats.map((boat) => {
+        const config = value.find((b) => b.boatId === boat.id)
+        const checked = !!config
+        return (
+          <div key={boat.id} className={cn(
+            'rounded-md border px-3 py-2 transition-colors',
+            checked ? 'border-primary/40 bg-primary/5' : 'border-border bg-background'
+          )}>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(boat.id)}
+                className="rounded border-input"
+              />
+              <span className="text-sm font-medium">{boat.nickname}</span>
+              {boat.lengthFt && (
+                <span className="text-xs text-muted-foreground">· {boat.lengthFt} ft</span>
+              )}
+            </label>
+
+            {checked && config && (
+              <div className="mt-2 flex gap-2 pl-5">
+                <select
+                  value={config.rateType}
+                  onChange={(e) => update(boat.id, 'rateType', e.target.value)}
+                  className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="per_ft">$/ft</option>
+                  <option value="flat">Flat</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Rate"
+                  value={config.rate}
+                  onChange={(e) => update(boat.id, 'rate', e.target.value)}
+                  className="w-24 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {config.rateType === 'per_ft' && boat.lengthFt && config.rate && (
+                  <span className="text-xs text-muted-foreground self-center tabular-nums">
+                    = ${(Number(config.rate) * boat.lengthFt).toFixed(2)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Edit modal ───────────────────────────────────────────────────────────────
 
 function EditScheduleModal({
   schedule,
+  customerBoats,
   open,
   onOpenChange,
 }: {
   schedule: RecurringScheduleRow
+  customerBoats: CustomerBoat[]
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
@@ -45,6 +153,15 @@ function EditScheduleModal({
   const [active, setActive] = useState(schedule.active)
   const [error, setError] = useState('')
   const [regenMsg, setRegenMsg] = useState('')
+
+  // Pre-populate boat picker from existing service config
+  const [boatConfigs, setBoatConfigs] = useState<BoatConfig[]>(() =>
+    schedule.existingBoats.map((b) => ({
+      boatId: b.boatId,
+      rateType: b.rateType,
+      rate: b.rate ?? '',
+    }))
+  )
 
   const [savePending, startSave] = useTransition()
   const [regenPending, startRegen] = useTransition()
@@ -74,7 +191,6 @@ function EditScheduleModal({
   const handleRegenerate = () => {
     setError('')
     setRegenMsg('')
-    // Save first, then regenerate
     const input: UpdateScheduleInput = {
       scheduleId: schedule.id,
       serviceType,
@@ -84,10 +200,15 @@ function EditScheduleModal({
       endDate,
       active,
     }
+    const boats: RegenBoatRow[] = boatConfigs.map((b) => ({
+      boatId: b.boatId,
+      rateType: b.rateType,
+      rate: b.rate || null,
+    }))
     startRegen(async () => {
       const saveResult = await updateRecurringSchedule(input)
       if (saveResult.error) { setError(saveResult.error); return }
-      const regenResult = await regenerateRecurringServices(schedule.id)
+      const regenResult = await regenerateRecurringServices(schedule.id, boats)
       if (regenResult.error) {
         setError(regenResult.error)
       } else {
@@ -99,7 +220,7 @@ function EditScheduleModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit recurring schedule</DialogTitle>
         </DialogHeader>
@@ -187,6 +308,21 @@ function EditScheduleModal({
             <span className="text-sm">Active</span>
           </label>
 
+          {/* Boats — used when regenerating */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Boats for regenerated services
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Select which boats to include on each recreated service.
+            </p>
+            <BoatPicker
+              customerBoats={customerBoats}
+              value={boatConfigs}
+              onChange={setBoatConfigs}
+            />
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           {regenMsg && <p className="text-sm text-green-600">{regenMsg}</p>}
 
@@ -194,7 +330,7 @@ function EditScheduleModal({
             <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
               <strong>{schedule.futureCount}</strong> future service{schedule.futureCount !== 1 ? 's are' : ' is'} scheduled from this rule.
               Saving only updates the record — use <strong>"Save & regenerate"</strong> to delete
-              those services and recreate them using the new settings.
+              those services and recreate them with the new settings and boats.
             </div>
           )}
         </div>
@@ -222,12 +358,16 @@ function EditScheduleModal({
   )
 }
 
+// ─── List ─────────────────────────────────────────────────────────────────────
+
 export function RecurringScheduleList({
   schedules,
   canManage,
+  boats,
 }: {
   schedules: RecurringScheduleRow[]
   canManage: boolean
+  boats: CustomerBoat[]
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const editing = schedules.find((s) => s.id === editingId)
@@ -281,6 +421,7 @@ export function RecurringScheduleList({
       {editing && (
         <EditScheduleModal
           schedule={editing}
+          customerBoats={boats}
           open={editingId !== null}
           onOpenChange={(v) => { if (!v) setEditingId(null) }}
         />

@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { recurringSchedules, services } from '@/lib/db/schema'
-import { eq, and, gte } from 'drizzle-orm'
+import { recurringSchedules, services, serviceBoats, boats } from '@/lib/db/schema'
+import { eq, and, gte, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
@@ -25,6 +25,12 @@ function occurrenceDates(
     cur.setDate(cur.getDate() + frequencyWeeks * 7)
   }
   return dates
+}
+
+export type RegenBoatRow = {
+  boatId: string
+  rateType: 'per_ft' | 'flat'
+  rate: string | null
 }
 
 export type UpdateScheduleInput = {
@@ -79,7 +85,8 @@ export async function updateRecurringSchedule(
 // Deletes all future (status=scheduled) services tied to this schedule,
 // then re-creates them based on the updated schedule definition.
 export async function regenerateRecurringServices(
-  scheduleId: string
+  scheduleId: string,
+  boatRows: RegenBoatRow[] = []
 ): Promise<{ error?: string; created?: number }> {
   const user = await getCurrentUser()
   if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
@@ -117,23 +124,54 @@ export async function regenerateRecurringServices(
   )
 
   if (dates.length > 0) {
-    await db.insert(services).values(
+    // Pre-fetch boat lengths for per_ft calculations
+    let boatLengths: Record<string, number | null> = {}
+    if (boatRows.length > 0) {
+      const boatIds = boatRows.map((b) => b.boatId)
+      const boatRecords = await db
+        .select({ id: boats.id, lengthFt: boats.lengthFt })
+        .from(boats)
+        .where(inArray(boats.id, boatIds))
+      boatLengths = Object.fromEntries(boatRecords.map((b) => [b.id, b.lengthFt]))
+    }
+
+    // Compute total price per visit
+    const totalPerVisit = boatRows.reduce((sum, b) => {
+      const rate = Number(b.rate ?? 0)
+      const qty = b.rateType === 'per_ft' ? (boatLengths[b.boatId] ?? 0) : 1
+      return sum + rate * qty
+    }, 0)
+
+    const inserted = await db.insert(services).values(
       dates.map((serviceDate) => ({
         customerId: schedule.customerId,
         serviceDate,
         serviceType: schedule.serviceType,
         status: 'scheduled' as const,
         recurringScheduleId: schedule.id,
-        totalPrice: schedule.defaultPrice ?? null,
+        totalPrice: totalPerVisit > 0 ? String(totalPerVisit) : (schedule.defaultPrice ?? null),
       }))
-    )
+    ).returning()
+
+    // Insert serviceBoats for each new service
+    if (boatRows.length > 0 && inserted.length > 0) {
+      const sbRows = inserted.flatMap((svc) =>
+        boatRows.map((b) => ({
+          serviceId: svc.id,
+          boatId: b.boatId,
+          rateType: b.rateType,
+          rate: b.rate ?? null,
+        }))
+      )
+      await db.insert(serviceBoats).values(sbRows)
+    }
   }
 
   await log({
     action: 'regenerate_recurring_services',
     entityType: 'recurring_schedule',
     entityId: scheduleId,
-    metadata: { created: dates.length },
+    metadata: { created: dates.length, boats: boatRows.length },
   })
 
   revalidatePath(`/customers/${schedule.customerId}`)
