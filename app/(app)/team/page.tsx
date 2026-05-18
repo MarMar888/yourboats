@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { updateUserRole, toggleUserActive, updateUserTier } from './actions'
+import { CreateUserForm } from './create-user-form'
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner',
@@ -41,6 +42,7 @@ export default async function TeamPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Team</h1>
+        {isOwner && <CreateUserForm />}
       </div>
 
       {allUsers.length === 0 ? (
