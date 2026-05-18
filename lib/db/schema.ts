@@ -18,16 +18,8 @@ export const roleEnum = pgEnum('role', ['owner', 'manager', 'employee'])
 
 export const employeeTierEnum = pgEnum('employee_tier', ['top', 'mid', 'low'])
 
-export const serviceTypeEnum = pgEnum('service_type', [
-  'recurring',
-  'detailing',
-  'buffing_waxing',
-  'acid_washing',
-  'powerwashing',
-  'gelcoat_wetsanding',
-  'captaining',
-  'other',
-])
+// serviceTypeEnum kept for reference only — column migrated to text in 0007
+// export const serviceTypeEnum = pgEnum('service_type', [...]) — removed
 
 export const serviceStatusEnum = pgEnum('service_status', [
   'scheduled',
@@ -96,7 +88,7 @@ export const recurringSchedules = pgTable('recurring_schedules', {
   customerId: uuid('customer_id')
     .notNull()
     .references(() => customers.id, { onDelete: 'cascade' }),
-  serviceType: serviceTypeEnum('service_type').notNull(),
+  serviceType: text('service_type').notNull(),
   defaultPrice: numeric('default_price', { precision: 10, scale: 2 }),
   frequencyWeeks: integer('frequency_weeks').notNull().default(1),
   dayOfWeek: integer('day_of_week').notNull(), // 0=Sun … 6=Sat
@@ -118,7 +110,8 @@ export const services = pgTable('services', {
     .notNull()
     .references(() => customers.id, { onDelete: 'cascade' }),
   serviceDate: date('service_date').notNull(),
-  serviceType: serviceTypeEnum('service_type').notNull(),
+  serviceType: text('service_type').notNull(),
+  qboItemId: text('qbo_item_id'),  // QBO product ID for invoice line items
   status: serviceStatusEnum('status').notNull().default('scheduled'),
   notes: text('notes'),
   totalPrice: numeric('total_price', { precision: 10, scale: 2 }),

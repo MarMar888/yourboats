@@ -297,6 +297,7 @@ export default function ServiceForm({
   const [boatsByCustomer, setBoatsByCustomer] = useState(initialBoatsByCustomer)
   const [customerId, setCustomerId] = useState('')
   const [boatConfigs, setBoatConfigs] = useState<Record<string, BoatConfig>>({})
+  const [selectedQboItemId, setSelectedQboItemId] = useState('')
   const [modal, setModal] = useState<{ open: boolean; mode: 'customer' | 'boat' }>({
     open: false,
     mode: 'customer',
@@ -337,7 +338,8 @@ export default function ServiceForm({
       return sum + amount
     }, 0)
 
-  const today = new Date().toISOString().split('T')[0]
+  const _now = new Date()
+  const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
 
   return (
     <>
@@ -398,6 +400,12 @@ export default function ServiceForm({
             name="serviceType"
             required
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onChange={(e) => {
+              if (qboItems.length > 0) {
+                const item = qboItems.find((i) => i.name === e.target.value)
+                setSelectedQboItemId(item?.id ?? '')
+              }
+            }}
           >
             <option value="">Select a type…</option>
             {qboItems.length > 0
@@ -409,6 +417,10 @@ export default function ServiceForm({
                 ))
             }
           </select>
+          {/* Submits the exact QBO item ID so invoicing never needs fuzzy matching */}
+          {selectedQboItemId && (
+            <input type="hidden" name="qboItemId" value={selectedQboItemId} />
+          )}
           {qboItems.length === 0 && (
             <p className="text-xs text-muted-foreground">
               Sync QBO items in Settings to use your QuickBooks products here.

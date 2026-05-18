@@ -81,6 +81,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
     .select({
       serviceDate:   services.serviceDate,
       serviceType:   services.serviceType,
+      qboItemId:     services.qboItemId,
       customerName:  customers.name,
       qboCustomerId: customers.qboCustomerId,
     })
@@ -108,45 +109,32 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
 
   if (sbRows.length === 0) return { ok: false, error: 'No boats on this service.' }
 
-  // Resolve the QBO item: use the caller-provided ID, or auto-match from cache, or fall back to live lookup
+  // Resolve the QBO item: prefer caller-provided ID, then stored service.qboItemId, then fuzzy match
   let qboItemId: string
   let qboItemName = 'Services'
 
-  if (selectedQboItemId) {
-    // Caller specified an item — look it up in the cache for the name
-    const cached = await getCachedQboItems()
-    const found = cached.find((i) => i.qboItemId === selectedQboItemId)
-    qboItemId = selectedQboItemId
+  const cached = await getCachedQboItems()
+
+  const resolveFromId = (id: string) => {
+    const found = cached.find((i) => i.qboItemId === id)
     if (found) qboItemName = found.name
+    return id
+  }
+
+  if (selectedQboItemId) {
+    // Caller explicitly chose an item from the UI
+    qboItemId = resolveFromId(selectedQboItemId)
+  } else if (service.qboItemId) {
+    // Service has a stored QBO item ID from when it was created
+    qboItemId = resolveFromId(service.qboItemId)
   } else {
-    // Auto-match from cache using service type
+    // Old service without stored ID — fuzzy match by service type name
     const bestItem = await findBestQboItem(service.serviceType)
-    if (bestItem) {
-      qboItemId = bestItem.id
-      qboItemName = bestItem.name
-    } else {
-      // Cache empty — fall back to live QBO lookup
-      try {
-        const qbo = await getQboClient()
-        const res = await new Promise<{ QueryResponse?: { Item?: { Id: string; Name: string }[] } }>(
-          (resolve, reject) =>
-            qbo.findItems(
-              [{ field: 'fetchAll', value: true }],
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (err: unknown, result: any) => (err ? reject(err) : resolve(result))
-            )
-        )
-        const items = res.QueryResponse?.Item ?? []
-        const item =
-          items.find((i) => i.Name.toLowerCase().includes('recurring') || i.Name.toLowerCase().includes('service')) ??
-          items[0]
-        if (!item) return { ok: false, error: 'No service items found in QuickBooks. Sync items from Settings first.' }
-        qboItemId = item.Id
-        qboItemName = item.Name
-      } catch (err) {
-        return { ok: false, error: `QuickBooks connection error: ${err instanceof Error ? err.message : String(err)}` }
-      }
+    if (!bestItem) {
+      return { ok: false, error: 'No QBO items found in cache. Sync items from Settings first.' }
     }
+    qboItemId = bestItem.id
+    qboItemName = bestItem.name
   }
 
   try {
