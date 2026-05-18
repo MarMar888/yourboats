@@ -16,6 +16,7 @@ export default async function LoginPage({
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">yourboats</CardTitle>
+          <CardTitle>Squeaky Clean Boat Services</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {message && (
@@ -30,7 +31,7 @@ export default async function LoginPage({
                   id="username"
                   name="username"
                   type="text"
-                  placeholder="marley"
+                  placeholder="mrpeanut"
                   required
                   autoComplete="username"
                   className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
