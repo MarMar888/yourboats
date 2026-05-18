@@ -120,8 +120,9 @@ export default async function SchedulePage({ searchParams }: PageProps) {
           notes:          services.notes,
           approvedAt:     services.approvedAt,
           reminderSentAt: services.reminderSentAt,
-          customerId:   services.customerId,
-          customerName: customers.name,
+          customerId:    services.customerId,
+          customerName:  customers.name,
+          customerNotes: customers.notes,
         })
         .from(services)
         .innerJoin(customers, eq(services.customerId, customers.id))
@@ -142,9 +143,11 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   const boatRows = serviceIds.length
     ? await db
         .select({
-          serviceId: serviceBoats.serviceId,
-          boatId:    serviceBoats.boatId,
-          nickname:  boats.nickname,
+          serviceId:       serviceBoats.serviceId,
+          boatId:          serviceBoats.boatId,
+          nickname:        boats.nickname,
+          boatNotes:       boats.notes,
+          serviceBoatNotes: serviceBoats.notes,
         })
         .from(serviceBoats)
         .innerJoin(boats, eq(serviceBoats.boatId, boats.id))
@@ -173,16 +176,21 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     assignments[r.serviceId][r.boatId].push(r.userId)
   }
 
-  const boatsByService: Record<string, { boatId: string; nickname: string }[]> = {}
+  const boatsByService: Record<string, { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null }[]> = {}
   for (const r of boatRows) {
     if (!boatsByService[r.serviceId]) boatsByService[r.serviceId] = []
-    boatsByService[r.serviceId].push({ boatId: r.boatId, nickname: r.nickname })
+    boatsByService[r.serviceId].push({
+      boatId: r.boatId,
+      nickname: r.nickname,
+      boatNotes: r.boatNotes ?? null,
+      serviceBoatNotes: r.serviceBoatNotes ?? null,
+    })
   }
 
-  type BoatEntry = { boatId: string; nickname: string; assignedIds: string[] }
+  type BoatEntry = { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }
   type ServiceCard = {
     id: string; serviceDate: string; serviceType: string; status: string
-    totalPrice: string | null; notes: string | null; approvedAt: Date | null
+    totalPrice: string | null; notes: string | null; customerNotes: string | null; approvedAt: Date | null
     reminderSentAt: Date | null; customerId: string; customerName: string; boats: BoatEntry[]
   }
 
@@ -191,6 +199,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     totalPrice:     s.totalPrice ?? null,
     approvedAt:     s.approvedAt ?? null,
     reminderSentAt: s.reminderSentAt ?? null,
+    customerNotes:  s.customerNotes ?? null,
     boats: (boatsByService[s.id] ?? []).map((b) => ({
       ...b,
       assignedIds: assignments[s.id]?.[b.boatId] ?? [],
@@ -306,6 +315,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 status: card.status,
                 totalPrice: card.totalPrice,
                 notes: card.notes,
+                customerNotes: card.customerNotes,
                 approvedAt: card.approvedAt,
                 reminderStatus,
                 reminderSentAt: card.reminderSentAt,

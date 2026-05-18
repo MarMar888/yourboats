@@ -15,6 +15,8 @@ import { updateBoatAssignments } from './[id]/actions'
 export type ScheduleCardBoat = {
   boatId: string
   nickname: string
+  boatNotes: string | null
+  serviceBoatNotes: string | null
   assignedIds: string[]
 }
 
@@ -34,6 +36,7 @@ interface ScheduleCardProps {
   status: string
   totalPrice: string | null
   notes: string | null
+  customerNotes: string | null
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
@@ -111,6 +114,7 @@ export default function ScheduleCard({
   status,
   totalPrice,
   notes,
+  customerNotes,
   approvedAt,
   reminderStatus,
   reminderSentAt,
@@ -187,7 +191,15 @@ export default function ScheduleCard({
       </div>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
-      <div className="relative z-10 px-4 py-3 space-y-3 flex-1">
+      <div className="relative z-10 px-4 py-3 space-y-2.5 flex-1">
+        {/* Customer-level notes */}
+        {customerNotes && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug">
+            {customerNotes}
+          </p>
+        )}
+
+        {/* Service-level notes */}
         {notes && (
           <p className="text-xs text-muted-foreground italic border-l-2 border-border pl-2">
             {notes}
@@ -199,8 +211,20 @@ export default function ScheduleCard({
             {boats.map((boat) => (
               <div key={boat.boatId}>
                 {boats.length > 1 && (
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
                     {boat.nickname}
+                  </p>
+                )}
+                {/* Boat-level notes */}
+                {boat.boatNotes && (
+                  <p className="text-xs text-muted-foreground italic border-l-2 border-border pl-2 mb-1.5">
+                    {boat.boatNotes}
+                  </p>
+                )}
+                {/* Service-boat notes */}
+                {boat.serviceBoatNotes && (
+                  <p className="text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded px-2 py-1 mb-1.5 leading-snug">
+                    {boat.serviceBoatNotes}
                   </p>
                 )}
                 {isManager ? (
@@ -229,9 +253,17 @@ export default function ScheduleCard({
 
         {/* Boats with no employee list (read-only fallback) */}
         {boats.length > 0 && employees.length === 0 && (
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {boats.map((b) => (
-              <p key={b.boatId} className="text-sm font-medium">{b.nickname}</p>
+              <div key={b.boatId}>
+                <p className="text-sm font-medium">{b.nickname}</p>
+                {b.boatNotes && (
+                  <p className="text-xs text-muted-foreground italic pl-1">{b.boatNotes}</p>
+                )}
+                {b.serviceBoatNotes && (
+                  <p className="text-xs text-sky-700 italic pl-1">{b.serviceBoatNotes}</p>
+                )}
+              </div>
             ))}
           </div>
         )}

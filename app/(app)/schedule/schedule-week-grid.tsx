@@ -13,12 +13,13 @@ export type GridCardData = {
   status: string
   totalPrice: string | null
   notes: string | null
+  customerNotes: string | null
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
   customerId: string
   customerName: string
-  boats: { boatId: string; nickname: string; assignedIds: string[] }[]
+  boats: { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }[]
 }
 
 export type GridDayData = {
@@ -165,6 +166,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                         status={card.status}
                         totalPrice={card.totalPrice}
                         notes={card.notes}
+                        customerNotes={card.customerNotes}
                         approvedAt={card.approvedAt}
                         reminderStatus={card.reminderStatus}
                         reminderSentAt={card.reminderSentAt}
