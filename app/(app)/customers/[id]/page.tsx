@@ -63,64 +63,56 @@ export default async function CustomerDetailPage({
 
   if (!customer) notFound()
 
-  // Fetch boats
-  const customerBoats = await db
-    .select()
-    .from(boats)
-    .where(eq(boats.customerId, id))
-    .orderBy(boats.nickname)
+  // Fetch all independent data in parallel
+  const [customerBoats, scheduledServices, customerInvoices, recentServices, reminderContacts] =
+    await Promise.all([
+      db.select().from(boats).where(eq(boats.customerId, id)).orderBy(boats.nickname),
 
-  // Fetch upcoming scheduled services
-  const scheduledServices = await db
-    .select()
-    .from(services)
-    .where(and(eq(services.customerId, id), eq(services.status, 'scheduled')))
-    .orderBy(asc(services.serviceDate))
+      db
+        .select()
+        .from(services)
+        .where(and(eq(services.customerId, id), eq(services.status, 'scheduled')))
+        .orderBy(asc(services.serviceDate)),
 
-  // Fetch invoices (joined through services)
-  const customerInvoices = await db
-    .select({
-      id:           invoices.id,
-      status:       invoices.status,
-      amount:       invoices.amount,
-      qboInvoiceId: invoices.qboInvoiceId,
-      sentAt:       invoices.sentAt,
-      paidAt:       invoices.paidAt,
-      createdAt:    invoices.createdAt,
-      serviceId:    invoices.serviceId,
-      serviceDate:  services.serviceDate,
-      serviceType:  services.serviceType,
-    })
-    .from(invoices)
-    .innerJoin(services, eq(invoices.serviceId, services.id))
-    .where(and(eq(services.customerId, id), eq(services.status, 'complete')))
-    .orderBy(desc(invoices.createdAt))
-    .limit(50)
+      db
+        .select({
+          id:           invoices.id,
+          status:       invoices.status,
+          amount:       invoices.amount,
+          qboInvoiceId: invoices.qboInvoiceId,
+          sentAt:       invoices.sentAt,
+          paidAt:       invoices.paidAt,
+          createdAt:    invoices.createdAt,
+          serviceId:    invoices.serviceId,
+          serviceDate:  services.serviceDate,
+          serviceType:  services.serviceType,
+        })
+        .from(invoices)
+        .innerJoin(services, eq(invoices.serviceId, services.id))
+        .where(and(eq(services.customerId, id), eq(services.status, 'complete')))
+        .orderBy(desc(invoices.createdAt))
+        .limit(50),
 
-  // Fetch last 20 services with their boats
-  const recentServices = await db
-    .select()
-    .from(services)
-    .where(eq(services.customerId, id))
-    .orderBy(desc(services.serviceDate))
-    .limit(20)
+      db
+        .select()
+        .from(services)
+        .where(eq(services.customerId, id))
+        .orderBy(desc(services.serviceDate))
+        .limit(20),
 
-  // Fetch all serviceBoats for those services in one query
+      db
+        .select()
+        .from(customerReminderContacts)
+        .where(eq(customerReminderContacts.customerId, id))
+        .orderBy(customerReminderContacts.createdAt),
+    ])
+
+  // Fetch serviceBoats for recent services (depends on recentServices result)
   const serviceIds = recentServices.map((s) => s.id)
   const allServiceBoats =
     serviceIds.length > 0
-      ? await db
-          .select()
-          .from(serviceBoats)
-          .where(inArray(serviceBoats.serviceId, serviceIds))
+      ? await db.select().from(serviceBoats).where(inArray(serviceBoats.serviceId, serviceIds))
       : []
-
-  // Fetch reminder contacts for this customer
-  const reminderContacts = await db
-    .select()
-    .from(customerReminderContacts)
-    .where(eq(customerReminderContacts.customerId, id))
-    .orderBy(customerReminderContacts.createdAt)
 
   // Build a map boatId -> nickname for display
   const boatNicknameMap = new Map(customerBoats.map((b) => [b.id, b.nickname]))

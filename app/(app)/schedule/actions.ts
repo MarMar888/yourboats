@@ -51,7 +51,7 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
 
   await db
     .update(services)
-    .set({ status: 'complete', completedAt: new Date(), completedByUserId: null })
+    .set({ status: 'complete', completedAt: new Date(), completedByUserId: user.id })
     .where(eq(services.id, serviceId))
 
   await log({ action: 'mark_complete', entityType: 'service', entityId: serviceId })
