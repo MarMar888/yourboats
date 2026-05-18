@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { customers, boats, services, serviceBoats, invoices, customerReminderContacts } from '@/lib/db/schema'
-import { eq, desc, asc, inArray, and } from 'drizzle-orm'
+import { customers, boats, services, serviceBoats, invoices, customerReminderContacts, recurringSchedules } from '@/lib/db/schema'
+import { eq, desc, asc, inArray, and, gte, sql, count } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,8 @@ import { BoatNotesEditor } from './boat-notes-editor'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteScheduledServices } from './service-actions'
+import { RecurringScheduleList } from './recurring-schedule-client'
+import type { RecurringScheduleRow } from './recurring-schedule-client'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +66,8 @@ export default async function CustomerDetailPage({
   if (!customer) notFound()
 
   // Fetch all independent data in parallel
-  const [customerBoats, scheduledServices, customerInvoices, recentServices, reminderContacts] =
+  const today = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD local
+  const [customerBoats, scheduledServices, customerInvoices, recentServices, reminderContacts, customerSchedules, futureCounts] =
     await Promise.all([
       db.select().from(boats).where(eq(boats.customerId, id)).orderBy(boats.nickname),
 
@@ -105,6 +108,28 @@ export default async function CustomerDetailPage({
         .from(customerReminderContacts)
         .where(eq(customerReminderContacts.customerId, id))
         .orderBy(customerReminderContacts.createdAt),
+
+      db
+        .select()
+        .from(recurringSchedules)
+        .where(eq(recurringSchedules.customerId, id))
+        .orderBy(desc(recurringSchedules.createdAt)),
+
+      db
+        .select({
+          recurringScheduleId: services.recurringScheduleId,
+          count: count(),
+        })
+        .from(services)
+        .where(
+          and(
+            eq(services.customerId, id),
+            eq(services.status, 'scheduled'),
+            gte(services.serviceDate, today),
+            sql`${services.recurringScheduleId} is not null`
+          )
+        )
+        .groupBy(services.recurringScheduleId),
     ])
 
   // Fetch serviceBoats for recent services (depends on recentServices result)
@@ -127,6 +152,22 @@ export default async function CustomerDetailPage({
     existing.push(name)
     boatsByService.set(sb.serviceId, existing)
   }
+
+  // Build future-count lookup
+  const futureCountBySchedule = new Map(
+    futureCounts.map((r) => [r.recurringScheduleId, Number(r.count)])
+  )
+
+  const recurringScheduleRows: RecurringScheduleRow[] = customerSchedules.map((s) => ({
+    id: s.id,
+    serviceType: s.serviceType,
+    frequencyWeeks: s.frequencyWeeks,
+    dayOfWeek: s.dayOfWeek,
+    startDate: s.startDate,
+    endDate: s.endDate,
+    active: s.active,
+    futureCount: futureCountBySchedule.get(s.id) ?? 0,
+  }))
 
   const isQboSynced = !!customer.qboCustomerId
 
@@ -249,6 +290,17 @@ export default async function CustomerDetailPage({
           </div>
         )}
       </div>
+
+      {/* Recurring schedules */}
+      {canManage && (
+        <div>
+          <h2 className="text-lg font-semibold mb-3">Recurring schedules</h2>
+          <RecurringScheduleList
+            schedules={recurringScheduleRows}
+            canManage={canManage}
+          />
+        </div>
+      )}
 
       {/* Scheduled services */}
       <div>
