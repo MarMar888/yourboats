@@ -2,6 +2,8 @@
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
 import { saveTip, updateTierConfig, updateEmployeeTier } from './actions'
+import { savePayrollEntries, getPayrollForPeriod } from './payroll-actions'
+import type { SavedPayrollRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -55,22 +57,45 @@ function PeriodReview({
   // excludedUsers[serviceId] = Set of userIds excluded from pay calc
   const [excludedUsers, setExcludedUsers] = useState<Record<string, Set<string>>>({})
 
+  // Saved payroll: key = `${serviceId}:${userId}`
+  const [savedPayroll, setSavedPayroll] = useState<Record<string, SavedPayrollRow>>({})
+  // Which services have been saved (to show indicator); key = serviceId, value = savedAt
+  const [savedServices, setSavedServices] = useState<Record<string, Date>>({})
+  const [savingRows, setSavingRows] = useState<Set<string>>(new Set())
+  const [saveAllPending, startSaveAll] = useTransition()
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(
-        `/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`
-      )
+      const [res, payrollRows] = await Promise.all([
+        fetch(`/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`),
+        getPayrollForPeriod(period.startStr, period.endStr),
+      ])
       if (!res.ok) throw new Error('Failed')
       const data = await res.json()
       setRows(data.services)
+
+      // Seed tip inputs
       const seeds: Record<string, string> = {}
       for (const s of data.services as PeriodServiceRow[]) {
         seeds[s.serviceId] = s.tipAmount != null ? String(s.tipAmount) : ''
       }
       setTipInputs(seeds)
-      setSplitOverrides({})
+
+      // Pre-populate split overrides and saved status from persisted payroll
+      const payrollMap: Record<string, SavedPayrollRow> = {}
+      const overrides: Record<string, Record<string, string>> = {}
+      const savedSvcs: Record<string, Date> = {}
+      for (const pr of payrollRows) {
+        payrollMap[`${pr.serviceId}:${pr.userId}`] = pr
+        if (!overrides[pr.serviceId]) overrides[pr.serviceId] = {}
+        overrides[pr.serviceId][pr.userId] = pr.splitPct
+        savedSvcs[pr.serviceId] = pr.savedAt
+      }
+      setSavedPayroll(payrollMap)
+      setSplitOverrides(overrides)
       setExcludedUsers({})
+      setSavedServices(savedSvcs)
     } finally {
       setLoading(false)
     }
@@ -120,8 +145,61 @@ function PeriodReview({
     })
   }
 
+  // Build payroll entries for a single service row using current computed values
+  function buildPayrollEntries(row: PeriodServiceRow) {
+    const { assignments: computed } = computeAssignmentsFor(row)
+    const tipNum = parseFloat(tipInputs[row.serviceId] ?? '') || 0
+    const tipPerPerson = computed.length > 0 ? tipNum / computed.length : 0
+    return computed.map((a) => ({
+      serviceId:    row.serviceId,
+      userId:       a.userId,
+      displayName:  a.displayName,
+      serviceDate:  row.serviceDate,
+      serviceType:  row.serviceType,
+      customerName: row.customerName,
+      totalPrice:   row.totalPrice,
+      employeePool: row.employeePool,
+      splitPct:     a.effectiveSplitPct,
+      deductionPct: a.deductionPct,
+      effectivePct: Math.max(0, a.effectiveSplitPct - a.deductionPct),
+      netPay:       a.computedNetPay,
+      tipShare:     tipPerPerson,
+      totalPay:     a.computedNetPay + tipPerPerson,
+    }))
+  }
+
+  async function handleSaveRow(row: PeriodServiceRow) {
+    const entries = buildPayrollEntries(row)
+    if (entries.length === 0) return
+    setSavingRows((prev) => new Set(Array.from(prev).concat(row.serviceId)))
+    try {
+      const result = await savePayrollEntries(entries)
+      if (!result.error) {
+        setSavedServices((prev) => ({ ...prev, [row.serviceId]: new Date() }))
+      }
+    } finally {
+      setSavingRows((prev) => { const next = new Set(prev); next.delete(row.serviceId); return next })
+    }
+  }
+
+  function handleSaveAll() {
+    startSaveAll(async () => {
+      const allEntries = rows.flatMap((row) => buildPayrollEntries(row))
+      if (allEntries.length === 0) return
+      const result = await savePayrollEntries(allEntries)
+      if (!result.error) {
+        const now = new Date()
+        setSavedServices((prev) => {
+          const next = { ...prev }
+          for (const row of rows) next[row.serviceId] = now
+          return next
+        })
+      }
+    })
+  }
+
   // Compute effective assignments for a row, applying overrides and exclusions
-  function computeAssignments(row: PeriodServiceRow): {
+  function computeAssignmentsFor(row: PeriodServiceRow): {
     assignments: (AssignmentRow & { effectiveSplitPct: number; computedNetPay: number })[]
     splitsValid: boolean
   } {
@@ -175,7 +253,7 @@ function PeriodReview({
   }
 
   const grandTotal = rows.reduce((sum, r) => {
-    const { assignments } = computeAssignments(r)
+    const { assignments } = computeAssignmentsFor(r)
     return sum + assignments.reduce((s, a) => s + a.computedNetPay, 0)
   }, 0)
 
@@ -197,6 +275,9 @@ function PeriodReview({
             <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Total Pay</th>
             <th className="px-3 py-2 text-right font-medium text-muted-foreground">Tip</th>
             <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Tip Split</th>
+            {isOwnerOrManager && (
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground">Save</th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -205,7 +286,7 @@ function PeriodReview({
             const tipNum = parseFloat(tipRaw) || 0
             const excluded = excludedUsers[row.serviceId] ?? new Set<string>()
             const overrides = splitOverrides[row.serviceId] ?? {}
-            const { assignments: computed, splitsValid } = computeAssignments(row)
+            const { assignments: computed, splitsValid } = computeAssignmentsFor(row)
             const rowTotal = computed.reduce((s, a) => s + a.computedNetPay, 0)
 
             return (
@@ -355,6 +436,26 @@ function PeriodReview({
                     <span className="text-muted-foreground text-xs">—</span>
                   )}
                 </td>
+                {isOwnerOrManager && (
+                  <td className="px-3 py-2.5 text-right align-middle">
+                    <div className="flex flex-col items-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        disabled={savingRows.has(row.serviceId) || computed.length === 0}
+                        onClick={() => handleSaveRow(row)}
+                      >
+                        {savingRows.has(row.serviceId) ? '…' : 'Save'}
+                      </Button>
+                      {savedServices[row.serviceId] && (
+                        <span className="text-[10px] text-green-600 whitespace-nowrap">
+                          ✓ {savedServices[row.serviceId].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             )
           })}
@@ -369,6 +470,18 @@ function PeriodReview({
               {grandTips > 0 ? fmt(grandTips) : ''}
             </td>
             <td className="px-3 py-2" />
+            {isOwnerOrManager && (
+              <td className="px-3 py-2 text-right">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  disabled={saveAllPending}
+                  onClick={handleSaveAll}
+                >
+                  {saveAllPending ? 'Saving…' : 'Save all'}
+                </Button>
+              </td>
+            )}
           </tr>
         </tfoot>
       </table>

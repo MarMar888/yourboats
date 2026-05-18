@@ -329,6 +329,46 @@ export const complaintsRelations = relations(complaints, ({ one }) => ({
   createdBy: one(users, { fields: [complaints.createdByUserId], references: [users.id] }),
 }))
 
+// ─── Payroll ──────────────────────────────────────────────────────────────────
+
+// Persisted pay records — one row per employee per service.
+// Written by managers/owners from the Pay review page.
+export const payroll = pgTable(
+  'payroll',
+  {
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    invoiceId: uuid('invoice_id')
+      .references(() => invoices.id, { onDelete: 'set null' }),
+    userId: text('user_id').notNull(),             // employee (text, matches serviceBoatAssignments)
+    displayName: text('display_name').notNull(),   // snapshot at save time
+    // Denormalised for self-contained payroll reports
+    serviceDate: date('service_date').notNull(),
+    serviceType: text('service_type').notNull(),
+    customerName: text('customer_name').notNull(),
+    // Pay math — all stored as decimals (strings via numeric type)
+    totalPrice: numeric('total_price', { precision: 10, scale: 2 }),
+    employeePool: numeric('employee_pool', { precision: 10, scale: 2 }),
+    splitPct: numeric('split_pct', { precision: 5, scale: 2 }).notNull(),
+    deductionPct: numeric('deduction_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+    effectivePct: numeric('effective_pct', { precision: 5, scale: 2 }).notNull(),
+    netPay: numeric('net_pay', { precision: 10, scale: 2 }).notNull(),
+    tipShare: numeric('tip_share', { precision: 10, scale: 2 }),
+    totalPay: numeric('total_pay', { precision: 10, scale: 2 }).notNull(),
+    savedByUserId: text('saved_by_user_id'),
+    savedAt: timestamp('saved_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.serviceId, t.userId] }),
+  })
+)
+
+export const payrollRelations = relations(payroll, ({ one }) => ({
+  service: one(services, { fields: [payroll.serviceId], references: [services.id] }),
+  invoice: one(invoices, { fields: [payroll.invoiceId], references: [invoices.id] }),
+}))
+
 export const recurringSchedulesRelations = relations(recurringSchedules, ({ one, many }) => ({
   customer: one(customers, {
     fields: [recurringSchedules.customerId],
@@ -360,3 +400,5 @@ export type NewQboItem = typeof qboItems.$inferInsert
 export type TimeEntry = typeof timeEntries.$inferSelect
 export type NewTimeEntry = typeof timeEntries.$inferInsert
 export type ServiceTypeShare = typeof serviceTypeShares.$inferSelect
+export type Payroll = typeof payroll.$inferSelect
+export type NewPayroll = typeof payroll.$inferInsert
