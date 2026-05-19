@@ -7,6 +7,7 @@ import { log } from '@/lib/log'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export async function login(formData: FormData) {
   const username = (formData.get('username') as string ?? '').trim().toLowerCase()
@@ -36,6 +37,22 @@ export async function login(formData: FormData) {
       entityId: userId,
       metadata: { role: row?.role ?? 'unknown' },
     })
+
+    const posthog = getPostHogClient()
+    posthog.identify({
+      distinctId: userId,
+      properties: {
+        email: data.user.email,
+        name: data.user.name ?? email,
+        role: row?.role ?? 'unknown',
+      },
+    })
+    posthog.capture({
+      distinctId: userId,
+      event: 'user_logged_in',
+      properties: { role: row?.role ?? 'unknown' },
+    })
+    await posthog.shutdown()
   }
 
   redirect('/dashboard')

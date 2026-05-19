@@ -8,6 +8,7 @@ import { and, eq, gte, lte } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 /**
  * Void a QBO invoice by ID. Non-fatal — logs errors but does not throw.
@@ -51,6 +52,11 @@ export async function rescheduleService(serviceId: string, newDate: string): Pro
 
   await db.update(services).set({ serviceDate: newDate }).where(eq(services.id, serviceId))
   await log({ action: 'reschedule_service', entityType: 'service', entityId: serviceId, metadata: { newDate } })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: user.id, event: 'service_rescheduled', properties: { service_id: serviceId, new_date: newDate } })
+  await posthog.shutdown()
+
   revalidatePath('/schedule')
   return {}
 }
@@ -96,6 +102,11 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
   }
 
   await log({ action: 'mark_complete', entityType: 'service', entityId: serviceId })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: user.id, event: 'service_completed', properties: { service_id: serviceId, total_price: service.totalPrice, is_prepaid: service.isPrepaid } })
+  await posthog.shutdown()
+
   revalidatePath('/dashboard')
   revalidatePath('/schedule')
   revalidatePath('/invoices')
@@ -122,6 +133,11 @@ export async function markIncomplete(serviceId: string): Promise<{ error?: strin
     .where(eq(services.id, serviceId))
 
   await log({ action: 'mark_incomplete', entityType: 'service', entityId: serviceId })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: user.id, event: 'service_marked_incomplete', properties: { service_id: serviceId } })
+  await posthog.shutdown()
+
   revalidatePath('/dashboard')
   revalidatePath('/schedule')
   revalidatePath(`/schedule/${serviceId}`)
@@ -141,6 +157,13 @@ export async function deleteService(serviceId: string, redirectTo?: string): Pro
 
   await db.delete(services).where(eq(services.id, serviceId))
   await log({ action: 'delete_service', entityType: 'service', entityId: serviceId })
+
+  const posthogDelete = getPostHogClient()
+  const deleteUser = await getCurrentUser()
+  if (deleteUser) {
+    posthogDelete.capture({ distinctId: deleteUser.id, event: 'service_deleted', properties: { service_id: serviceId } })
+  }
+  await posthogDelete.shutdown()
 
   revalidatePath('/schedule')
   revalidatePath('/invoices')
@@ -163,6 +186,11 @@ export async function approveWeek(startDate: string, endDate: string): Promise<v
     )
 
   await log({ action: 'approve_week', entityType: 'week', entityId: startDate, metadata: { startDate, endDate } })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: currentUser.id, event: 'week_approved', properties: { start_date: startDate, end_date: endDate } })
+  await posthog.shutdown()
+
   revalidatePath('/schedule')
 }
 

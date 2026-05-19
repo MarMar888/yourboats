@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 // ─── Log complaint ─────────────────────────────────────────────────────────────
 
@@ -77,6 +78,13 @@ export async function resolveComplaint(complaintId: string): Promise<void> {
     entityType: 'complaint',
     entityId: complaintId,
   })
+
+  const resolveUser = await getCurrentUser()
+  if (resolveUser) {
+    const posthog = getPostHogClient()
+    posthog.capture({ distinctId: resolveUser.id, event: 'complaint_resolved', properties: { complaint_id: complaintId } })
+    await posthog.shutdown()
+  }
 
   revalidatePath('/complaints')
 }

@@ -9,6 +9,7 @@ import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export { syncInvoiceToQbo }
 
@@ -65,6 +66,11 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
 
   await db.delete(invoices).where(eq(invoices.id, invoiceId))
   await log({ action: 'delete_invoice', entityType: 'invoice', entityId: invoiceId })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: user.id, event: 'invoice_deleted', properties: { invoice_id: invoiceId, had_qbo_invoice: !!invoice.qboInvoiceId } })
+  await posthog.shutdown()
+
   revalidatePath('/invoices')
   revalidatePath('/schedule')
 }
@@ -188,6 +194,13 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       .where(eq(invoices.id, invoiceId))
 
     await log({ action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id } })
+
+    const createUser = await getCurrentUser()
+    if (createUser) {
+      const posthog = getPostHogClient()
+      posthog.capture({ distinctId: createUser.id, event: 'invoice_created_in_qbo', properties: { invoice_id: invoiceId, qbo_invoice_id: created.Id, amount: inv.amount } })
+      await posthog.shutdown()
+    }
   } catch (err) {
     return { ok: false, error: `Failed to create in QuickBooks: ${err instanceof Error ? err.message : String(err)}` }
   }
@@ -271,6 +284,13 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       .where(eq(invoices.id, invoiceId))
 
     await log({ action: 'send_qbo_invoice', entityType: 'invoice', entityId: invoiceId })
+
+    const sendUser = await getCurrentUser()
+    if (sendUser) {
+      const posthog = getPostHogClient()
+      posthog.capture({ distinctId: sendUser.id, event: 'invoice_sent', properties: { invoice_id: invoiceId, qbo_invoice_id: inv.qboInvoiceId } })
+      await posthog.shutdown()
+    }
   } catch (err) {
     return { ok: false, error: `Failed to send: ${err instanceof Error ? err.message : String(err)}` }
   }

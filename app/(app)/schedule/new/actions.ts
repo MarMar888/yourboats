@@ -8,6 +8,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { log } from '@/lib/log'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 // Returns every occurrence of dayOfWeek (0=Sun…6=Sat) between start and end
 // at the given frequency in weeks, as YYYY-MM-DD strings.
@@ -182,6 +183,10 @@ export async function createService(formData: FormData) {
     }
 
     await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'onetime' } })
+
+    const posthog = getPostHogClient()
+    posthog.capture({ distinctId: createdByUserId, event: 'service_created', properties: { service_id: service.id, mode: 'onetime', customer_id: customerId, service_type: serviceType, service_date: serviceDate, total: total, boat_count: boatRows.length, is_prepaid: isPrepaid } })
+    await posthog.shutdown()
   } else {
     const startDate = formData.get('startDate') as string
     const endDate = formData.get('endDate') as string
@@ -272,6 +277,10 @@ export async function createService(formData: FormData) {
       // No invoice at schedule time — created when the service is marked complete
       await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
     }
+
+    const posthog = getPostHogClient()
+    posthog.capture({ distinctId: createdByUserId, event: 'service_created', properties: { mode: 'recurring', customer_id: customerId, service_type: serviceType, recurring_schedule_id: schedule.id, occurrence_count: dates.length, frequency_weeks: frequencyWeeks, start_date: startDate, end_date: endDate } })
+    await posthog.shutdown()
   }
 
   redirect('/schedule')

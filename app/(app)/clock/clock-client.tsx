@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { clockIn, clockOut } from '@/app/(app)/time/actions'
 import { toast } from 'sonner'
+import posthog from 'posthog-js'
 
 type Combo = {
   serviceId: string
@@ -32,6 +33,7 @@ function formatElapsed(seconds: number): string {
 }
 
 export function ClockClient({
+  userId,
   assigned,
   openEntry,
 }: {
@@ -77,6 +79,7 @@ export function ClockClient({
         toast.error(r.error)
       } else {
         toast.success('Clocked in')
+        posthog.capture('employee_clocked_in', { service_id: selectedCombo.serviceId, boat_id: selectedCombo.boatId, user_id: userId })
         router.refresh()
       }
     })
@@ -90,6 +93,7 @@ export function ClockClient({
         toast.error(r.error)
       } else {
         toast.success('Clocked out — ' + formatElapsed(elapsed))
+        posthog.capture('employee_clocked_out', { service_id: openEntry.serviceId, boat_id: openEntry.boatId, elapsed_seconds: elapsed, user_id: userId })
         router.refresh()
       }
     })

@@ -6,6 +6,7 @@ import { complaints, serviceBoatAssignments, services, serviceBoats, invoices, b
 import { and, eq, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 // ─── Update service ───────────────────────────────────────────────────────────
 
@@ -153,6 +154,11 @@ export async function generateInvoiceFromService(
 
   await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, serviceId))
   await log({ action: 'generate_invoice', entityType: 'service', entityId: serviceId, metadata: { invoiceId: invoice.id } })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: currentUser.id, event: 'invoice_generated', properties: { service_id: serviceId, invoice_id: invoice.id, amount: amount } })
+  await posthog.shutdown()
+
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/invoices')
   return { ok: true, invoiceId: invoice.id }
@@ -179,6 +185,11 @@ export async function flagComplaint(
   })
 
   await log({ action: 'flag_complaint', entityType: 'service', entityId: serviceId, metadata: { customerId, severity } })
+
+  const posthog = getPostHogClient()
+  posthog.capture({ distinctId: currentUser.id, event: 'complaint_flagged', properties: { service_id: serviceId, customer_id: customerId, severity } })
+  await posthog.shutdown()
+
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/complaints')
 }

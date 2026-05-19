@@ -40,3 +40,4 @@ yarn-error.log*
 
 .vscode
 .gstack/
+.env.local
