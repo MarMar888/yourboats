@@ -222,7 +222,7 @@ export async function unapprovePayrollForPeriod(
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     const periodLabel = `${startDate} – ${endDate}`
     const timestamp = new Date().toLocaleString('en-US', {
-      timeZone: 'America/New_York',
+      timeZone: 'America/Chicago',
       dateStyle: 'medium',
       timeStyle: 'short',
     })

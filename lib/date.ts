@@ -7,9 +7,9 @@
  * "today's date" for display or business-logic comparisons.
  */
 
-const TZ = 'America/New_York'
+const TZ = 'America/Chicago'
 
-/** Returns today's date as YYYY-MM-DD in America/New_York time. */
+/** Returns today's date as YYYY-MM-DD in America/Chicago (CT) time. */
 export function todayET(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: TZ })
 }

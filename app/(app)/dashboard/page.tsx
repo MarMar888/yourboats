@@ -177,7 +177,7 @@ export default async function DashboardPage() {
   const isManager = user.role === 'owner' || user.role === 'manager'
 
   const heading = new Date(todayET() + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York',
+    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Chicago',
   })
   const subheading = showingThisWeek
     ? "No jobs today — showing this week's upcoming services"

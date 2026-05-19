@@ -20,13 +20,13 @@ export type ScheduledService = {
 }
 
 function reminderLabel(serviceDate: string): string {
-  // Cron fires at 18:00 UTC (2 PM ET) the day before
+  // Cron fires at 18:00 UTC (1 PM CT) the day before
   const [y, m, d] = serviceDate.split('-').map(Number)
   const date = new Date(Date.UTC(y, m - 1, d - 1)) // day before, UTC midnight
   const weekday = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
   const month   = date.toLocaleDateString('en-US', { month: 'short',   timeZone: 'UTC' })
   const day     = date.toLocaleDateString('en-US', { day: 'numeric',   timeZone: 'UTC' })
-  return `${weekday} ${month} ${day} at 2 PM ET`
+  return `${weekday} ${month} ${day} at 1 PM CT`
 }
 
 // ─── Approve modal ────────────────────────────────────────────────────────────
