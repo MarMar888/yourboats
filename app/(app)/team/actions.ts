@@ -13,7 +13,7 @@ function hashPassword(password: string): Promise<string> {
   return new Promise((resolve, reject) => {
     scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, hash) => {
       if (err) reject(err)
-      else resolve(`${hash.toString('hex')}:${salt}`)
+      else resolve(`${salt}:${hash.toString('hex')}`)
     })
   })
 }
