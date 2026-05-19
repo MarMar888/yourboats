@@ -13,7 +13,7 @@ export function CreateUserForm() {
 
   const [form, setForm] = useState({
     displayName: '',
-    email: '',
+    emailUser: '',   // just the part before @
     password: '',
     role: 'employee' as 'owner' | 'manager' | 'employee',
   })
@@ -24,17 +24,21 @@ export function CreateUserForm() {
     setSuccess(null)
   }
 
+  const fullEmail = form.emailUser.includes('@')
+    ? form.emailUser.toLowerCase().trim()
+    : `${form.emailUser.toLowerCase().trim()}@squeakycleanboats.com`
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setSuccess(null)
     startTransition(async () => {
-      const result = await createUser(form)
+      const result = await createUser({ ...form, email: fullEmail })
       if (result.error) {
         setError(result.error)
       } else {
         setSuccess(`${form.displayName} has been added to the team.`)
-        setForm({ displayName: '', email: '', password: '', role: 'employee' })
+        setForm({ displayName: '', emailUser: '', password: '', role: 'employee' })
         setTimeout(() => setOpen(false), 1500)
       }
     })
@@ -62,10 +66,11 @@ export function CreateUserForm() {
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-3" autoComplete="off">
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Full name</label>
           <Input
+            autoComplete="off"
             placeholder="e.g. Alex Johnson"
             value={form.displayName}
             onChange={(e) => set('displayName', e.target.value)}
@@ -76,21 +81,32 @@ export function CreateUserForm() {
 
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Email</label>
-          <Input
-            type="email"
-            placeholder="alex@squeakycleanboats.com"
-            value={form.email}
-            onChange={(e) => set('email', e.target.value)}
-            required
-            disabled={pending}
-          />
+          <div className="flex items-center border border-input rounded-md bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
+            <input
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="miles"
+              value={form.emailUser}
+              onChange={(e) => set('emailUser', e.target.value.replace(/\s/g, ''))}
+              required
+              disabled={pending}
+              className="flex-1 min-w-0 px-3 py-2 text-sm bg-transparent outline-none"
+            />
+            <span className="pr-3 text-sm text-muted-foreground whitespace-nowrap select-none">
+              @squeakycleanboats.com
+            </span>
+          </div>
+          {form.emailUser.includes('@') && (
+            <p className="text-xs text-muted-foreground">Using full email: {fullEmail}</p>
+          )}
         </div>
 
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Temporary password</label>
           <Input
+            autoComplete="new-password"
             type="password"
-            placeholder="They can change it after logging in"
+            placeholder="Min. 6 characters"
             value={form.password}
             onChange={(e) => set('password', e.target.value)}
             required
