@@ -1,5 +1,6 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
+import { PostHogPageView } from '@/components/posthog-pageview'
 
 export const metadata = {
   metadataBase: new URL('https://yourboats.vercel.app'),
@@ -16,7 +17,10 @@ const inter = Inter({
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`}>{children}</body>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <PostHogPageView />
+        {children}
+      </body>
     </html>
   )
 }
