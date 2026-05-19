@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 const DEV_AUTH = process.env.NEXT_PUBLIC_DEV_AUTH === 'true'
 
 // Public paths that never require auth
-const PUBLIC_PATHS = ['/login', '/pick-user', '/api/auth']
+const PUBLIC_PATHS = ['/login', '/pick-user', '/api/auth', '/ingest']
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
