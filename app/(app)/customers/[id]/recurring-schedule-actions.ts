@@ -6,6 +6,7 @@ import { eq, and, gte, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
+import { todayET } from '@/lib/date'
 
 // Returns every occurrence of dayOfWeek between start and end at the given
 // frequency in weeks, as YYYY-MM-DD strings.
@@ -101,7 +102,7 @@ export async function regenerateRecurringServices(
 
   if (!schedule) return { error: 'Schedule not found' }
 
-  const today = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD local
+  const today = todayET()
 
   // Delete future scheduled services for this recurring schedule
   await db

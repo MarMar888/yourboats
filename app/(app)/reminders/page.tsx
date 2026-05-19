@@ -6,6 +6,7 @@ import { eq, and, gte, isNull, isNotNull, asc, inArray } from 'drizzle-orm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SuppressButton } from './suppress-button'
+import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ export default async function RemindersPage() {
 
   const isManager = user.role === 'owner' || user.role === 'manager'
 
-  const today = toISODate(new Date())
+  const today = todayET()
 
   // Query all upcoming scheduled services that are approved and future (include suppressed so they show)
   const serviceRows = await db

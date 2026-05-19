@@ -13,6 +13,7 @@ import {
 import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { cn } from '@/lib/utils'
+import { todayET, todayETDate } from '@/lib/date'
 import { ApproveWeekModal, UnapproveWeekButton } from './approve-week-modal'
 import type { ReminderStatus } from './schedule-card'
 import { ScheduleWeekGrid } from './schedule-week-grid'
@@ -48,7 +49,7 @@ function parseDateParam(param: string | undefined): Date {
     const d = new Date(param + 'T00:00:00')
     if (!isNaN(d.getTime())) return d
   }
-  return new Date()
+  return todayETDate()
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
@@ -319,7 +320,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
 
       {/* Days */}
       {(() => {
-        const todayStr = toISODate(new Date())
+        const todayStr = todayET()
         const gridDays: GridDayData[] = Object.entries(byDay).map(([dateStr, dayCards]) => {
           const dayDate = new Date(dateStr + 'T00:00:00')
           return {

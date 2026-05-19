@@ -6,6 +6,7 @@ import { and, eq, gte } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
+import { todayET } from '@/lib/date'
 
 /**
  * Delete all scheduled (future/pending) services for a customer.
@@ -15,12 +16,7 @@ export async function deleteScheduledServices(customerId: string): Promise<void>
   const user = await getCurrentUser()
   if (!user || (user.role !== 'owner' && user.role !== 'manager')) return
 
-  const today = new Date()
-  const ymd = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, '0'),
-    String(today.getDate()).padStart(2, '0'),
-  ].join('-')
+  const ymd = todayET()
 
   // Delete all scheduled services for this customer (today and future)
   const deleted = await db

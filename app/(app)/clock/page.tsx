@@ -10,13 +10,10 @@ import {
 } from '@/lib/db/schema'
 import { eq, and, isNull, sql } from 'drizzle-orm'
 import { ClockClient } from './clock-client'
+import { todayET } from '@/lib/date'
 
 function todayYMD(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return todayET()
 }
 
 export default async function ClockPage() {

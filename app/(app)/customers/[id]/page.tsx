@@ -15,6 +15,7 @@ import { deleteScheduledServices } from './service-actions'
 import { RecurringScheduleList } from './recurring-schedule-client'
 import type { RecurringScheduleRow } from './recurring-schedule-client'
 import { EditCustomerModal } from './edit-customer-modal'
+import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ export default async function CustomerDetailPage({
   if (!customer) notFound()
 
   // Fetch all independent data in parallel
-  const today = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD local
+  const today = todayET()
   const [customerBoats, scheduledServices, customerInvoices, recentServices, reminderContacts, customerSchedules, futureCounts] =
     await Promise.all([
       db.select().from(boats).where(eq(boats.customerId, id)).orderBy(boats.nickname),

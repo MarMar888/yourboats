@@ -5,6 +5,7 @@ import { services as servicesTable, customers } from '@/lib/db/schema'
 import { eq, asc, and, gte, lte } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { cn } from '@/lib/utils'
+import { todayET } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +20,8 @@ function parseMonthParam(param: string | undefined): { year: number; month: numb
       if (month >= 0 && month <= 11) return { year, month }
     }
   }
-  const now = new Date()
-  return { year: now.getFullYear(), month: now.getMonth() }
+  const [y, m] = todayET().split('-').map(Number)
+  return { year: y, month: m - 1 }
 }
 
 function toMonthParam(year: number, month: number): string {
@@ -59,6 +60,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   const prevMonthParam = toMonthParam(prevDate.getFullYear(), prevDate.getMonth())
   const nextMonthParam = toMonthParam(nextDate.getFullYear(), nextDate.getMonth())
   const currentMonthParam = toMonthParam(year, month)
+  const todayMonthParam = (() => { const [ty, tm] = todayET().split('-').map(Number); return toMonthParam(ty, tm - 1) })()
 
   // ── Query services in month ────────────────────────────────────────────────
   const serviceRows = await db
@@ -79,7 +81,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     .orderBy(asc(servicesTable.serviceDate))
 
   // ── Build calendar grid ────────────────────────────────────────────────────
-  const todayStr = toISODate(new Date())
+  const todayStr = todayET()
 
   // Index services by date
   const byDate: Record<string, typeof serviceRows> = {}
@@ -147,7 +149,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         >
           Next →
         </Link>
-        {currentMonthParam !== toMonthParam(new Date().getFullYear(), new Date().getMonth()) && (
+        {currentMonthParam !== todayMonthParam && (
           <Link
             href="/schedule/calendar"
             className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"

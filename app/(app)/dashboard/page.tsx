@@ -12,6 +12,7 @@ import {
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import ServiceCard from '@/components/service-card'
 import type { ServiceCardBoat, ServiceCardEmployee } from '@/components/service-card'
+import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,18 +26,17 @@ function toYMD(d: Date): string {
 }
 
 function todayYMD(): string {
-  return toYMD(new Date())
+  return todayET()
 }
 
 function thisWeekBounds(): { start: string; end: string } {
-  const now = new Date()
+  const [y, m, d] = todayET().split('-').map(Number)
+  const now = new Date(y, m - 1, d)
   const day = now.getDay() // 0=Sun, 6=Sat
   const sunday = new Date(now)
   sunday.setDate(now.getDate() - day)
-  sunday.setHours(0, 0, 0, 0)
   const saturday = new Date(sunday)
   saturday.setDate(sunday.getDate() + 6)
-  saturday.setHours(23, 59, 59, 999)
   return { start: toYMD(sunday), end: toYMD(saturday) }
 }
 
@@ -176,8 +176,8 @@ export default async function DashboardPage() {
 
   const isManager = user.role === 'owner' || user.role === 'manager'
 
-  const heading = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
+  const heading = new Date(todayET() + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York',
   })
   const subheading = showingThisWeek
     ? "No jobs today — showing this week's upcoming services"
