@@ -32,10 +32,12 @@ function fmtDate(ymd: string) {
 function PeriodReview({
   period,
   employees,
+  tierRows,
   isOwnerOrManager,
 }: {
   period: PayPeriod
   employees: Employee[]
+  tierRows: TierRow[]
   isOwnerOrManager: boolean
 }) {
   const [rows, setRows] = useState<PeriodServiceRow[]>([])
@@ -44,6 +46,7 @@ function PeriodReview({
   const [savingTip, setSavingTip] = useState<Record<string, boolean>>({})
   const [splitOverrides, setSplitOverrides] = useState<Record<string, Record<string, string>>>({})
   const [excludedUsers, setExcludedUsers] = useState<Record<string, Set<string>>>({})
+  const [addedUsers, setAddedUsers] = useState<Record<string, { userId: string; displayName: string; deductionPct: number }[]>>({})
   const [savedPayroll, setSavedPayroll] = useState<Record<string, SavedPayrollRow>>({})
   const [isDirty, setIsDirty] = useState(false)
 
@@ -86,6 +89,7 @@ function PeriodReview({
       setSavedPayroll(payrollMap)
       setSplitOverrides(overrides)
       setExcludedUsers({})
+      setAddedUsers({})
 
       const approvedRow = payrollRows.find((r) => r.approvedAt && r.approvedByName)
       setApproval(approvedRow ? { at: approvedRow.approvedAt!, byName: approvedRow.approvedByName! } : null)
@@ -139,13 +143,53 @@ function PeriodReview({
     })
   }
 
+  function getEmployeeDeductionPct(userId: string): number {
+    const emp = employees.find((e) => e.id === userId)
+    if (!emp || !emp.tier) return 0
+    const tr = tierRows.find((t) => t.tier === emp.tier)
+    return tr ? parseFloat(tr.deductionPct) || 0 : 0
+  }
+
+  function addPersonToRow(serviceId: string, userId: string) {
+    const emp = employees.find((e) => e.id === userId)
+    if (!emp) return
+    setIsDirty(true)
+    setAddedUsers((prev) => ({
+      ...prev,
+      [serviceId]: [...(prev[serviceId] ?? []), {
+        userId: emp.id,
+        displayName: emp.displayName,
+        deductionPct: getEmployeeDeductionPct(emp.id),
+      }],
+    }))
+  }
+
+  function removeAddedUser(serviceId: string, userId: string) {
+    setIsDirty(true)
+    setAddedUsers((prev) => ({
+      ...prev,
+      [serviceId]: (prev[serviceId] ?? []).filter((u) => u.userId !== userId),
+    }))
+    // Also remove any split override for this user
+    setSplitOverrides((sp) => {
+      const overrides = { ...(sp[serviceId] ?? {}) }
+      delete overrides[userId]
+      return { ...sp, [serviceId]: overrides }
+    })
+  }
+
   function computeAssignmentsFor(row: PeriodServiceRow): {
     assignments: (AssignmentRow & { effectiveSplitPct: number; computedNetPay: number })[]
     splitsValid: boolean
   } {
     const excluded = excludedUsers[row.serviceId] ?? new Set<string>()
     const overrides = splitOverrides[row.serviceId] ?? {}
-    const activeAssignments = row.assignments.filter((a) => !excluded.has(a.userId))
+    const added = (addedUsers[row.serviceId] ?? []).map((u) => ({
+      userId: u.userId, displayName: u.displayName, deductionPct: u.deductionPct,
+      splitPct: 0, effectivePct: 0, netPay: 0,  // placeholders — recomputed below
+    }))
+    const allAssignments = [...row.assignments, ...added]
+    const activeAssignments = allAssignments.filter((a) => !excluded.has(a.userId))
 
     if (activeAssignments.length === 0) return { assignments: [], splitsValid: true }
 
@@ -330,84 +374,121 @@ function PeriodReview({
 
                   {/* People & splits — the core column */}
                   <td className="px-4 py-3 min-w-[280px]">
-                    {row.assignments.length === 0 ? (
-                      <span className="text-muted-foreground text-xs">Unassigned</span>
-                    ) : (
-                      <div className="space-y-2">
-                        {row.assignments.map((a) => {
-                          const isExcluded = excluded.has(a.userId)
-                          const overrideVal = overrides[a.userId]
-                          const compA = computed.find((x) => x.userId === a.userId)
+                    {(() => {
+                      const rowAdded = addedUsers[row.serviceId] ?? []
+                      const allCount = row.assignments.length + rowAdded.length
+                      const alreadyInRow = new Set([
+                        ...row.assignments.map((a) => a.userId),
+                        ...rowAdded.map((u) => u.userId),
+                      ])
+                      const availableToAdd = employees.filter((e) => !alreadyInRow.has(e.id))
 
-                          const activeCount = row.assignments.filter((x) => !excluded.has(x.userId)).length
-                          const activeIdx = row.assignments
-                            .filter((x) => !excluded.has(x.userId))
-                            .findIndex((x) => x.userId === a.userId)
-                          const defaultSplit = activeCount > 0
-                            ? activeIdx === activeCount - 1
-                              ? Math.floor(100 / activeCount) + (100 - Math.floor(100 / activeCount) * activeCount)
-                              : Math.floor(100 / activeCount)
-                            : 0
+                      function renderPersonRow(
+                        userId: string,
+                        displayName: string,
+                        deductionPct: number,
+                        isAdded: boolean
+                      ) {
+                        const isExcluded = excluded.has(userId)
+                        const overrideVal = overrides[userId]
+                        const compA = computed.find((x) => x.userId === userId)
+                        const activeCount = [...row.assignments, ...rowAdded]
+                          .filter((x) => !excluded.has(x.userId)).length
+                        const activeIdx = [...row.assignments, ...rowAdded]
+                          .filter((x) => !excluded.has(x.userId))
+                          .findIndex((x) => x.userId === userId)
+                        const defaultSplit = activeCount > 0
+                          ? activeIdx === activeCount - 1
+                            ? Math.floor(100 / activeCount) + (100 - Math.floor(100 / activeCount) * activeCount)
+                            : Math.floor(100 / activeCount)
+                          : 0
 
-                          return (
-                            <div key={a.userId} className={`flex items-center gap-2 ${isExcluded ? 'opacity-40' : ''}`}>
-                              {/* Exclude toggle */}
-                              <button
-                                type="button"
-                                onClick={() => toggleExclude(row.serviceId, a.userId)}
-                                className="text-muted-foreground hover:text-destructive text-xs leading-none w-4 h-4 flex items-center justify-center flex-shrink-0 transition-colors"
-                                title={isExcluded ? 'Re-include' : 'Exclude from pay'}
-                              >
-                                {isExcluded ? '+' : '×'}
-                              </button>
+                        return (
+                          <div key={userId} className={`flex items-center gap-2 ${isExcluded ? 'opacity-40' : ''}`}>
+                            {/* Exclude / remove toggle */}
+                            <button
+                              type="button"
+                              onClick={() => isAdded ? removeAddedUser(row.serviceId, userId) : toggleExclude(row.serviceId, userId)}
+                              className="text-muted-foreground hover:text-destructive text-xs leading-none w-4 h-4 flex items-center justify-center flex-shrink-0 transition-colors"
+                              title={isAdded ? 'Remove' : isExcluded ? 'Re-include' : 'Exclude from pay'}
+                            >
+                              {!isAdded && isExcluded ? '+' : '×'}
+                            </button>
 
-                              {/* Name */}
-                              <span className={`text-sm font-medium w-32 truncate ${isExcluded ? 'line-through' : ''}`}>
-                                {a.displayName}
+                            {/* Name */}
+                            <span className={`text-sm font-medium w-32 truncate ${isExcluded ? 'line-through' : ''}`}>
+                              {displayName}
+                              {isAdded && <span className="text-[9px] text-muted-foreground ml-1 font-normal">added</span>}
+                            </span>
+
+                            {/* Split input */}
+                            {!isExcluded && (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  placeholder={String(defaultSplit)}
+                                  value={overrideVal ?? ''}
+                                  onChange={(e) => setSplitOverride(row.serviceId, userId, e.target.value)}
+                                  className="w-16 h-6 text-xs text-right border border-input rounded px-1.5 bg-background tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                                  title="Split %"
+                                />
+                                <span className="text-muted-foreground text-xs">%</span>
+                                {deductionPct > 0 && (
+                                  <span className="text-xs text-muted-foreground bg-muted rounded px-1 py-0.5">
+                                    −{deductionPct}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Computed pay */}
+                            {compA && (
+                              <span className="ml-auto text-sm font-medium tabular-nums text-right min-w-[56px]">
+                                {fmt(compA.computedNetPay)}
+                                {tipPerPerson > 0 && (
+                                  <span className="text-xs text-muted-foreground font-normal ml-1">
+                                    +{fmt(tipPerPerson)}
+                                  </span>
+                                )}
                               </span>
+                            )}
+                          </div>
+                        )
+                      }
 
-                              {/* Split input */}
-                              {!isExcluded && (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    placeholder={String(defaultSplit)}
-                                    value={overrideVal ?? ''}
-                                    onChange={(e) => setSplitOverride(row.serviceId, a.userId, e.target.value)}
-                                    className="w-16 h-6 text-xs text-right border border-input rounded px-1.5 bg-background tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
-                                    title="Split %"
-                                  />
-                                  <span className="text-muted-foreground text-xs">%</span>
-                                  {a.deductionPct > 0 && (
-                                    <span className="text-xs text-muted-foreground bg-muted rounded px-1 py-0.5">
-                                      −{a.deductionPct}%
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Computed pay */}
-                              {compA && (
-                                <span className="ml-auto text-sm font-medium tabular-nums text-right min-w-[56px]">
-                                  {fmt(compA.computedNetPay)}
-                                  {tipPerPerson > 0 && (
-                                    <span className="text-xs text-muted-foreground font-normal ml-1">
-                                      +{fmt(tipPerPerson)}
-                                    </span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          )
-                        })}
-                        {!splitsValid && computed.length > 0 && (
-                          <p className="text-[10px] text-amber-600">⚠ splits don&apos;t add to 100%</p>
-                        )}
-                      </div>
-                    )}
+                      return (
+                        <div className="space-y-2">
+                          {allCount === 0 && rowAdded.length === 0 && (
+                            <span className="text-muted-foreground text-xs">Unassigned</span>
+                          )}
+                          {row.assignments.map((a) =>
+                            renderPersonRow(a.userId, a.displayName, a.deductionPct, false)
+                          )}
+                          {rowAdded.map((u) =>
+                            renderPersonRow(u.userId, u.displayName, u.deductionPct, true)
+                          )}
+                          {!splitsValid && computed.length > 0 && (
+                            <p className="text-[10px] text-amber-600">⚠ splits don&apos;t add to 100%</p>
+                          )}
+                          {/* Add person selector */}
+                          {isOwnerOrManager && availableToAdd.length > 0 && (
+                            <select
+                              value=""
+                              onChange={(e) => { if (e.target.value) addPersonToRow(row.serviceId, e.target.value) }}
+                              className="mt-1 text-xs h-6 border border-dashed border-input rounded px-1.5 text-muted-foreground bg-background cursor-pointer hover:border-primary transition-colors"
+                            >
+                              <option value="">+ Add person</option>
+                              {availableToAdd.map((e) => (
+                                <option key={e.id} value={e.id}>{e.displayName}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </td>
 
                   <td className="px-4 py-3 text-right tabular-nums text-xs text-muted-foreground align-top pt-3.5">
@@ -684,6 +765,7 @@ export function PayClient({
           key={period.startStr}
           period={period}
           employees={employees}
+          tierRows={tierRows}
           isOwnerOrManager={isOwner || true}
         />
       </div>

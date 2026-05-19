@@ -35,13 +35,14 @@ export async function createUser(input: {
     return { error: 'Name, email and password are required.' }
   }
 
-  // Check email not already in use
-  const [existing] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, email.toLowerCase().trim()))
-    .limit(1)
-  if (existing) return { error: 'An account with that email already exists.' }
+  const normalizedEmail = email.toLowerCase().trim()
+
+  // Check both tables — neon_auth.user and app users — for the email
+  const [authCheck, [existingApp]] = await Promise.all([
+    db.execute(sql`SELECT id FROM neon_auth.user WHERE email = ${normalizedEmail} LIMIT 1`),
+    db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1),
+  ])
+  if (authCheck.rows.length > 0 || existingApp) return { error: 'An account with that email already exists.' }
 
   const hashedPassword = await hashPassword(password)
   const authUserId = crypto.randomUUID()
@@ -49,20 +50,26 @@ export async function createUser(input: {
   const now = new Date()
 
   // 1. Create Neon Auth user
-  await db.execute(
-    sql`INSERT INTO neon_auth.user (id, name, email, "emailVerified", "createdAt", "updatedAt")
-        VALUES (${authUserId}, ${displayName.trim()}, ${email.toLowerCase().trim()}, true, ${now}, ${now})`
-  )
+  try {
+    await db.execute(
+      sql`INSERT INTO neon_auth.user (id, name, email, "emailVerified", "createdAt", "updatedAt")
+          VALUES (${authUserId}, ${displayName.trim()}, ${normalizedEmail}, true, ${now}, ${now})`
+    )
+  } catch (err: unknown) {
+    const code = (err as { cause?: { code?: string } })?.cause?.code
+    if (code === '23505') return { error: 'An account with that email already exists.' }
+    throw err
+  }
 
   // 2. Create credential account (for email/password login)
   await db.execute(
     sql`INSERT INTO neon_auth.account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-        VALUES (${accountId}, ${email.toLowerCase().trim()}, 'credential', ${authUserId}, ${hashedPassword}, ${now}, ${now})`
+        VALUES (${accountId}, ${normalizedEmail}, 'credential', ${authUserId}, ${hashedPassword}, ${now}, ${now})`
   )
 
   // 3. Create app-level user (synced by email on first login, but pre-created here)
   await db.insert(users).values({
-    email: email.toLowerCase().trim(),
+    email: normalizedEmail,
     displayName: displayName.trim(),
     role,
     active: true,
