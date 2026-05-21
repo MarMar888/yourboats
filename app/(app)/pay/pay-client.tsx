@@ -20,6 +20,7 @@ type TierRow = { tier: 'top' | 'mid' | 'low'; deductionPct: string }
 
 type SalariedLine = {
   id: string
+  userId: string
   type: 'gm_salary' | 'quality_bonus'
   displayName: string
   amount: string
@@ -437,9 +438,15 @@ function PeriodReview({
         netPay: a.computedNetPay, tipShare, totalPay: a.computedNetPay + tipShare,
       })
     }
-    const totalPay = svcs.reduce((s, x) => s + x.totalPay, 0)
+    // Include salaried lines belonging to this employee
+    const empSalaried = salariedLines.filter((l) => l.userId === userId)
+    const salariedTotal = empSalaried
+      .filter((l) => l.status === 'approved')
+      .reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
+
+    const totalPay = svcs.reduce((s, x) => s + x.totalPay, 0) + salariedTotal
     const totalTips = svcs.reduce((s, x) => s + x.tipShare, 0)
-    return { services: svcs, summary: { totalPay, totalTips } }
+    return { services: svcs, salariedItems: empSalaried, summary: { totalPay, totalTips, salariedTotal } }
   }
 
   if (loading) {
@@ -763,9 +770,9 @@ function PeriodReview({
                 <p className="text-xs text-muted-foreground mb-3">
                   {selectedEmployee?.displayName} · {formatPeriodLabel(period)} · Payday {formatShortDate(period.payday)}
                 </p>
-                {perEmpData.services.length === 0 ? (
+                {perEmpData.services.length === 0 && perEmpData.salariedItems.length === 0 ? (
                   <div className="rounded-lg border bg-muted/20 p-6 text-center text-muted-foreground text-sm">
-                    No completed services assigned to this employee in this period.
+                    No completed services or salaried lines for this employee in this period.
                   </div>
                 ) : (
                   <div className="rounded-lg border overflow-x-auto">
@@ -810,14 +817,48 @@ function PeriodReview({
                             <td className="px-3 py-2 text-right tabular-nums font-semibold text-sm">{fmt(s.totalPay)}</td>
                           </tr>
                         ))}
+                        {/* Salaried lines */}
+                        {perEmpData.salariedItems.map((l) => {
+                          const amount = parseFloat(l.amount) || 0
+                          const isApproved = l.status === 'approved'
+                          const typeLabel = l.type === 'gm_salary' ? 'GM Salary' : 'Quality Bonus'
+                          return (
+                            <tr key={l.id} className="bg-blue-50/60 hover:bg-blue-50 transition-colors">
+                              <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">—</td>
+                              <td className="px-3 py-2">
+                                <div className="text-sm font-medium">{typeLabel}</div>
+                                <div className="text-xs text-muted-foreground capitalize">{l.status}</div>
+                              </td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">fixed</td>
+                              <td className="px-3 py-2 text-right tabular-nums font-medium text-sm">
+                                {isApproved ? fmt(amount) : <span className="text-muted-foreground text-xs">pending</span>}
+                              </td>
+                              <td className="px-3 py-2 text-right text-muted-foreground text-xs">—</td>
+                              <td className="px-3 py-2 text-right tabular-nums font-semibold text-sm">
+                                {isApproved ? fmt(amount) : <span className="text-muted-foreground text-xs">—</span>}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                       <tfoot>
                         <tr className="border-t bg-muted/40 font-semibold text-sm">
                           <td className="px-3 py-2" colSpan={6}>Summary</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{fmt(perEmpData.summary.totalPay - perEmpData.summary.totalTips)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {fmt(perEmpData.summary.totalPay - perEmpData.summary.totalTips)}
+                          </td>
                           <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{fmt(perEmpData.summary.totalTips)}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{fmt(perEmpData.summary.totalPay)}</td>
                         </tr>
+                        {perEmpData.summary.salariedTotal > 0 && (
+                          <tr className="border-t bg-blue-50/40 text-xs text-muted-foreground">
+                            <td className="px-3 py-1.5" colSpan={8}>Includes {fmt(perEmpData.summary.salariedTotal)} in approved salaried lines</td>
+                            <td />
+                          </tr>
+                        )}
                       </tfoot>
                     </table>
                   </div>
