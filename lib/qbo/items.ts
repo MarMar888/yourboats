@@ -97,6 +97,7 @@ export async function findBestQboItem(serviceType: string): Promise<{ id: string
     items.find((i) => i.name.toLowerCase().includes('recurring')) ??
     items.find((i) => i.name.toLowerCase().includes('service'))
 
-  const chosen = exact ?? partial ?? generic ?? items[0]
+  const chosen = exact ?? partial ?? generic
+  if (!chosen) return null
   return { id: chosen.qboItemId, name: chosen.name }
 }

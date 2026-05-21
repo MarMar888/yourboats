@@ -251,31 +251,37 @@ export async function createService(formData: FormData) {
       return sum + rate * qty
     }, 0)
 
-    for (const serviceDate of dates) {
-      // 1. Service row
-      const [service] = await db
-        .insert(services)
-        .values({
+    // Batch insert all service rows in one query instead of N serial inserts
+    const insertedServices = await db
+      .insert(services)
+      .values(
+        dates.map((serviceDate) => ({
           customerId,
           serviceDate,
           serviceType,
-          qboItemId,
-          status: 'scheduled',
+          qboItemId: resolvedQboItemId,
+          status: 'scheduled' as const,
           recurringScheduleId: schedule.id,
           totalPrice: totalPerVisit > 0 ? String(totalPerVisit) : null,
-        })
-        .returning()
+        }))
+      )
+      .returning()
 
-      // 2. ServiceBoats rows + assignments
-      if (boatRows.length > 0) {
-        await db.insert(serviceBoats).values(
+    // Batch insert serviceBoats + assignments for each created service
+    if (boatRows.length > 0) {
+      await db.insert(serviceBoats).values(
+        insertedServices.flatMap((service) =>
           boatRows.map(({ assignedUserIds: _a, ...b }) => ({ serviceId: service.id, ...b }))
         )
+      )
+      for (const service of insertedServices) {
         await insertBoatAssignments(service.id, boatRows)
       }
+    }
 
-      // No invoice at schedule time — created when the service is marked complete
-      await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
+    // Log one entry per service
+    for (const service of insertedServices) {
+      await log({ action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate: service.serviceDate, serviceType, mode: 'recurring', recurringScheduleId: schedule.id } })
     }
 
     const posthog = getPostHogClient()

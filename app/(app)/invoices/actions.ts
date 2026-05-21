@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getQboClient, fetchQboInvoiceLink } from '@/lib/qbo/client'
+import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
 import { getNextQboDocNumber } from '@/lib/qbo/doc-number'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
@@ -18,30 +19,6 @@ export { syncInvoiceToQbo }
 export type ActionResult =
   | { ok: true }
   | { ok: false; error: string }
-
-// ─── QBO void helper (non-fatal) ─────────────────────────────────────────────
-
-async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
-  try {
-    const qbo = await getQboClient()
-    const existing = await new Promise<{ Id: string; SyncToken: string }>((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      qbo.getInvoice(qboInvoiceId, (err: unknown, result: any) =>
-        err ? reject(err) : resolve(result)
-      )
-    })
-    await new Promise<void>((resolve, reject) => {
-      qbo.updateInvoice(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { Id: existing.Id, SyncToken: existing.SyncToken, sparse: true, void: true } as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (err: unknown, _result: any) => (err ? reject(err) : resolve())
-      )
-    })
-  } catch (err) {
-    console.error('[QBO] Failed to void invoice', qboInvoiceId, err)
-  }
-}
 
 // ─── Delete invoice ───────────────────────────────────────────────────────────
 

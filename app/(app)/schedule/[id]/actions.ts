@@ -25,6 +25,12 @@ export async function updateService(
   const totalPrice = (formData.get('totalPrice') as string) || null
   const status = formData.get('status') as string
 
+  const [currentService] = await db
+    .select({ serviceDate: services.serviceDate })
+    .from(services)
+    .where(eq(services.id, serviceId))
+    .limit(1)
+
   await db
     .update(services)
     .set({
@@ -35,6 +41,15 @@ export async function updateService(
       status: status as never,
     })
     .where(eq(services.id, serviceId))
+
+  // If the service date changed, flag the linked QBO invoice for re-sync
+  // so TxnDate and DueDate stay accurate in QuickBooks.
+  if (currentService && currentService.serviceDate !== serviceDate) {
+    await db
+      .update(invoices)
+      .set({ qboNeedsSync: true })
+      .where(eq(invoices.serviceId, serviceId))
+  }
 
   // Update boat rows and assignments
   const boatIds = formData.getAll('boatIds') as string[]

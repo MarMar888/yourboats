@@ -5,37 +5,10 @@ import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { services, invoices, customers } from '@/lib/db/schema'
 import { and, eq, gte, lte } from 'drizzle-orm'
-import { getQboClient } from '@/lib/qbo/client'
+import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getPostHogClient } from '@/lib/posthog-server'
-
-/**
- * Void a QBO invoice by ID. Non-fatal — logs errors but does not throw.
- */
-async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
-  try {
-    const qbo = await getQboClient()
-
-    const existing = await new Promise<{ Id: string; SyncToken: string }>((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      qbo.getInvoice(qboInvoiceId, (err: unknown, result: any) =>
-        err ? reject(err) : resolve(result)
-      )
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      qbo.updateInvoice(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { Id: existing.Id, SyncToken: existing.SyncToken, sparse: true, void: true } as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (err: unknown, _result: any) => (err ? reject(err) : resolve())
-      )
-    })
-  } catch (err) {
-    console.error('[QBO] Failed to void invoice', qboInvoiceId, err)
-  }
-}
 
 export async function rescheduleService(serviceId: string, newDate: string): Promise<{ error?: string }> {
   const user = await getCurrentUser()
@@ -145,6 +118,11 @@ export async function markIncomplete(serviceId: string): Promise<{ error?: strin
 }
 
 export async function deleteService(serviceId: string, redirectTo?: string): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    throw new Error('Not authorized')
+  }
+
   const [linkedInvoice] = await db
     .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId })
     .from(invoices)
