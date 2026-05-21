@@ -3,7 +3,7 @@
 import { db } from '@/lib/db'
 import { invoices, services, customers, serviceBoats, boats, qboTokens } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getQboClient } from './client'
+import { getQboClient, fetchQboInvoiceLink } from './client'
 import { findBestQboItem } from './items'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
@@ -42,6 +42,7 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
       serviceType:   services.serviceType,
       qboItemId:     services.qboItemId,
       qboCustomerId: customers.qboCustomerId,
+      customerEmail: customers.email,
     })
     .from(services)
     .innerJoin(customers, eq(services.customerId, customers.id))
@@ -132,9 +133,10 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
         )
       )
 
+      const paymentLink = await fetchQboInvoiceLink(inv.qboInvoiceId!).catch(() => null)
       await db
         .update(invoices)
-        .set({ lastSyncedAt: new Date() })
+        .set({ lastSyncedAt: new Date(), ...(paymentLink ? { qboPaymentLink: paymentLink } : {}) })
         .where(eq(invoices.id, invoiceId))
 
       await log({ action: 'sync_invoice_to_qbo', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: inv.qboInvoiceId } })
@@ -149,18 +151,22 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
             Line: lines,
+            AllowOnlinePayment: true,
+            BillEmail: { Address: service.customerEmail || process.env.GMAIL_USER || '' },
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (err: unknown, result: any) => (err ? reject(err) : resolve(result))
         )
       )
 
+      const paymentLink = await fetchQboInvoiceLink(created.Id).catch(() => null)
       await db
         .update(invoices)
         .set({
           qboInvoiceId: created.Id,
           docNumber: created.DocNumber ? parseInt(created.DocNumber, 10) : null,
           lastSyncedAt: new Date(),
+          ...(paymentLink ? { qboPaymentLink: paymentLink } : {}),
         })
         .where(eq(invoices.id, invoiceId))
 

@@ -205,6 +205,7 @@ export const invoices = pgTable('invoices', {
   notes: text('notes'),
   status: invoiceStatusEnum('status').notNull().default('draft'),
   qboNeedsSync: boolean('qbo_needs_sync').notNull().default(false),
+  qboPaymentLink: text('qbo_payment_link'),
   sentAt: timestamp('sent_at'),
   paidAt: timestamp('paid_at'),
   lastSyncedAt: timestamp('last_synced_at'),

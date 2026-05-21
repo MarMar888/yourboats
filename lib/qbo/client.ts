@@ -13,6 +13,24 @@ export function getOAuthClient() {
   })
 }
 
+/**
+ * Fetch the customer-facing payment link for a QBO invoice.
+ * Requires include=invoiceLink — not supported by node-quickbooks' getInvoice.
+ * Returns null if the invoice has no payment link (e.g. BillEmail not set).
+ */
+export async function fetchQboInvoiceLink(qboInvoiceId: string): Promise<string | null> {
+  const qbo = await getQboClient() as any
+  const base = qbo.useSandbox
+    ? 'https://sandbox-quickbooks.api.intuit.com'
+    : 'https://quickbooks.api.intuit.com'
+  const res = await fetch(
+    `${base}/v3/company/${qbo.realmId}/invoice/${qboInvoiceId}?include=invoiceLink&minorversion=65`,
+    { headers: { Authorization: `Bearer ${qbo.token}`, Accept: 'application/json' } }
+  )
+  const data = await res.json()
+  return data?.Invoice?.InvoiceLink ?? null
+}
+
 export async function getQboClient(): Promise<InstanceType<typeof QuickBooks>> {
   const [tokens] = await db.select().from(qboTokens).where(eq(qboTokens.id, 1)).limit(1)
   if (!tokens) throw new Error('QuickBooks not connected. Owner must complete OAuth.')

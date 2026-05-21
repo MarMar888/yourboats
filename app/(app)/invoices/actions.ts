@@ -3,7 +3,7 @@
 import { db } from '@/lib/db'
 import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getQboClient } from '@/lib/qbo/client'
+import { getQboClient, fetchQboInvoiceLink } from '@/lib/qbo/client'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
 import { getNextQboDocNumber } from '@/lib/qbo/doc-number'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
@@ -196,12 +196,15 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
             DueDate: dueDate.toISOString().split('T')[0],
             Line: lines,
             AllowOnlinePayment: true,
-            ...(service.email ? { BillEmail: { Address: service.email } } : {}),
+            // BillEmail required for QBO to generate InvoiceLink; fall back to business email
+            BillEmail: { Address: service.email || process.env.GMAIL_USER || '' },
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (err: unknown, result: any) => (err ? reject(err) : resolve(result))
         )
     )
+
+    const paymentLink = await fetchQboInvoiceLink(created.Id).catch(() => null)
 
     await db
       .update(invoices)
@@ -209,10 +212,11 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
         qboInvoiceId: created.Id,
         docNumber: created.DocNumber ? parseInt(created.DocNumber, 10) : null,
         lastSyncedAt: new Date(),
+        ...(paymentLink ? { qboPaymentLink: paymentLink } : {}),
       })
       .where(eq(invoices.id, invoiceId))
 
-    await log({ action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id } })
+    await log({ action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id, hasPaymentLink: !!paymentLink } })
 
     const createUser = await getCurrentUser()
     if (createUser) {
@@ -280,10 +284,11 @@ export async function updateInvoice(
 export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
   const [inv] = await db
     .select({
-      id:           invoices.id,
-      qboInvoiceId: invoices.qboInvoiceId,
-      status:       invoices.status,
-      serviceId:    invoices.serviceId,
+      id:             invoices.id,
+      qboInvoiceId:   invoices.qboInvoiceId,
+      qboPaymentLink: invoices.qboPaymentLink,
+      status:         invoices.status,
+      serviceId:      invoices.serviceId,
     })
     .from(invoices)
     .where(eq(invoices.id, invoiceId))
@@ -314,29 +319,21 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       return { ok: false, error: "Customer has no email address and no reminder contacts on file. Add one to their record and try again." }
     }
 
-    // node-quickbooks' getInvoice never passes include=invoiceLink, so InvoiceLink is never returned.
-    // Use a raw fetch to the QBO REST endpoint with that param instead.
-    let invoiceUrl: string
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const qbo = await getQboClient() as any
-      const base = qbo.useSandbox
-        ? 'https://sandbox-quickbooks.api.intuit.com'
-        : 'https://quickbooks.api.intuit.com'
-      const res = await fetch(
-        `${base}/v3/company/${qbo.realmId}/invoice/${inv.qboInvoiceId}?include=invoiceLink&minorversion=65`,
-        { headers: { Authorization: `Bearer ${qbo.token}`, Accept: 'application/json' } }
-      )
-      const data = await res.json()
-      console.log('[sendQboInvoice] raw fetch InvoiceLink:', data?.Invoice?.InvoiceLink)
-      invoiceUrl = data?.Invoice?.InvoiceLink ?? ''
-    } catch (err) {
-      console.error('[sendQboInvoice] raw fetch failed:', err)
-      invoiceUrl = ''
+    // Use the stored payment link; fall back to a live fetch for older invoices
+    let invoiceUrl: string = inv.qboPaymentLink ?? ''
+    if (!invoiceUrl) {
+      try {
+        invoiceUrl = await fetchQboInvoiceLink(inv.qboInvoiceId!) ?? ''
+        if (invoiceUrl) {
+          await db.update(invoices).set({ qboPaymentLink: invoiceUrl }).where(eq(invoices.id, invoiceId))
+        }
+      } catch {
+        invoiceUrl = ''
+      }
     }
 
     if (!invoiceUrl) {
-      return { ok: false, error: 'Could not retrieve the invoice payment link from QuickBooks. Make sure the invoice exists in QBO.' }
+      return { ok: false, error: 'Could not retrieve the invoice payment link from QuickBooks. Try re-syncing the invoice to QBO first.' }
     }
 
     const to = reminderContacts.map((c) => c.email).join(', ')
