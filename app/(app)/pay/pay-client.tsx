@@ -79,9 +79,6 @@ function SalariedSection({ lines }: { lines: SalariedLine[] }) {
     return <span className={`${base} bg-amber-100 text-amber-800`}>Pending</span>
   }
 
-  const typeIcon = (type: SalariedLine['type']) =>
-    type === 'gm_salary' ? '💼' : '⭐'
-
   const typeLabel = (type: SalariedLine['type']) =>
     type === 'gm_salary' ? 'GM Salary' : 'Quality Bonus'
 
@@ -102,8 +99,6 @@ function SalariedSection({ lines }: { lines: SalariedLine[] }) {
         <div className="divide-y">
           {lines.map((line) => (
             <div key={line.id} className="flex items-center gap-3 px-4 py-3">
-              {/* Left: icon + label */}
-              <span className="text-base leading-none w-5 flex-shrink-0">{typeIcon(line.type)}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{typeLabel(line.type)}</span>

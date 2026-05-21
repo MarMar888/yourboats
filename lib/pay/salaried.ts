@@ -31,8 +31,9 @@ export function computeGMSalaryAmount(params: {
   const overlapDays =
     Math.round((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-  const weeks = overlapDays / 7
-  return Math.round(weeks * amountPerWeek * 100) / 100
+  // Round up to the nearest whole week so partial weeks count as full weeks
+  const weeks = Math.ceil(overlapDays / 7)
+  return weeks * amountPerWeek
 }
 
 /**
