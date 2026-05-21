@@ -15,6 +15,7 @@ import { deleteScheduledServices } from './service-actions'
 import { RecurringScheduleList } from './recurring-schedule-client'
 import type { RecurringScheduleRow } from './recurring-schedule-client'
 import { EditCustomerModal } from './edit-customer-modal'
+import { SyncToQboButton } from './sync-to-qbo-button'
 import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -278,6 +279,8 @@ export default async function CustomerDetailPage({
               <p className="text-muted-foreground text-xs mb-0.5">QBO sync</p>
               {isQboSynced ? (
                 <Badge variant="success">Synced</Badge>
+              ) : canManage ? (
+                <SyncToQboButton customerId={id} />
               ) : (
                 <Badge variant="outline" className="text-muted-foreground">
                   Not synced to QBO

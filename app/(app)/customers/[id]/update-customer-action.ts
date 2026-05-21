@@ -71,3 +71,48 @@ export async function updateCustomer(customerId: string, data: {
   revalidatePath('/customers')
   return {}
 }
+
+// ─── Push unsynced customer to QBO ───────────────────────────────────────────
+
+export async function pushCustomerToQbo(customerId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { ok: false, error: 'Not authorized' }
+  }
+
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1)
+
+  if (!customer) return { ok: false, error: 'Customer not found.' }
+  if (customer.qboCustomerId) return { ok: false, error: 'Already synced to QBO.' }
+
+  try {
+    const qbo = await getQboClient()
+    const qboCustomer = await new Promise<{ Id: string }>((resolve, reject) =>
+      qbo.createCustomer(
+        {
+          DisplayName: customer.name,
+          PrimaryEmailAddr: customer.email ? { Address: customer.email } : undefined,
+          PrimaryPhone: customer.phone ? { FreeFormNumber: customer.phone } : undefined,
+          BillAddr: customer.address ? { Line1: customer.address } : undefined,
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (err: unknown, result: any) => (err || !result ? reject(err ?? new Error('No result')) : resolve(result))
+      )
+    )
+
+    await db
+      .update(customers)
+      .set({ qboCustomerId: qboCustomer.Id, lastSyncedAt: new Date(), updatedAt: new Date() })
+      .where(eq(customers.id, customerId))
+
+    await log({ action: 'push_customer_qbo', entityType: 'customer', entityId: customerId, metadata: { qboId: qboCustomer.Id } })
+    revalidatePath(`/customers/${customerId}`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
