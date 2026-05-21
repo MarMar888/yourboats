@@ -8,6 +8,7 @@ import ImportCustomersButton from './import-customers-button'
 import SyncQboItemsButton from './sync-qbo-items-button'
 import ReminderTestPanel from './reminder-test-panel'
 import ChangePasswordForm from './change-password-form'
+import InvoiceTestButton from './invoice-test-button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export default async function SettingsPage({
@@ -99,6 +100,20 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent>
               <ImportCustomersButton />
+            </CardContent>
+          </Card>
+        )}
+
+        {user.role === 'owner' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Invoice SMS test</CardTitle>
+              <CardDescription>
+                Sends a test invoice message to the Google Voice number to verify the single-line format arrives correctly.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <InvoiceTestButton />
             </CardContent>
           </Card>
         )}
