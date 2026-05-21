@@ -215,7 +215,16 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       posthog.capture({ distinctId: createUser.id, event: 'invoice_created_in_qbo', properties: { invoice_id: invoiceId, qbo_invoice_id: created.Id, amount: inv.amount } })
       await posthog.shutdown()
     }
-  } catch (err) {
+  } catch (err: unknown) {
+    // QBO returns fault details in the response body — surface them instead of the generic axios message
+    const fault = (err as any)?.response?.data?.Fault ?? (err as any)?.Fault
+    if (fault?.Error?.length) {
+      const e = fault.Error[0]
+      const detail = [e.Message, e.Detail].filter(Boolean).join(' — ')
+      console.error('[QBO] createInvoice fault', JSON.stringify(fault))
+      return { ok: false, error: `QBO error: ${detail}` }
+    }
+    console.error('[QBO] createInvoice error', err)
     return { ok: false, error: `Failed to create in QuickBooks: ${err instanceof Error ? err.message : String(err)}` }
   }
 
