@@ -17,7 +17,7 @@ export async function sendInvoiceTest(): Promise<{ ok: boolean; message: string 
       from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
       to: TEST_ADDRESS,
       subject: 'Your invoice from Squeaky Clean Boats',
-      text: 'Hi Dan Gladney, your invoice from Squeaky Clean Boats is ready: https://app.qbo.intuit.com/app/invoice?txnId=TEST',
+      text: 'Hi Dan Gladney, your invoice from Squeaky Clean Boats is ready: https://invoice.qbo.intuit.com/invoice/TEST_LINK',
     })
     await log({ action: 'invoice_sms_test_sent', metadata: { to: TEST_ADDRESS } })
     return { ok: true, message: `Sent to ${TEST_ADDRESS}` }

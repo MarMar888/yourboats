@@ -282,10 +282,23 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       return { ok: false, error: "Customer has no email address and no reminder contacts on file. Add one to their record and try again." }
     }
 
-    const qboEnv = process.env.QBO_ENVIRONMENT
-    const invoiceUrl = qboEnv === 'production'
-      ? `https://app.qbo.intuit.com/app/invoice?txnId=${inv.qboInvoiceId}`
-      : `https://sandbox.qbo.intuit.com/app/invoice?txnId=${inv.qboInvoiceId}`
+    // Fetch the invoice from QBO to get the client-facing InvoiceLink
+    let invoiceUrl: string
+    try {
+      const qbo = await getQboClient()
+      const qboInvoice = await new Promise<any>((resolve, reject) =>
+        qbo.getInvoice(inv.qboInvoiceId!, (err: unknown, result: any) =>
+          err ? reject(err) : resolve(result)
+        )
+      )
+      invoiceUrl = qboInvoice?.InvoiceLink ?? qboInvoice?.invoice?.InvoiceLink ?? ''
+    } catch {
+      invoiceUrl = ''
+    }
+
+    if (!invoiceUrl) {
+      return { ok: false, error: 'Could not retrieve the invoice payment link from QuickBooks. Make sure the invoice exists in QBO.' }
+    }
 
     const to = reminderContacts.map((c) => c.email).join(', ')
     const subject = 'Your invoice from Squeaky Clean Boats'
