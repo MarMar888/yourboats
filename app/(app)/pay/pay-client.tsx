@@ -219,9 +219,11 @@ function PeriodReview({
         overrides[pr.serviceId][pr.userId] = pr.splitPct
 
         const svcRow = serviceRows.find((s) => s.serviceId === pr.serviceId)
-        if (svcRow && !svcRow.assignments.some(
-          (a) => a.userId === pr.userId || a.displayName === pr.displayName
-        )) {
+        const alreadyReconstructed = (reconstructedAdded[pr.serviceId] ?? [])
+        if (svcRow &&
+          !svcRow.assignments.some((a) => a.userId === pr.userId || a.displayName === pr.displayName) &&
+          !alreadyReconstructed.some((a) => a.displayName === pr.displayName)
+        ) {
           if (!reconstructedAdded[pr.serviceId]) reconstructedAdded[pr.serviceId] = []
           reconstructedAdded[pr.serviceId].push({
             userId:       pr.userId,
