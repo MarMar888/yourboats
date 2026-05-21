@@ -289,8 +289,8 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
 
     const to = reminderContacts.map((c) => c.email).join(', ')
     const subject = 'Your invoice from Squeaky Clean Boats'
-    const text = `Hi ${svc.customerName},\n\nYour invoice is ready. View it here:\n${invoiceUrl}\n\nThanks!\nSqueaky Clean Boats`
-    const html = `<p>Hi ${svc.customerName},</p><p>Your invoice is ready. <a href="${invoiceUrl}">View invoice →</a></p><p>Thanks!<br>Squeaky Clean Boats</p>`
+    const text = `Hi ${svc.customerName}, your invoice from Squeaky Clean Boats is ready: ${invoiceUrl}`
+    const html = `<p>Hi ${svc.customerName}, your invoice from Squeaky Clean Boats is ready: <a href="${invoiceUrl}">${invoiceUrl}</a></p>`
 
     try {
       await emailTransport.sendMail({
