@@ -305,7 +305,7 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
     }
 
     await db.update(invoices).set({ status: 'sent', sentAt: new Date() }).where(eq(invoices.id, invoiceId))
-    await log({ action: 'send_invoice_via_reminder_contacts', entityType: 'invoice', entityId: invoiceId, metadata: JSON.stringify({ to }) })
+    await log({ action: 'send_invoice_via_reminder_contacts', entityType: 'invoice', entityId: invoiceId, metadata: { to } })
     revalidatePath('/invoices')
     return { ok: true }
   }
