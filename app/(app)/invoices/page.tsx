@@ -3,6 +3,7 @@ import { services, customers, invoices } from '@/lib/db/schema'
 import { eq, desc, and, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { getCachedQboItems } from '@/lib/qbo/items'
+import { syncInvoiceStatuses } from '@/lib/qbo/sync-statuses'
 import { InvoiceRow } from './invoice-row'
 
 // Server action IDs are embedded in the page HTML — prevent CDN caching so
@@ -10,6 +11,9 @@ import { InvoiceRow } from './invoice-row'
 export const dynamic = 'force-dynamic'
 
 export default async function InvoicesPage() {
+  // Sync payment status from QBO before rendering — updates sent→paid/overdue silently
+  await syncInvoiceStatuses()
+
   const currentUser = await getCurrentUser()
   const canManage = currentUser?.role === 'owner' || currentUser?.role === 'manager'
   const qboEnv = process.env.QBO_ENVIRONMENT
