@@ -44,36 +44,43 @@ async function voidQboInvoice(qboInvoiceId: string): Promise<void> {
 
 // ─── Delete invoice ───────────────────────────────────────────────────────────
 
-export async function deleteInvoice(invoiceId: string): Promise<void> {
+export async function deleteInvoice(invoiceId: string): Promise<ActionResult> {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return
-
-  const [invoice] = await db
-    .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId, serviceId: invoices.serviceId })
-    .from(invoices)
-    .where(eq(invoices.id, invoiceId))
-    .limit(1)
-
-  if (!invoice) return
-
-  if (invoice.qboInvoiceId) {
-    await voidQboInvoice(invoice.qboInvoiceId)
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { ok: false, error: 'Not authorized.' }
   }
 
-  // Clear the FK on the service so markComplete can create a fresh invoice later
-  if (invoice.serviceId) {
-    await db.update(services).set({ invoiceId: null }).where(eq(services.id, invoice.serviceId))
+  try {
+    const [invoice] = await db
+      .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId, serviceId: invoices.serviceId })
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId))
+      .limit(1)
+
+    if (!invoice) return { ok: false, error: 'Invoice not found.' }
+
+    if (invoice.qboInvoiceId) {
+      await voidQboInvoice(invoice.qboInvoiceId)
+    }
+
+    // Clear the FK on the service so markComplete can create a fresh invoice later
+    if (invoice.serviceId) {
+      await db.update(services).set({ invoiceId: null }).where(eq(services.id, invoice.serviceId))
+    }
+
+    await db.delete(invoices).where(eq(invoices.id, invoiceId))
+    await log({ action: 'delete_invoice', entityType: 'invoice', entityId: invoiceId })
+
+    const posthog = getPostHogClient()
+    posthog.capture({ distinctId: user.id, event: 'invoice_deleted', properties: { invoice_id: invoiceId, had_qbo_invoice: !!invoice.qboInvoiceId } })
+    await posthog.shutdown()
+
+    revalidatePath('/invoices')
+    revalidatePath('/schedule')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: `Failed to delete: ${err instanceof Error ? err.message : String(err)}` }
   }
-
-  await db.delete(invoices).where(eq(invoices.id, invoiceId))
-  await log({ action: 'delete_invoice', entityType: 'invoice', entityId: invoiceId })
-
-  const posthog = getPostHogClient()
-  posthog.capture({ distinctId: user.id, event: 'invoice_deleted', properties: { invoice_id: invoiceId, had_qbo_invoice: !!invoice.qboInvoiceId } })
-  await posthog.shutdown()
-
-  revalidatePath('/invoices')
-  revalidatePath('/schedule')
 }
 
 // ─── Create invoice in QBO (draft stays draft, just gets a qboInvoiceId) ──────

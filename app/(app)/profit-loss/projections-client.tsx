@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 
 export type RecurringContract = {
   id: string
@@ -98,6 +98,11 @@ export default function ProjectionsClient({
   const SEASON_END = '2026-08-31'
 
   // Editable assumed price per contract
+  const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({})
+  const toggleWeek = useCallback((ws: string) => {
+    setExpandedWeeks((prev) => ({ ...prev, [ws]: !prev[ws] }))
+  }, [])
+
   const [prices, setPrices] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
     for (const c of contracts) {
@@ -279,52 +284,137 @@ export default function ProjectionsClient({
                   const totalLabor = varLabor + week.salariedCost
                   const profit = revenue - totalLabor
                   const laborPct = revenue > 0 ? (totalLabor / revenue) * 100 : null
+                  const isExpanded = !!expandedWeeks[week.weekStart]
+                  const rowBg = idx % 2 === 1 ? 'bg-muted/10' : ''
 
                   return (
-                    <tr key={week.weekStart} className={`align-top hover:bg-muted/20 transition-colors ${idx % 2 === 1 ? 'bg-muted/10' : ''}`}>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground font-medium tabular-nums">
-                        {formatWeekLabel(week.weekStart)}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex flex-wrap gap-1">
-                          {week.occurrences.map((o, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 text-xs bg-primary/8 text-primary rounded px-1.5 py-0.5">
-                              {o.customerName}
-                              {o.price > 0 && <span className="text-primary/60">{fmt(o.price)}</span>}
+                    <>
+                      <tr
+                        key={week.weekStart}
+                        className={`align-top hover:bg-muted/20 transition-colors cursor-pointer select-none ${rowBg}`}
+                        onClick={() => toggleWeek(week.weekStart)}
+                      >
+                        <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground font-medium tabular-nums">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-muted-foreground/40 text-[10px]">{isExpanded ? '▾' : '▸'}</span>
+                            {formatWeekLabel(week.weekStart)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {week.occurrences.map((o, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 text-xs bg-primary/8 text-primary rounded px-1.5 py-0.5">
+                                {o.customerName}
+                                {o.price > 0 && <span className="text-primary/60">{fmt(o.price)}</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
+                          {revenue > 0 ? fmt(revenue) : <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
+                          {varLabor > 0 ? fmt(varLabor) : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
+                          {week.salariedCost > 0 ? fmt(week.salariedCost) : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-xs">
+                          {laborPct != null ? (
+                            <span className={pctColor(laborPct)}>{laborPct.toFixed(0)}%</span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
+                          {revenue > 0 ? (
+                            <span className={profit >= 0 ? 'text-green-700' : 'text-red-600'}>
+                              {fmt(profit)}
                             </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">
-                        {revenue > 0 ? fmt(revenue) : <span className="text-muted-foreground/40">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
-                        {varLabor > 0 ? fmt(varLabor) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
-                        {week.salariedCost > 0 ? (
-                          <span title={week.salariedBreakdown.map((b) => `${b.name}: ${fmt(b.amount)}`).join('\n')}>
-                            {fmt(week.salariedCost)}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-xs">
-                        {laborPct != null ? (
-                          <span className={pctColor(laborPct)}>{laborPct.toFixed(0)}%</span>
-                        ) : (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
-                        {revenue > 0 ? (
-                          <span className={profit >= 0 ? 'text-green-700' : 'text-red-600'}>
-                            {fmt(profit)}
-                          </span>
-                        ) : (
-                          <span className="text-red-600 text-xs">{fmt(-week.salariedCost)}</span>
-                        )}
-                      </td>
-                    </tr>
+                          ) : (
+                            <span className="text-red-600 text-xs">{fmt(-week.salariedCost)}</span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr key={`${week.weekStart}-detail`} className={`${rowBg}`}>
+                          <td colSpan={7} className="px-6 pb-3 pt-0">
+                            <div className="rounded-md border bg-muted/30 px-4 py-3 text-xs space-y-3">
+
+                              {/* Per-contract revenue breakdown */}
+                              {week.occurrences.length > 0 && (
+                                <div>
+                                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] mb-1.5">Revenue breakdown</p>
+                                  <table className="w-full">
+                                    <thead>
+                                      <tr className="text-muted-foreground">
+                                        <th className="text-left font-normal pb-1">Customer</th>
+                                        <th className="text-right font-normal pb-1">Price</th>
+                                        <th className="text-right font-normal pb-1">Pool %</th>
+                                        <th className="text-right font-normal pb-1">Var. labor</th>
+                                        <th className="text-right font-normal pb-1">Owner net</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/40">
+                                      {week.occurrences.map((o, i) => {
+                                        const oLabor = o.price * (o.sharePct / 100)
+                                        const oNet = o.price - oLabor
+                                        return (
+                                          <tr key={i}>
+                                            <td className="py-0.5">{o.customerName}</td>
+                                            <td className="py-0.5 text-right tabular-nums">{fmt(o.price)}</td>
+                                            <td className="py-0.5 text-right tabular-nums text-muted-foreground">{o.sharePct}%</td>
+                                            <td className="py-0.5 text-right tabular-nums text-amber-700">{fmt(oLabor)}</td>
+                                            <td className="py-0.5 text-right tabular-nums text-green-700">{fmt(oNet)}</td>
+                                          </tr>
+                                        )
+                                      })}
+                                      <tr className="font-semibold border-t border-border/60">
+                                        <td className="pt-1">Total</td>
+                                        <td className="pt-1 text-right tabular-nums">{fmt(revenue)}</td>
+                                        <td />
+                                        <td className="pt-1 text-right tabular-nums text-amber-700">{fmt(varLabor)}</td>
+                                        <td className="pt-1 text-right tabular-nums text-green-700">{fmt(revenue - varLabor)}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+
+                              {/* Salaried cost breakdown */}
+                              {week.salariedBreakdown.length > 0 && (
+                                <div>
+                                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] mb-1.5">Salaried costs</p>
+                                  <table className="w-full">
+                                    <tbody className="divide-y divide-border/40">
+                                      {week.salariedBreakdown.map((b, i) => (
+                                        <tr key={i}>
+                                          <td className="py-0.5 text-muted-foreground">{b.name}</td>
+                                          <td className="py-0.5 text-right tabular-nums">{fmt(b.amount)}</td>
+                                        </tr>
+                                      ))}
+                                      <tr className="font-semibold border-t border-border/60">
+                                        <td className="pt-1">Total salaried</td>
+                                        <td className="pt-1 text-right tabular-nums">{fmt(week.salariedCost)}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+
+                              {/* Summary line */}
+                              <div className="border-t border-border/60 pt-2 flex justify-between font-semibold">
+                                <span>Week profit</span>
+                                <span className={profit >= 0 ? 'text-green-700' : 'text-red-600'}>
+                                  {fmt(revenue)} − {fmt(varLabor)} − {fmt(week.salariedCost)} = {fmt(profit)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   )
                 })}
               </tbody>
@@ -347,7 +437,7 @@ export default function ProjectionsClient({
             </table>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Variable labor = contract price × pool % (60% for recurring). Salaried = GM salary ($75/wk) + expected quality bonus (prorated). Hover salaried cell for breakdown.
+            Click any row to expand the math. Variable labor = price × pool %. Salaried = GM salary + expected quality bonus (prorated).
           </p>
         </section>
       )}

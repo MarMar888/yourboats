@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { payroll, services } from '@/lib/db/schema'
-import { and, gte, inArray, lte } from 'drizzle-orm'
+import { and, gte, inArray, lte, sql } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
@@ -74,21 +74,21 @@ export async function savePayrollEntries(
     .onConflictDoUpdate({
       target: [payroll.serviceId, payroll.userId],
       set: {
-        invoiceId:     payroll.invoiceId,
-        displayName:   payroll.displayName,
-        serviceDate:   payroll.serviceDate,
-        serviceType:   payroll.serviceType,
-        customerName:  payroll.customerName,
-        totalPrice:    payroll.totalPrice,
-        employeePool:  payroll.employeePool,
-        splitPct:      payroll.splitPct,
-        deductionPct:  payroll.deductionPct,
-        effectivePct:  payroll.effectivePct,
-        netPay:        payroll.netPay,
-        tipShare:      payroll.tipShare,
-        totalPay:      payroll.totalPay,
-        savedByUserId: payroll.savedByUserId,
-        savedAt:       payroll.savedAt,
+        invoiceId:     sql`excluded.invoice_id`,
+        displayName:   sql`excluded.display_name`,
+        serviceDate:   sql`excluded.service_date`,
+        serviceType:   sql`excluded.service_type`,
+        customerName:  sql`excluded.customer_name`,
+        totalPrice:    sql`excluded.total_price`,
+        employeePool:  sql`excluded.employee_pool`,
+        splitPct:      sql`excluded.split_pct`,
+        deductionPct:  sql`excluded.deduction_pct`,
+        effectivePct:  sql`excluded.effective_pct`,
+        netPay:        sql`excluded.net_pay`,
+        tipShare:      sql`excluded.tip_share`,
+        totalPay:      sql`excluded.total_pay`,
+        savedByUserId: sql`excluded.saved_by_user_id`,
+        savedAt:       sql`excluded.saved_at`,
       },
     })
 

@@ -65,7 +65,7 @@ export function InvoiceRow({
 }: {
   inv: InvoiceRowData
   qboItemOptions: { qboItemId: string; name: string }[]
-  deleteAction: () => Promise<void>
+  deleteAction: () => Promise<{ ok: boolean; error?: string } | void>
 }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
