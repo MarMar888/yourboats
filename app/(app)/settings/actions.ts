@@ -27,11 +27,11 @@ export async function reconcileDocNumbers(): Promise<{ ok: boolean; updated: num
 
   try {
     const qbo = await getQboClient()
-    const ids = synced.map((r) => `'${r.qboInvoiceId}'`).join(', ')
+    const ids = synced.map((r) => r.qboInvoiceId!)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await new Promise<{ QueryResponse: { Invoice?: any[] } }>((resolve, reject) =>
-      qbo.query(
-        `SELECT Id, DocNumber FROM Invoice WHERE Id IN (${ids})`,
+      qbo.findInvoices(
+        { Id: ids },
         (err: unknown, data: any) => (err ? reject(err) : resolve(data))
       )
     )
