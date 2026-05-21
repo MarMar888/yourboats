@@ -6,6 +6,9 @@ import { deleteInvoice } from './actions'
 import { getCachedQboItems } from '@/lib/qbo/items'
 import { InvoiceRow } from './invoice-row'
 
+// Server action IDs are embedded in the page HTML — prevent CDN caching so
+// clients always get the current build's IDs and actions round-trip correctly.
+export const dynamic = 'force-dynamic'
 
 export default async function InvoicesPage() {
   const currentUser = await getCurrentUser()

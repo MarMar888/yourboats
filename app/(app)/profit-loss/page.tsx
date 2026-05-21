@@ -2,10 +2,10 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { db } from '@/lib/db'
-import { services, payroll, salariedPayroll, recurringSchedules, customers, salariedRules } from '@/lib/db/schema'
-import { eq, gte, lte, and, sql, inArray, isNull, notInArray, or } from 'drizzle-orm'
+import { services, payroll, salariedPayroll, customers, salariedRules } from '@/lib/db/schema'
+import { eq, gte, lte, and, sql } from 'drizzle-orm'
 import { todayET } from '@/lib/date'
-import ProjectionsClient, { type RecurringContract, type SalariedRuleProjection, type ScheduledServiceRow } from './projections-client'
+import ProjectionsClient, { type SalariedRuleProjection, type ScheduledServiceRow } from './projections-client'
 import { getServiceTypeShareMap, lookupSharePct } from '@/lib/pay/service-type-shares'
 
 export const dynamic = 'force-dynamic'
@@ -116,87 +116,31 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
   const activeActuals = actuals.filter((r) => r.revenue > 0 || r.salariedLabor > 0)
 
   // ── Projections data ──────────────────────────────────────────────────────
-  let projContracts: RecurringContract[] = []
   let projSalariedRules: SalariedRuleProjection[] = []
   let projScheduledServices: ScheduledServiceRow[] = []
 
   if (activeTab === 'projections') {
-    const [prepaidRows, salRuleRows, shareMap] = await Promise.all([
-      // Only prepaid contracts use schedule-based projection
+    // All future scheduled services — already created in DB, use actual prices
+    const [futureRows, salRuleRows, shareMap] = await Promise.all([
       db.select({
-        id: recurringSchedules.id,
-        customerId: recurringSchedules.customerId,
+        id: services.id,
+        serviceDate: services.serviceDate,
         customerName: customers.name,
-        serviceType: recurringSchedules.serviceType,
-        frequencyWeeks: recurringSchedules.frequencyWeeks,
-        dayOfWeek: recurringSchedules.dayOfWeek,
-        startDate: recurringSchedules.startDate,
-        endDate: recurringSchedules.endDate,
+        serviceType: services.serviceType,
+        totalPrice: services.totalPrice,
       })
-        .from(recurringSchedules)
-        .innerJoin(customers, eq(recurringSchedules.customerId, customers.id))
+        .from(services)
+        .innerJoin(customers, eq(services.customerId, customers.id))
         .where(and(
-          eq(recurringSchedules.active, true),
-          eq(recurringSchedules.prepaid, true),
-          gte(recurringSchedules.endDate, today),
+          eq(services.status, 'scheduled'),
+          gte(services.serviceDate, today),
+          sql`${services.totalPrice} is not null`,
         )),
       db.select().from(salariedRules).where(and(eq(salariedRules.active, true), gte(salariedRules.effectiveTo, today))),
       getServiceTypeShareMap(),
     ])
 
-    // Price for prepaid contracts — pull from any scheduled service linked to that contract
-    const prepaidIds = prepaidRows.map((r) => r.id)
-    const prepaidPriceRows = prepaidIds.length > 0
-      ? await db.select({ recurringScheduleId: services.recurringScheduleId, totalPrice: services.totalPrice })
-          .from(services)
-          .where(and(
-            eq(services.status, 'scheduled'),
-            inArray(services.recurringScheduleId, prepaidIds),
-            sql`${services.totalPrice} is not null`,
-          ))
-          .limit(prepaidIds.length * 2)
-      : []
-    const prepaidPrice: Record<string, number> = {}
-    for (const r of prepaidPriceRows) {
-      if (r.recurringScheduleId && !(r.recurringScheduleId in prepaidPrice)) {
-        prepaidPrice[r.recurringScheduleId] = parseFloat(r.totalPrice ?? '0') || 0
-      }
-    }
-
-    projContracts = prepaidRows.map((r) => ({
-      id: r.id,
-      customerId: r.customerId,
-      customerName: r.customerName,
-      serviceType: r.serviceType,
-      frequencyWeeks: r.frequencyWeeks,
-      dayOfWeek: r.dayOfWeek,
-      startDate: toYMD(r.startDate as unknown as Date),
-      endDate: toYMD(r.endDate as unknown as Date),
-      sharePct: lookupSharePct(shareMap, r.serviceType),
-      avgActualPrice: prepaidPrice[r.id] ?? null,
-    }))
-
-    // All other future scheduled services (non-prepaid) — use their actual DB price
-    const nonPrepaidServices = await db.select({
-      id: services.id,
-      serviceDate: services.serviceDate,
-      customerName: customers.name,
-      serviceType: services.serviceType,
-      totalPrice: services.totalPrice,
-    })
-      .from(services)
-      .innerJoin(customers, eq(services.customerId, customers.id))
-      .where(and(
-        eq(services.status, 'scheduled'),
-        gte(services.serviceDate, today),
-        sql`${services.totalPrice} is not null`,
-        // Exclude services already projected from prepaid contracts
-        prepaidIds.length > 0
-          ? or(isNull(services.recurringScheduleId), notInArray(services.recurringScheduleId, prepaidIds))
-          : undefined,
-      ))
-
-    projScheduledServices = nonPrepaidServices.map((s) => ({
+    projScheduledServices = futureRows.map((s) => ({
       id: s.id,
       date: toYMD(s.serviceDate as unknown as Date),
       customerName: s.customerName,
@@ -348,7 +292,6 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
       {/* ── Projections tab ──────────────────────────────────────────────────── */}
       {activeTab === 'projections' && (
         <ProjectionsClient
-          contracts={projContracts}
           scheduledServices={projScheduledServices}
           salariedRules={projSalariedRules}
           today={today}

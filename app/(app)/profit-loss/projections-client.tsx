@@ -2,19 +2,6 @@
 
 import { useState, useMemo, useCallback } from 'react'
 
-export type RecurringContract = {
-  id: string
-  customerId: string
-  customerName: string
-  serviceType: string
-  frequencyWeeks: number
-  dayOfWeek: number       // 0=Sun…6=Sat
-  startDate: string       // YYYY-MM-DD
-  endDate: string         // YYYY-MM-DD
-  sharePct: number
-  avgActualPrice: number | null
-}
-
 export type SalariedRuleProjection = {
   id: string
   displayName: string
@@ -63,24 +50,7 @@ function formatWeekLabel(monStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
-function getOccurrences(contract: RecurringContract, today: string, seasonEnd: string): string[] {
-  const results: string[] = []
-  const start = contract.startDate > today ? contract.startDate : today
-  const end = contract.endDate < seasonEnd ? contract.endDate : seasonEnd
-  let cur = new Date(start + 'T12:00:00Z')
-  while (cur.getUTCDay() !== contract.dayOfWeek) cur = new Date(cur.getTime() + 86_400_000)
-  const endMs = new Date(end + 'T12:00:00Z').getTime()
-  const stepMs = contract.frequencyWeeks * 7 * 86_400_000
-  while (cur.getTime() <= endMs) {
-    results.push(cur.toISOString().slice(0, 10))
-    cur = new Date(cur.getTime() + stepMs)
-  }
-  return results
-}
-
 type OccurrenceEntry = {
-  source: 'prepaid' | 'scheduled'
-  contractId?: string
   customerName: string
   date: string
   price: number
@@ -96,13 +66,11 @@ type WeekRow = {
 }
 
 export default function ProjectionsClient({
-  contracts,
   scheduledServices,
   salariedRules,
   today,
 }: {
-  contracts: RecurringContract[]          // prepaid only — schedule-projected
-  scheduledServices: ScheduledServiceRow[] // everyone else — actual bookings
+  scheduledServices: ScheduledServiceRow[]
   salariedRules: SalariedRuleProjection[]
   today: string
 }) {
@@ -113,15 +81,6 @@ export default function ProjectionsClient({
     setExpandedWeeks((prev) => ({ ...prev, [ws]: !prev[ws] }))
   }, [])
 
-  // Editable price assumptions for prepaid contracts only
-  const [prices, setPrices] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {}
-    for (const c of contracts) {
-      init[c.id] = c.avgActualPrice != null ? String(c.avgActualPrice) : ''
-    }
-    return init
-  })
-
   const weeks: WeekRow[] = useMemo(() => {
     const weekMap: Record<string, WeekRow> = {}
 
@@ -131,27 +90,17 @@ export default function ProjectionsClient({
       }
     }
 
-    // 1. Prepaid contracts — generate occurrences from schedule
-    for (const c of contracts) {
-      const price = parseFloat(prices[c.id] ?? '') || 0
-      for (const date of getOccurrences(c, today, SEASON_END)) {
-        const ws = weekStart(date)
-        ensureWeek(ws)
-        weekMap[ws].occurrences.push({ source: 'prepaid', contractId: c.id, customerName: c.customerName, date, price, sharePct: c.sharePct })
-      }
-    }
-
-    // 2. Scheduled services (non-prepaid) — actual booked services
+    // All future scheduled services — actual bookings from the DB
     for (const s of scheduledServices) {
       if (s.date > SEASON_END) continue
       const ws = weekStart(s.date)
       ensureWeek(ws)
-      weekMap[ws].occurrences.push({ source: 'scheduled', customerName: s.customerName, date: s.date, price: s.price, sharePct: s.sharePct })
+      weekMap[ws].occurrences.push({ customerName: s.customerName, date: s.date, price: s.price, sharePct: s.sharePct })
     }
 
     if (Object.keys(weekMap).length === 0) return []
 
-    // 3. Salaried cost per week
+    // Salaried cost per week
     for (const ws of Object.keys(weekMap)) {
       const we = weekMap[ws].weekEnd
       let total = 0
@@ -172,7 +121,7 @@ export default function ProjectionsClient({
     }
 
     return Object.values(weekMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart))
-  }, [contracts, scheduledServices, prices, today])
+  }, [scheduledServices, today])
 
   const totals = useMemo(() => {
     let revenue = 0, varLabor = 0, salariedCost = 0
@@ -184,61 +133,13 @@ export default function ProjectionsClient({
     return { revenue, varLabor, salariedCost, totalLabor: varLabor + salariedCost, profit: revenue - varLabor - salariedCost }
   }, [weeks])
 
-  const hasPrices = contracts.some((c) => parseFloat(prices[c.id] ?? '') > 0) || scheduledServices.some((s) => s.price > 0)
+  const hasData = scheduledServices.some((s) => s.price > 0)
 
   return (
     <div className="space-y-8">
 
-      {/* ── Prepaid price assumptions (Bill Rouse etc.) ────────────────────── */}
-      {contracts.length > 0 && (
-        <section>
-          <h2 className="text-base font-semibold mb-1">Prepaid contract assumptions</h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            Prepaid customers are projected from their recurring contract. Edit price to model scenarios.
-          </p>
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Customer</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Freq</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Pool %</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Season end</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground w-36">Price / visit</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {contracts.map((c) => (
-                  <tr key={c.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-2.5 font-medium">{c.customerName}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground text-xs">
-                      every {c.frequencyWeeks === 1 ? 'week' : `${c.frequencyWeeks} wks`}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">{c.sharePct}%</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
-                      {new Date(c.endDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-muted-foreground text-xs">$</span>
-                        <input
-                          type="number" min="0" step="1" placeholder="0"
-                          value={prices[c.id] ?? ''}
-                          onChange={(e) => setPrices((p) => ({ ...p, [c.id]: e.target.value }))}
-                          className="w-24 h-7 text-xs text-right border border-input rounded px-2 bg-background tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
       {/* ── Season summary cards ───────────────────────────────────────────── */}
-      {hasPrices && (
+      {hasData && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <SummaryCard label="Projected Revenue" value={fmt(totals.revenue)} sub={`${weeks.length} weeks`} />
           <SummaryCard label="Variable Labor" value={fmt(totals.varLabor)} sub={`${totals.revenue > 0 ? ((totals.varLabor / totals.revenue) * 100).toFixed(1) : 0}% of rev`} color="amber" />
@@ -297,11 +198,7 @@ export default function ProjectionsClient({
                             {week.occurrences.map((o, i) => (
                               <span
                                 key={i}
-                                className={`inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5 ${
-                                  o.source === 'prepaid'
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'bg-primary/8 text-primary'
-                                }`}
+                                className="inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-primary/8 text-primary"
                               >
                                 {o.customerName}
                                 {o.price > 0 && <span className="opacity-60">{fmt(o.price)}</span>}
@@ -341,7 +238,7 @@ export default function ProjectionsClient({
                                   <thead>
                                     <tr className="text-muted-foreground">
                                       <th className="text-left font-normal pb-1">Customer</th>
-                                      <th className="text-left font-normal pb-1">Type</th>
+                                      <th className="text-left font-normal pb-1">Date</th>
                                       <th className="text-right font-normal pb-1">Price</th>
                                       <th className="text-right font-normal pb-1">Pool %</th>
                                       <th className="text-right font-normal pb-1">Var. labor</th>
@@ -353,12 +250,7 @@ export default function ProjectionsClient({
                                       const oLabor = o.price * (o.sharePct / 100)
                                       return (
                                         <tr key={i}>
-                                          <td className="py-0.5">
-                                            {o.customerName}
-                                            {o.source === 'prepaid' && (
-                                              <span className="ml-1 text-[10px] text-blue-500 font-medium">prepaid</span>
-                                            )}
-                                          </td>
+                                          <td className="py-0.5">{o.customerName}</td>
                                           <td className="py-0.5 text-muted-foreground">{o.date}</td>
                                           <td className="py-0.5 text-right tabular-nums">{fmt(o.price)}</td>
                                           <td className="py-0.5 text-right tabular-nums text-muted-foreground">{o.sharePct}%</td>
@@ -432,8 +324,6 @@ export default function ProjectionsClient({
             </table>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            <span className="inline-block w-2 h-2 rounded-sm bg-blue-100 border border-blue-300 mr-1" />
-            Blue = prepaid contract (schedule-projected).
             Click any row to expand the math. Variable labor = price × pool %. Salaried = GM salary + bonus (prorated).
           </p>
         </section>
