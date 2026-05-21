@@ -136,7 +136,7 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
       const paymentLink = await fetchQboInvoiceLink(inv.qboInvoiceId!).catch(() => null)
       await db
         .update(invoices)
-        .set({ lastSyncedAt: new Date(), ...(paymentLink ? { qboPaymentLink: paymentLink } : {}) })
+        .set({ qboNeedsSync: false, lastSyncedAt: new Date(), ...(paymentLink ? { qboPaymentLink: paymentLink } : {}) })
         .where(eq(invoices.id, invoiceId))
 
       await log({ action: 'sync_invoice_to_qbo', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: inv.qboInvoiceId } })
@@ -165,6 +165,7 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
         .set({
           qboInvoiceId: created.Id,
           docNumber: created.DocNumber ? parseInt(created.DocNumber, 10) : null,
+          qboNeedsSync: false,
           lastSyncedAt: new Date(),
           ...(paymentLink ? { qboPaymentLink: paymentLink } : {}),
         })
@@ -178,5 +179,6 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
 
   revalidatePath('/invoices')
   revalidatePath('/schedule')
+  revalidatePath('/settings')
   return { ok: true }
 }
