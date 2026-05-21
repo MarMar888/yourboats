@@ -100,6 +100,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       qboItemId:     services.qboItemId,
       customerName:  customers.name,
       qboCustomerId: customers.qboCustomerId,
+      email:         customers.email,
     })
     .from(services)
     .innerJoin(customers, eq(services.customerId, customers.id))
@@ -182,6 +183,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
             Line: lines,
+            ...(service.email ? { BillEmail: { Address: service.email } } : {}),
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (err: unknown, result: any) => (err ? reject(err) : resolve(result))
@@ -266,13 +268,17 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
     .where(eq(services.id, inv.serviceId))
     .limit(1)
 
+  if (!svc?.email) {
+    return { ok: false, error: "Customer has no email address on file. Add one to their record and try again." }
+  }
+
   try {
     const qbo = await getQboClient()
     await new Promise<void>(
       (resolve, reject) =>
         qbo.sendInvoicePdf(
           inv.qboInvoiceId!,
-          svc?.email ?? undefined,
+          svc.email!,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (err: unknown, _result: any) => (err ? reject(err) : resolve())
         )
