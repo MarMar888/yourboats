@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import LogComplaintModal from '@/components/log-complaint-modal'
-import { markComplete, deleteService } from './actions'
 import { updateBoatAssignments } from './[id]/actions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,6 +43,8 @@ interface ScheduleCardProps {
   boats: ScheduleCardBoat[]
   employees: ScheduleCardEmployee[]
   isManager: boolean
+  onComplete: (serviceId: string) => void
+  onDelete: (serviceId: string) => void
 }
 
 // ─── Assignment chips ─────────────────────────────────────────────────────────
@@ -123,15 +124,10 @@ export default function ScheduleCard({
   boats,
   employees,
   isManager,
+  onComplete,
+  onDelete,
 }: ScheduleCardProps) {
   const [complaintOpen, setComplaintOpen] = useState(false)
-  const [completePending, startComplete] = useTransition()
-
-  function handleComplete() {
-    startComplete(async () => {
-      await markComplete(serviceId)
-    })
-  }
 
   return (
     <div className={cn(
@@ -162,7 +158,7 @@ export default function ScheduleCard({
             </Badge>
             {isManager && (
               <ConfirmDeleteButton
-                action={deleteService.bind(null, serviceId, undefined)}
+                action={async () => { onDelete(serviceId) }}
                 title="Delete service"
                 description={`Delete the service for ${customerName}? The invoice will also be deleted.`}
                 triggerLabel="×"
@@ -309,10 +305,9 @@ export default function ScheduleCard({
             <Button
               size="sm"
               className="text-xs h-7 px-2.5"
-              onClick={handleComplete}
-              disabled={completePending}
+              onClick={() => onComplete(serviceId)}
             >
-              {completePending ? 'Saving…' : 'Mark complete'}
+              Mark complete
             </Button>
           )}
         </div>

@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import ScheduleCard from './schedule-card'
 import type { ScheduleCardEmployee, ReminderStatus } from './schedule-card'
-import { rescheduleService } from './actions'
+import { rescheduleService, markComplete, deleteService } from './actions'
 
 export type GridCardData = {
   id: string
@@ -38,11 +39,35 @@ interface Props {
 }
 
 export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Props) {
+  const router = useRouter()
   const [days, setDays] = useState(initialDays)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overDate, setOverDate] = useState<string | null>(null)
   const [, startTransition] = useTransition()
   const dragSourceDate = useRef<string | null>(null)
+
+  function handleComplete(serviceId: string) {
+    setDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        cards: day.cards.map((c) => c.id === serviceId ? { ...c, status: 'complete' } : c),
+      }))
+    )
+    startTransition(async () => {
+      await markComplete(serviceId)
+      router.refresh()
+    })
+  }
+
+  function handleDelete(serviceId: string) {
+    setDays((prev) =>
+      prev.map((day) => ({ ...day, cards: day.cards.filter((c) => c.id !== serviceId) }))
+    )
+    startTransition(async () => {
+      await deleteService(serviceId)
+      router.refresh()
+    })
+  }
 
   function handleDragStart(cardId: string, fromDate: string) {
     setDraggingId(cardId)
@@ -175,6 +200,8 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                         boats={card.boats}
                         employees={employees}
                         isManager={isManager}
+                        onComplete={handleComplete}
+                        onDelete={handleDelete}
                       />
                     </div>
                   )

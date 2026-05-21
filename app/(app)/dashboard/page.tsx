@@ -10,8 +10,8 @@ import {
   users,
 } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
-import ScheduleCard from '@/app/(app)/schedule/schedule-card'
 import type { ReminderStatus } from '@/app/(app)/schedule/schedule-card'
+import { DashboardScheduleCards } from './dashboard-schedule-cards'
 import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,36 +169,19 @@ export default async function DashboardPage() {
           {showingThisWeek ? 'No services scheduled this week.' : 'No jobs scheduled for today.'}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {displayServices.map((svc) => {
-            const reminderStatus: ReminderStatus = svc.reminderSentAt
+        <DashboardScheduleCards
+          cards={displayServices.map((svc) => ({
+            ...svc,
+            serviceType: SERVICE_TYPE_LABELS[svc.serviceType] ?? svc.serviceType,
+            reminderStatus: (svc.reminderSentAt
               ? 'sent'
               : svc.status === 'scheduled' && svc.approvedAt && svc.serviceDate > today
                 ? 'scheduled'
-                : 'none'
-            return (
-              <ScheduleCard
-                key={svc.id}
-                serviceId={svc.id}
-                customerId={svc.customerId}
-                customerName={svc.customerName}
-                customerNotes={svc.customerNotes}
-                customerAddress={svc.customerAddress}
-                serviceType={SERVICE_TYPE_LABELS[svc.serviceType] ?? svc.serviceType}
-                serviceDate={svc.serviceDate}
-                status={svc.status}
-                notes={svc.notes}
-                totalPrice={svc.totalPrice}
-                approvedAt={svc.approvedAt}
-                reminderStatus={reminderStatus}
-                reminderSentAt={svc.reminderSentAt}
-                boats={svc.boats}
-                employees={employeeList}
-                isManager={isManager}
-              />
-            )
-          })}
-        </div>
+                : 'none') as ReminderStatus,
+          }))}
+          employees={employeeList}
+          isManager={isManager}
+        />
       )}
     </div>
   )
