@@ -37,28 +37,40 @@ export async function getQboClient(): Promise<InstanceType<typeof QuickBooks>> {
 
   // Refresh if access token is within 5 minutes of expiry
   if (tokens.accessTokenExpiresAt < new Date(Date.now() + 5 * 60 * 1000)) {
+    const now = Date.now()
     const oauthClient = getOAuthClient()
+    // Pass actual remaining lifetimes — intuit-oauth's refresh() calls
+    // isRefreshTokenValid() internally and rejects immediately if
+    // x_refresh_token_expires_in is 0, which would make every refresh fail.
     oauthClient.setToken({
       realmId: tokens.realmId,
       token_type: 'bearer',
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
-      expires_in: 0,
-      x_refresh_token_expires_in: 0,
+      expires_in: Math.max(0, Math.floor((tokens.accessTokenExpiresAt.getTime() - now) / 1000)),
+      x_refresh_token_expires_in: Math.max(1, Math.floor((tokens.refreshTokenExpiresAt.getTime() - now) / 1000)),
     })
-    const refreshed = await oauthClient.refresh()
-    const t = refreshed.getJson()
-    await db
-      .update(qboTokens)
-      .set({
-        accessToken: t.access_token,
-        refreshToken: t.refresh_token,
-        accessTokenExpiresAt: new Date(Date.now() + t.expires_in * 1000),
-        refreshTokenExpiresAt: new Date(Date.now() + t.x_refresh_token_expires_in * 1000),
-        updatedAt: new Date(),
-      })
-      .where(eq(qboTokens.id, 1))
-    tokens.accessToken = t.access_token
+    try {
+      const refreshed = await oauthClient.refresh()
+      const t = refreshed.getJson()
+      await db
+        .update(qboTokens)
+        .set({
+          accessToken: t.access_token,
+          refreshToken: t.refresh_token,
+          accessTokenExpiresAt: new Date(Date.now() + t.expires_in * 1000),
+          refreshTokenExpiresAt: new Date(Date.now() + t.x_refresh_token_expires_in * 1000),
+          updatedAt: new Date(),
+        })
+        .where(eq(qboTokens.id, 1))
+      tokens.accessToken = t.access_token
+    } catch (err) {
+      // If refresh fails (e.g. refresh token revoked), wipe the stored tokens so
+      // the settings page correctly shows "Not connected" instead of silently
+      // failing on every subsequent QBO call.
+      await db.delete(qboTokens).where(eq(qboTokens.id, 1))
+      throw new Error(`QuickBooks token refresh failed — please reconnect in Settings. (${err instanceof Error ? err.message : String(err)})`)
+    }
   }
 
   const useSandbox = (process.env.QBO_ENVIRONMENT ?? 'sandbox') === 'sandbox'
