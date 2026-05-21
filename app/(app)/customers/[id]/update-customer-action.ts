@@ -116,3 +116,29 @@ export async function pushCustomerToQbo(customerId: string): Promise<{ ok: true 
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
+
+// ─── Bulk push unsynced customers to QBO ─────────────────────────────────────
+
+export async function bulkPushCustomersToQbo(
+  customerIds: string[]
+): Promise<{ synced: number; errors: string[] }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { synced: 0, errors: ['Not authorized'] }
+  }
+
+  let synced = 0
+  const errors: string[] = []
+
+  for (const customerId of customerIds) {
+    const result = await pushCustomerToQbo(customerId)
+    if (result.ok) {
+      synced++
+    } else {
+      errors.push(result.error)
+    }
+  }
+
+  revalidatePath('/settings')
+  return { synced, errors }
+}

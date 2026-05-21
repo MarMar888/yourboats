@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { qboTokens } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { qboTokens, customers, invoices, services } from '@/lib/db/schema'
+import { eq, isNull } from 'drizzle-orm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ImportCustomersButton from './import-customers-button'
@@ -10,6 +10,7 @@ import ReminderTestPanel from './reminder-test-panel'
 import ChangePasswordForm from './change-password-form'
 import InvoiceTestButton from './invoice-test-button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { QboSyncHealth } from './qbo-sync-health'
 
 export default async function SettingsPage({
   searchParams,
@@ -22,6 +23,28 @@ export default async function SettingsPage({
   const { qbo } = await searchParams
   const [tokens] = await db.select().from(qboTokens).where(eq(qboTokens.id, 1)).limit(1)
   const connected = !!tokens
+
+  // QBO sync health data — only queried when connected
+  const [unsyncedCustomers, staleInvoices] = connected
+    ? await Promise.all([
+        db
+          .select({ id: customers.id, name: customers.name, email: customers.email })
+          .from(customers)
+          .where(isNull(customers.qboCustomerId)),
+        db
+          .select({
+            id: invoices.id,
+            customerName: customers.name,
+            serviceDate: services.serviceDate,
+            amount: invoices.amount,
+            status: invoices.status,
+          })
+          .from(invoices)
+          .innerJoin(services, eq(invoices.serviceId, services.id))
+          .innerJoin(customers, eq(services.customerId, customers.id))
+          .where(eq(invoices.qboNeedsSync, true)),
+      ])
+    : [[], []]
 
   return (
     <div>
@@ -131,6 +154,13 @@ export default async function SettingsPage({
               <SyncQboItemsButton />
             </CardContent>
           </Card>
+        )}
+
+        {connected && (
+          <QboSyncHealth
+            unsyncedCustomers={unsyncedCustomers}
+            staleInvoices={staleInvoices}
+          />
         )}
       </div>
     </div>
