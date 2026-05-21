@@ -195,6 +195,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
             Line: lines,
+            AllowOnlinePayment: true,
             ...(service.email ? { BillEmail: { Address: service.email } } : {}),
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -313,7 +314,9 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       return { ok: false, error: "Customer has no email address and no reminder contacts on file. Add one to their record and try again." }
     }
 
-    // Fetch the invoice from QBO to get the client-facing payment link (requires minorversion 37+)
+    // Fetch the invoice from QBO to get the client-facing payment link.
+    // InvoiceLink requires minorversion 37+ AND AllowOnlinePayment=true on the invoice.
+    // If it's missing, do a sparse update to enable online payment — the response includes the link.
     let invoiceUrl: string
     try {
       const qbo = await getQboClient()
@@ -323,10 +326,20 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
           err ? reject(err) : resolve(result)
         )
       )
-      console.log('[sendQboInvoice] full QBO response:', JSON.stringify(qboInvoice))
       invoiceUrl = qboInvoice?.InvoiceLink ?? ''
+
+      if (!invoiceUrl) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updated = await new Promise<any>((resolve, reject) =>
+          qbo.updateInvoice(
+            { Id: qboInvoice.Id, SyncToken: qboInvoice.SyncToken, sparse: true, AllowOnlinePayment: true },
+            (err: unknown, result: any) => (err ? reject(err) : resolve(result))
+          )
+        )
+        invoiceUrl = updated?.InvoiceLink ?? ''
+      }
     } catch (err) {
-      console.error('[sendQboInvoice] getInvoice failed:', err)
+      console.error('[sendQboInvoice] getInvoice/update failed:', err)
       invoiceUrl = ''
     }
 
