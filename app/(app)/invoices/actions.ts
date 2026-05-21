@@ -314,34 +314,24 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       return { ok: false, error: "Customer has no email address and no reminder contacts on file. Add one to their record and try again." }
     }
 
-    // Fetch the invoice from QBO to get the client-facing payment link.
-    // InvoiceLink requires minorversion 37+ AND AllowOnlinePayment=true on the invoice.
-    // If it's missing, do a sparse update to enable online payment — the response includes the link.
+    // node-quickbooks' getInvoice never passes include=invoiceLink, so InvoiceLink is never returned.
+    // Use a raw fetch to the QBO REST endpoint with that param instead.
     let invoiceUrl: string
     try {
-      const qbo = await getQboClient()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const qboInvoice = await new Promise<any>((resolve, reject) =>
-        qbo.getInvoice(inv.qboInvoiceId!, (err: unknown, result: any) =>
-          err ? reject(err) : resolve(result)
-        )
+      const qbo = await getQboClient() as any
+      const base = qbo.useSandbox
+        ? 'https://sandbox-quickbooks.api.intuit.com'
+        : 'https://quickbooks.api.intuit.com'
+      const res = await fetch(
+        `${base}/v3/company/${qbo.realmId}/invoice/${inv.qboInvoiceId}?include=invoiceLink&minorversion=65`,
+        { headers: { Authorization: `Bearer ${qbo.token}`, Accept: 'application/json' } }
       )
-      console.log('[sendQboInvoice] getInvoice response:', JSON.stringify(qboInvoice))
-      invoiceUrl = qboInvoice?.InvoiceLink ?? ''
-
-      if (!invoiceUrl) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updated = await new Promise<any>((resolve, reject) =>
-          qbo.updateInvoice(
-            { Id: qboInvoice.Id, SyncToken: qboInvoice.SyncToken, sparse: true, AllowOnlinePayment: true },
-            (err: unknown, result: any) => (err ? reject(err) : resolve(result))
-          )
-        )
-        console.log('[sendQboInvoice] updateInvoice response:', JSON.stringify(updated))
-        invoiceUrl = updated?.InvoiceLink ?? ''
-      }
+      const data = await res.json()
+      console.log('[sendQboInvoice] raw fetch InvoiceLink:', data?.Invoice?.InvoiceLink)
+      invoiceUrl = data?.Invoice?.InvoiceLink ?? ''
     } catch (err) {
-      console.error('[sendQboInvoice] getInvoice/update failed:', err)
+      console.error('[sendQboInvoice] raw fetch failed:', err)
       invoiceUrl = ''
     }
 
