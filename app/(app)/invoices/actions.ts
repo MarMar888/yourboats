@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { services, customers, serviceBoats, boats, invoices } from '@/lib/db/schema'
+import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
@@ -10,6 +10,7 @@ import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { emailTransport } from '@/lib/email/client'
 
 export { syncInvoiceToQbo }
 
@@ -262,14 +263,51 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
   if (inv.status === 'sent' || inv.status === 'paid') return { ok: false, error: 'Invoice already sent.' }
 
   const [svc] = await db
-    .select({ email: customers.email })
+    .select({ email: customers.email, customerId: customers.id, customerName: customers.name })
     .from(services)
     .innerJoin(customers, eq(services.customerId, customers.id))
     .where(eq(services.id, inv.serviceId))
     .limit(1)
 
-  if (!svc?.email) {
-    return { ok: false, error: "Customer has no email address on file. Add one to their record and try again." }
+  if (!svc) return { ok: false, error: 'Service not found.' }
+
+  // No primary email — fall back to sending the QBO invoice link to reminder contacts
+  if (!svc.email) {
+    const reminderContacts = await db
+      .select({ email: customerReminderContacts.email })
+      .from(customerReminderContacts)
+      .where(eq(customerReminderContacts.customerId, svc.customerId))
+
+    if (reminderContacts.length === 0) {
+      return { ok: false, error: "Customer has no email address and no reminder contacts on file. Add one to their record and try again." }
+    }
+
+    const qboEnv = process.env.QBO_ENVIRONMENT
+    const invoiceUrl = qboEnv === 'production'
+      ? `https://app.qbo.intuit.com/app/invoice?txnId=${inv.qboInvoiceId}`
+      : `https://sandbox.qbo.intuit.com/app/invoice?txnId=${inv.qboInvoiceId}`
+
+    const to = reminderContacts.map((c) => c.email).join(', ')
+    const subject = 'Your invoice from Squeaky Clean Boats'
+    const text = `Hi ${svc.customerName},\n\nYour invoice is ready. View it here:\n${invoiceUrl}\n\nThanks!\nSqueaky Clean Boats`
+    const html = `<p>Hi ${svc.customerName},</p><p>Your invoice is ready. <a href="${invoiceUrl}">View invoice →</a></p><p>Thanks!<br>Squeaky Clean Boats</p>`
+
+    try {
+      await emailTransport.sendMail({
+        from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
+        to,
+        subject,
+        text,
+        html,
+      })
+    } catch (err) {
+      return { ok: false, error: `Failed to send: ${err instanceof Error ? err.message : String(err)}` }
+    }
+
+    await db.update(invoices).set({ status: 'sent', sentAt: new Date() }).where(eq(invoices.id, invoiceId))
+    await log({ action: 'send_invoice_via_reminder_contacts', entityType: 'invoice', entityId: invoiceId, metadata: JSON.stringify({ to }) })
+    revalidatePath('/invoices')
+    return { ok: true }
   }
 
   try {
