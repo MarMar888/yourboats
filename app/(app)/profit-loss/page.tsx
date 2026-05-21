@@ -1,9 +1,12 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { db } from '@/lib/db'
-import { services, payroll, salariedPayroll } from '@/lib/db/schema'
-import { eq, gte, lte, and, ne, sql } from 'drizzle-orm'
+import { services, payroll, salariedPayroll, recurringSchedules, customers, salariedRules } from '@/lib/db/schema'
+import { eq, gte, lte, and, sql, inArray } from 'drizzle-orm'
 import { todayET } from '@/lib/date'
+import ProjectionsClient, { type RecurringContract, type SalariedRuleProjection } from './projections-client'
+import { getServiceTypeShareMap, lookupSharePct } from '@/lib/pay/service-type-shares'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,15 +25,18 @@ function parseNum(v: string | null | undefined): number {
   return parseFloat(v ?? '0') || 0
 }
 
+// Extract YYYY-MM-DD from a date that might come back as a timestamp
+function toYMD(d: Date | string): string {
+  if (typeof d === 'string') return d.slice(0, 10)
+  return d.toISOString().slice(0, 10)
+}
+
 type Period = { label: string; start: string; end: string }
 
 function buildPeriods(): Period[] {
   const today = todayET()
   const [y, m] = today.split('-').map(Number)
-
   const periods: Period[] = []
-
-  // Last 6 months (current month + 5 prior)
   for (let i = 0; i < 6; i++) {
     let month = m - i
     let year = y
@@ -41,134 +47,59 @@ function buildPeriods(): Period[] {
     const label = new Date(start + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     periods.push({ label, start, end })
   }
-
   return periods
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function ProfitLossPage() {
+interface PageProps {
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function ProfitLossPage({ searchParams }: PageProps) {
   const user = await getCurrentUser()
   if (!user || user.role !== 'owner') redirect('/dashboard')
 
-  const periods = buildPeriods()
+  const { tab } = await searchParams
+  const activeTab = tab === 'projections' ? 'projections' : 'actuals'
 
-  // Full date range: earliest start to latest end
+  const today = todayET()
+
+  // ── Actuals data ──────────────────────────────────────────────────────────
+  const periods = buildPeriods()
   const rangeStart = periods[periods.length - 1].start
   const rangeEnd = periods[0].end
 
-  // ── Query completed services ─────────────────────────────────────────────
-  const serviceRows = await db
-    .select({
-      id: services.id,
-      serviceDate: services.serviceDate,
-      serviceType: services.serviceType,
-      totalPrice: services.totalPrice,
-      tipAmount: services.tipAmount,
-    })
-    .from(services)
-    .where(
-      and(
-        eq(services.status, 'complete'),
-        gte(services.serviceDate, rangeStart),
-        lte(services.serviceDate, rangeEnd),
-      )
-    )
+  const [serviceRows, payrollRows, salariedRows] = await Promise.all([
+    db.select({ id: services.id, serviceDate: services.serviceDate, serviceType: services.serviceType, totalPrice: services.totalPrice, tipAmount: services.tipAmount })
+      .from(services)
+      .where(and(eq(services.status, 'complete'), gte(services.serviceDate, rangeStart), lte(services.serviceDate, rangeEnd))),
+    db.select({ serviceId: payroll.serviceId, serviceDate: payroll.serviceDate, totalPay: payroll.totalPay, tipShare: payroll.tipShare })
+      .from(payroll)
+      .where(and(gte(payroll.serviceDate, rangeStart), lte(payroll.serviceDate, rangeEnd))),
+    db.select({ periodStart: salariedPayroll.periodStart, periodEnd: salariedPayroll.periodEnd, type: salariedPayroll.type, displayName: salariedPayroll.displayName, amount: salariedPayroll.amount })
+      .from(salariedPayroll)
+      .where(eq(salariedPayroll.status, 'approved')),
+  ])
 
-  // ── Query variable payroll ───────────────────────────────────────────────
-  const payrollRows = await db
-    .select({
-      serviceId: payroll.serviceId,
-      serviceDate: payroll.serviceDate,
-      totalPay: payroll.totalPay,
-      tipShare: payroll.tipShare,
-    })
-    .from(payroll)
-    .where(
-      and(
-        gte(payroll.serviceDate, rangeStart),
-        lte(payroll.serviceDate, rangeEnd),
-      )
-    )
-
-  // ── Query approved salaried payroll ──────────────────────────────────────
-  const salariedRows = await db
-    .select({
-      periodStart: salariedPayroll.periodStart,
-      periodEnd: salariedPayroll.periodEnd,
-      type: salariedPayroll.type,
-      displayName: salariedPayroll.displayName,
-      amount: salariedPayroll.amount,
-    })
-    .from(salariedPayroll)
-    .where(eq(salariedPayroll.status, 'approved'))
-
-  // ── Build per-period rollup ───────────────────────────────────────────────
-  type MonthRow = {
-    label: string
-    start: string
-    end: string
-    revenue: number
-    tips: number
-    variableLaborBase: number  // netPay (no tips)
-    variableLaborTips: number  // tip share to employees
-    salariedLabor: number
-    jobCount: number
-  }
-
-  const rows: MonthRow[] = periods.map((period) => {
-    // Services in this month
-    const svcs = serviceRows.filter(
-      (s) => s.serviceDate >= period.start && s.serviceDate <= period.end
-    )
-    const revenue = svcs.reduce((sum, s) => sum + parseNum(s.totalPrice), 0)
-    const tips = svcs.reduce((sum, s) => sum + parseNum(s.tipAmount), 0)
-
-    // Payroll in this month
-    const pr = payrollRows.filter(
-      (p) => p.serviceDate >= period.start && p.serviceDate <= period.end
-    )
-    const totalPay = pr.reduce((sum, p) => sum + parseNum(p.totalPay), 0)
-    const tipShare = pr.reduce((sum, p) => sum + parseNum(p.tipShare), 0)
-    const variableLaborBase = totalPay - tipShare
-    const variableLaborTips = tipShare
-
-    // Salaried: a salaried row applies to a period if its range overlaps this month
-    const sal = salariedRows.filter(
-      (r) => r.periodStart <= period.end && r.periodEnd >= period.start
-    )
-    const salariedLabor = sal.reduce((sum, r) => sum + parseNum(r.amount), 0)
-
-    return {
-      label: period.label,
-      start: period.start,
-      end: period.end,
-      revenue,
-      tips,
-      variableLaborBase,
-      variableLaborTips,
-      salariedLabor,
-      jobCount: svcs.length,
-    }
+  const actuals = periods.map((period) => {
+    const svcs = serviceRows.filter((s) => toYMD(s.serviceDate as unknown as Date) >= period.start && toYMD(s.serviceDate as unknown as Date) <= period.end)
+    const revenue = svcs.reduce((s, x) => s + parseNum(x.totalPrice), 0)
+    const tips = svcs.reduce((s, x) => s + parseNum(x.tipAmount), 0)
+    const pr = payrollRows.filter((p) => toYMD(p.serviceDate as unknown as Date) >= period.start && toYMD(p.serviceDate as unknown as Date) <= period.end)
+    const totalPay = pr.reduce((s, p) => s + parseNum(p.totalPay), 0)
+    const tipShare = pr.reduce((s, p) => s + parseNum(p.tipShare), 0)
+    const sal = salariedRows.filter((r) => toYMD(r.periodStart as unknown as Date) <= period.end && toYMD(r.periodEnd as unknown as Date) >= period.start)
+    const salariedLabor = sal.reduce((s, r) => s + parseNum(r.amount), 0)
+    return { label: period.label, start: period.start, revenue, tips, variableLaborBase: totalPay - tipShare, salariedLabor, jobCount: svcs.length }
   })
 
-  // ── Totals ────────────────────────────────────────────────────────────────
-  const totals = rows.reduce(
-    (acc, r) => ({
-      revenue: acc.revenue + r.revenue,
-      tips: acc.tips + r.tips,
-      variableLaborBase: acc.variableLaborBase + r.variableLaborBase,
-      variableLaborTips: acc.variableLaborTips + r.variableLaborTips,
-      salariedLabor: acc.salariedLabor + r.salariedLabor,
-      jobCount: acc.jobCount + r.jobCount,
-    }),
-    { revenue: 0, tips: 0, variableLaborBase: 0, variableLaborTips: 0, salariedLabor: 0, jobCount: 0 }
+  const totals = actuals.reduce(
+    (acc, r) => ({ revenue: acc.revenue + r.revenue, variableLaborBase: acc.variableLaborBase + r.variableLaborBase, salariedLabor: acc.salariedLabor + r.salariedLabor, jobCount: acc.jobCount + r.jobCount, tips: acc.tips + r.tips }),
+    { revenue: 0, variableLaborBase: 0, salariedLabor: 0, jobCount: 0, tips: 0 }
   )
 
-  // ── Service type breakdown (all-time in range) ────────────────────────────
-  type TypeBreakdown = { type: string; revenue: number; labor: number; count: number }
-  const typeMap: Record<string, TypeBreakdown> = {}
-
+  const typeMap: Record<string, { type: string; revenue: number; labor: number; count: number }> = {}
   for (const s of serviceRows) {
     const t = s.serviceType ?? 'other'
     if (!typeMap[t]) typeMap[t] = { type: t, revenue: 0, labor: 0, count: 0 }
@@ -181,206 +112,233 @@ export default async function ProfitLossPage() {
     if (!typeMap[t]) typeMap[t] = { type: t, revenue: 0, labor: 0, count: 0 }
     typeMap[t].labor += parseNum(p.totalPay) - parseNum(p.tipShare)
   }
-
   const typeBreakdown = Object.values(typeMap).sort((a, b) => b.revenue - a.revenue)
+  const activeActuals = actuals.filter((r) => r.revenue > 0 || r.salariedLabor > 0)
 
-  // Filter to months with any activity
-  const activeRows = rows.filter((r) => r.revenue > 0 || r.salariedLabor > 0)
+  // ── Projections data ──────────────────────────────────────────────────────
+  let projContracts: RecurringContract[] = []
+  let projSalariedRules: SalariedRuleProjection[] = []
+
+  if (activeTab === 'projections') {
+    const [recRows, salRuleRows, shareMap] = await Promise.all([
+      db.select({
+        id: recurringSchedules.id,
+        customerId: recurringSchedules.customerId,
+        customerName: customers.name,
+        serviceType: recurringSchedules.serviceType,
+        frequencyWeeks: recurringSchedules.frequencyWeeks,
+        dayOfWeek: recurringSchedules.dayOfWeek,
+        startDate: recurringSchedules.startDate,
+        endDate: recurringSchedules.endDate,
+        defaultPrice: recurringSchedules.defaultPrice,
+      })
+        .from(recurringSchedules)
+        .innerJoin(customers, eq(recurringSchedules.customerId, customers.id))
+        .where(and(eq(recurringSchedules.active, true), gte(recurringSchedules.endDate, today))),
+      db.select().from(salariedRules).where(and(eq(salariedRules.active, true), gte(salariedRules.effectiveTo, today))),
+      getServiceTypeShareMap(),
+    ])
+
+    // Average actual price per customer + service type for price defaults
+    const customerIds = Array.from(new Set(recRows.map((r) => r.customerId)))
+    const avgPriceRows = customerIds.length > 0
+      ? await db.select({
+          customerId: services.customerId,
+          serviceType: services.serviceType,
+          avgPrice: sql<string>`round(avg(${services.totalPrice}::numeric), 2)`,
+        })
+        .from(services)
+        .where(and(
+          eq(services.status, 'complete'),
+          inArray(services.customerId, customerIds),
+          sql`${services.totalPrice} is not null`,
+        ))
+        .groupBy(services.customerId, services.serviceType)
+      : []
+
+    // Build lookup: customerId + normalized service type → avg price
+    const avgByKey: Record<string, number> = {}
+    const normalize = (t: string) => t.toLowerCase().replace(/\s+services?$/i, '').replace(/\s+/g, '_')
+    for (const r of avgPriceRows) {
+      const key = `${r.customerId}:${normalize(r.serviceType)}`
+      avgByKey[key] = parseFloat(r.avgPrice ?? '0') || 0
+    }
+
+    projContracts = recRows.map((r) => {
+      const norm = normalize(r.serviceType)
+      const key = `${r.customerId}:${norm}`
+      const avgActualPrice = avgByKey[key] ?? null
+      return {
+        id: r.id,
+        customerId: r.customerId,
+        customerName: r.customerName,
+        serviceType: r.serviceType,
+        frequencyWeeks: r.frequencyWeeks,
+        dayOfWeek: r.dayOfWeek,
+        startDate: toYMD(r.startDate as unknown as Date),
+        endDate: toYMD(r.endDate as unknown as Date),
+        sharePct: lookupSharePct(shareMap, r.serviceType),
+        avgActualPrice,
+      }
+    })
+
+    projSalariedRules = salRuleRows.map((r) => ({
+      id: r.id,
+      displayName: r.displayName,
+      type: r.type,
+      amountPerWeek: r.amountPerWeek ? parseFloat(r.amountPerWeek) : null,
+      amountFlat: r.amountFlat ? parseFloat(r.amountFlat) : null,
+      effectiveFrom: toYMD(r.effectiveFrom as unknown as Date),
+      effectiveTo: toYMD(r.effectiveTo as unknown as Date),
+      frequencyWeeks: r.type === 'quality_bonus' ? 2 : 1,
+    }))
+  }
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      <h1 className="text-2xl font-semibold">Profit & Loss — Labor View</h1>
+    <div className="space-y-6 max-w-5xl">
+      <h1 className="text-2xl font-semibold">Profit & Loss</h1>
 
-      {/* ── Summary cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          label="Revenue (6 mo)"
-          value={fmt(totals.revenue)}
-          sub={`${totals.jobCount} jobs`}
-        />
-        <StatCard
-          label="Total Labor"
-          value={fmt(totals.variableLaborBase + totals.salariedLabor)}
-          sub={`${pct(totals.variableLaborBase + totals.salariedLabor, totals.revenue)} of revenue`}
-          highlight="red"
-        />
-        <StatCard
-          label="Gross Profit"
-          value={fmt(totals.revenue - totals.variableLaborBase - totals.salariedLabor)}
-          sub={pct(totals.revenue - totals.variableLaborBase - totals.salariedLabor, totals.revenue) + ' margin'}
-          highlight="green"
-        />
-        <StatCard
-          label="Tips (pass-through)"
-          value={fmt(totals.tips)}
-          sub="customer → employee"
-        />
+      {/* ── Tabs ────────────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b">
+        {[
+          { key: 'actuals', label: 'Actuals' },
+          { key: 'projections', label: 'Projections' },
+        ].map(({ key, label }) => (
+          <Link
+            key={key}
+            href={`/profit-loss?tab=${key}`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === key
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
       </div>
 
-      {/* ── Monthly breakdown ─────────────────────────────────────────────── */}
-      <section>
-        <h2 className="text-base font-semibold mb-3">Monthly Breakdown</h2>
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Month</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Jobs</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Revenue</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Variable Labor</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Salaried</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Total Labor</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Labor %</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Gross Profit</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {activeRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground text-sm">
-                    No completed services in the last 6 months.
-                  </td>
-                </tr>
-              ) : (
-                activeRows.map((row) => {
-                  const totalLabor = row.variableLaborBase + row.salariedLabor
-                  const grossProfit = row.revenue - totalLabor
-                  const laborPct = row.revenue > 0 ? totalLabor / row.revenue * 100 : null
-                  return (
-                    <tr key={row.start} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium">{row.label}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.jobCount}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{row.revenue > 0 ? fmt(row.revenue) : '—'}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                        {row.variableLaborBase > 0 ? fmt(row.variableLaborBase) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                        {row.salariedLabor > 0 ? fmt(row.salariedLabor) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium">
-                        {totalLabor > 0 ? fmt(totalLabor) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {laborPct !== null ? (
-                          <span className={laborPct > 50 ? 'text-red-600' : laborPct > 35 ? 'text-amber-600' : 'text-green-700'}>
-                            {laborPct.toFixed(1)}%
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                        {row.revenue > 0 ? (
-                          <span className={grossProfit >= 0 ? 'text-green-700' : 'text-red-600'}>
-                            {fmt(grossProfit)}
-                          </span>
-                        ) : '—'}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-            {activeRows.length > 0 && (
-              <tfoot className="bg-muted/50 border-t font-semibold">
-                <tr>
-                  <td className="px-4 py-3">Total</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{totals.jobCount}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.revenue)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.variableLaborBase)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.salariedLabor)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.variableLaborBase + totals.salariedLabor)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {pct(totals.variableLaborBase + totals.salariedLabor, totals.revenue)}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-green-700">
-                    {fmt(totals.revenue - totals.variableLaborBase - totals.salariedLabor)}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Variable labor = employee net pay (tips excluded — they pass through from customer to employee). Salaried = approved GM salary & bonus lines only.
-        </p>
-      </section>
-
-      {/* ── By service type ───────────────────────────────────────────────── */}
-      {typeBreakdown.length > 0 && (
-        <section>
-          <h2 className="text-base font-semibold mb-3">By Service Type</h2>
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Type</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Jobs</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Revenue</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Variable Labor</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Labor %</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Gross Profit</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {typeBreakdown.map((row) => {
-                  const grossProfit = row.revenue - row.labor
-                  const laborPct = row.revenue > 0 ? row.labor / row.revenue * 100 : null
-                  return (
-                    <tr key={row.type} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium capitalize">{row.type.replace(/_/g, ' ')}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.count}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{fmt(row.revenue)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{fmt(row.labor)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {laborPct !== null ? (
-                          <span className={laborPct > 50 ? 'text-red-600' : laborPct > 35 ? 'text-amber-600' : 'text-green-700'}>
-                            {laborPct.toFixed(1)}%
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                        <span className={grossProfit >= 0 ? 'text-green-700' : 'text-red-600'}>
-                          {fmt(grossProfit)}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+      {/* ── Actuals tab ─────────────────────────────────────────────────────── */}
+      {activeTab === 'actuals' && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Revenue (6 mo)" value={fmt(totals.revenue)} sub={`${totals.jobCount} jobs`} />
+            <StatCard label="Total Labor" value={fmt(totals.variableLaborBase + totals.salariedLabor)} sub={`${pct(totals.variableLaborBase + totals.salariedLabor, totals.revenue)} of revenue`} highlight="red" />
+            <StatCard label="Gross Profit" value={fmt(totals.revenue - totals.variableLaborBase - totals.salariedLabor)} sub={pct(totals.revenue - totals.variableLaborBase - totals.salariedLabor, totals.revenue) + ' margin'} highlight="green" />
+            <StatCard label="Tips (pass-through)" value={fmt(totals.tips)} sub="customer → employee" />
           </div>
-        </section>
+
+          <section>
+            <h2 className="text-base font-semibold mb-3">Monthly Breakdown</h2>
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    {['Month', 'Jobs', 'Revenue', 'Variable Labor', 'Salaried', 'Total Labor', 'Labor %', 'Gross Profit'].map((h, i) => (
+                      <th key={h} className={`px-4 py-2.5 font-medium text-muted-foreground ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {activeActuals.length === 0 ? (
+                    <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">No completed services in the last 6 months.</td></tr>
+                  ) : activeActuals.map((row) => {
+                    const totalLabor = row.variableLaborBase + row.salariedLabor
+                    const grossProfit = row.revenue - totalLabor
+                    const laborPct = row.revenue > 0 ? totalLabor / row.revenue * 100 : null
+                    return (
+                      <tr key={row.start} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-medium">{row.label}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.jobCount}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{row.revenue > 0 ? fmt(row.revenue) : '—'}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.variableLaborBase > 0 ? fmt(row.variableLaborBase) : '—'}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.salariedLabor > 0 ? fmt(row.salariedLabor) : '—'}</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-medium">{totalLabor > 0 ? fmt(totalLabor) : '—'}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {laborPct != null ? <span className={laborPct > 50 ? 'text-red-600' : laborPct > 35 ? 'text-amber-600' : 'text-green-700'}>{laborPct.toFixed(1)}%</span> : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                          {row.revenue > 0 ? <span className={grossProfit >= 0 ? 'text-green-700' : 'text-red-600'}>{fmt(grossProfit)}</span> : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                {activeActuals.length > 0 && (
+                  <tfoot className="bg-muted/50 border-t font-semibold">
+                    <tr>
+                      <td className="px-4 py-3">Total</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totals.jobCount}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.revenue)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.variableLaborBase)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.salariedLabor)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.variableLaborBase + totals.salariedLabor)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{pct(totals.variableLaborBase + totals.salariedLabor, totals.revenue)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-green-700">{fmt(totals.revenue - totals.variableLaborBase - totals.salariedLabor)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Variable labor = employee net pay (tips excluded). Salaried = approved lines only.</p>
+          </section>
+
+          {typeBreakdown.length > 0 && (
+            <section>
+              <h2 className="text-base font-semibold mb-3">By Service Type</h2>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      {['Type', 'Jobs', 'Revenue', 'Variable Labor', 'Labor %', 'Gross Profit'].map((h, i) => (
+                        <th key={h} className={`px-4 py-2.5 font-medium text-muted-foreground ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {typeBreakdown.map((row) => {
+                      const grossProfit = row.revenue - row.labor
+                      const laborPct = row.revenue > 0 ? row.labor / row.revenue * 100 : null
+                      return (
+                        <tr key={row.type} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 font-medium capitalize">{row.type.replace(/_/g, ' ')}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.count}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">{fmt(row.revenue)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{fmt(row.labor)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {laborPct != null ? <span className={laborPct > 50 ? 'text-red-600' : laborPct > 35 ? 'text-amber-600' : 'text-green-700'}>{laborPct.toFixed(1)}%</span> : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                            <span className={grossProfit >= 0 ? 'text-green-700' : 'text-red-600'}>{fmt(grossProfit)}</span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {/* ── Projections tab ──────────────────────────────────────────────────── */}
+      {activeTab === 'projections' && (
+        <ProjectionsClient
+          contracts={projContracts}
+          salariedRules={projSalariedRules}
+          today={today}
+        />
       )}
     </div>
   )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  label: string
-  value: string
-  sub?: string
-  highlight?: 'green' | 'red'
-}) {
+function StatCard({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: 'green' | 'red' }) {
   return (
     <div className="rounded-lg border bg-card px-4 py-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p
-        className={`text-2xl font-semibold tabular-nums ${
-          highlight === 'green'
-            ? 'text-green-700'
-            : highlight === 'red'
-            ? 'text-red-600'
-            : ''
-        }`}
-      >
-        {value}
-      </p>
+      <p className={`text-2xl font-semibold tabular-nums ${highlight === 'green' ? 'text-green-700' : highlight === 'red' ? 'text-red-600' : ''}`}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
     </div>
   )
