@@ -8,7 +8,7 @@ import {
   customers,
   timeEntries,
 } from '@/lib/db/schema'
-import { eq, and, isNull } from 'drizzle-orm'
+import { eq, and, isNull, ne } from 'drizzle-orm'
 import { ClockClient } from './clock-client'
 import { todayET } from '@/lib/date'
 
@@ -37,7 +37,7 @@ export default async function ClockPage() {
     .where(
       and(
         eq(services.serviceDate, today),
-        eq(services.status, 'scheduled')
+        ne(services.status, 'cancelled')
       )
     )
     .orderBy(customers.name, boats.nickname)
