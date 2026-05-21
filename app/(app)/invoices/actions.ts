@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
@@ -162,6 +162,13 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
     qboItemName = bestItem.name
   }
 
+  // Compute next DocNumber: max of what we've assigned + 1, or start from env var / 1100
+  const DOC_NUMBER_START = parseInt(process.env.QBO_INVOICE_NUMBER_START ?? '1100', 10)
+  const [{ maxDoc }] = await db
+    .select({ maxDoc: sql<number | null>`max(${invoices.docNumber})` })
+    .from(invoices)
+  const nextDocNumber = (maxDoc ?? DOC_NUMBER_START - 1) + 1
+
   try {
     const qbo = await getQboClient()
     const dueDate = new Date(service.serviceDate + 'T00:00:00')
@@ -187,6 +194,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       (resolve, reject) =>
         qbo.createInvoice(
           {
+            DocNumber: String(nextDocNumber),
             CustomerRef: { value: service.qboCustomerId! },
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
@@ -200,7 +208,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
 
     await db
       .update(invoices)
-      .set({ qboInvoiceId: created.Id, lastSyncedAt: new Date() })
+      .set({ qboInvoiceId: created.Id, docNumber: nextDocNumber, lastSyncedAt: new Date() })
       .where(eq(invoices.id, invoiceId))
 
     await log({ action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id } })

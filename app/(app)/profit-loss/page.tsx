@@ -139,48 +139,42 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
       getServiceTypeShareMap(),
     ])
 
-    // Average actual price per customer + service type for price defaults
-    const customerIds = Array.from(new Set(recRows.map((r) => r.customerId)))
-    const avgPriceRows = customerIds.length > 0
+    // Pull price from scheduled services (all services for a contract have the same price)
+    const contractIds = recRows.map((r) => r.id)
+    const scheduledPriceRows = contractIds.length > 0
       ? await db.select({
-          customerId: services.customerId,
-          serviceType: services.serviceType,
-          avgPrice: sql<string>`round(avg(${services.totalPrice}::numeric), 2)`,
+          recurringScheduleId: services.recurringScheduleId,
+          totalPrice: services.totalPrice,
         })
         .from(services)
         .where(and(
-          eq(services.status, 'complete'),
-          inArray(services.customerId, customerIds),
+          eq(services.status, 'scheduled'),
+          inArray(services.recurringScheduleId, contractIds),
           sql`${services.totalPrice} is not null`,
         ))
-        .groupBy(services.customerId, services.serviceType)
+        .limit(contractIds.length * 2)
       : []
 
-    // Build lookup: customerId + normalized service type → avg price
-    const avgByKey: Record<string, number> = {}
-    const normalize = (t: string) => t.toLowerCase().replace(/\s+services?$/i, '').replace(/\s+/g, '_')
-    for (const r of avgPriceRows) {
-      const key = `${r.customerId}:${normalize(r.serviceType)}`
-      avgByKey[key] = parseFloat(r.avgPrice ?? '0') || 0
+    // One price per contract — take first match
+    const priceByContract: Record<string, number> = {}
+    for (const r of scheduledPriceRows) {
+      if (r.recurringScheduleId && !(r.recurringScheduleId in priceByContract)) {
+        priceByContract[r.recurringScheduleId] = parseFloat(r.totalPrice ?? '0') || 0
+      }
     }
 
-    projContracts = recRows.map((r) => {
-      const norm = normalize(r.serviceType)
-      const key = `${r.customerId}:${norm}`
-      const avgActualPrice = avgByKey[key] ?? null
-      return {
-        id: r.id,
-        customerId: r.customerId,
-        customerName: r.customerName,
-        serviceType: r.serviceType,
-        frequencyWeeks: r.frequencyWeeks,
-        dayOfWeek: r.dayOfWeek,
-        startDate: toYMD(r.startDate as unknown as Date),
-        endDate: toYMD(r.endDate as unknown as Date),
-        sharePct: lookupSharePct(shareMap, r.serviceType),
-        avgActualPrice,
-      }
-    })
+    projContracts = recRows.map((r) => ({
+      id: r.id,
+      customerId: r.customerId,
+      customerName: r.customerName,
+      serviceType: r.serviceType,
+      frequencyWeeks: r.frequencyWeeks,
+      dayOfWeek: r.dayOfWeek,
+      startDate: toYMD(r.startDate as unknown as Date),
+      endDate: toYMD(r.endDate as unknown as Date),
+      sharePct: lookupSharePct(shareMap, r.serviceType),
+      avgActualPrice: priceByContract[r.id] ?? null,
+    }))
 
     projSalariedRules = salRuleRows.map((r) => ({
       id: r.id,

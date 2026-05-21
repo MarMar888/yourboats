@@ -19,6 +19,7 @@ export default async function InvoicesPage() {
     .select({
       invoiceId:     invoices.id,
       qboInvoiceId:  invoices.qboInvoiceId,
+      docNumber:     invoices.docNumber,
       amount:        invoices.amount,
       notes:         invoices.notes,
       status:        invoices.status,
@@ -41,6 +42,7 @@ export default async function InvoicesPage() {
     .select({
       invoiceId:     invoices.id,
       qboInvoiceId:  invoices.qboInvoiceId,
+      docNumber:     invoices.docNumber,
       amount:        invoices.amount,
       notes:         invoices.notes,
       status:        invoices.status,
@@ -94,6 +96,7 @@ export default async function InvoicesPage() {
                     inv={{
                       invoiceId: inv.invoiceId,
                       qboInvoiceId: inv.qboInvoiceId,
+                      docNumber: inv.docNumber,
                       amount: inv.amount,
                       notes: inv.notes,
                       status: inv.status,
@@ -150,6 +153,7 @@ export default async function InvoicesPage() {
                     inv={{
                       invoiceId: inv.invoiceId,
                       qboInvoiceId: inv.qboInvoiceId,
+                      docNumber: inv.docNumber,
                       amount: inv.amount,
                       notes: inv.notes,
                       status: inv.status,

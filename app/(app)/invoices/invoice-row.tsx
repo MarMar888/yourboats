@@ -44,6 +44,7 @@ function qboInvoiceUrl(qboInvoiceId: string, env?: string) {
 export type InvoiceRowData = {
   invoiceId: string
   qboInvoiceId: string | null
+  docNumber: number | null
   amount: string
   notes: string | null
   status: string
@@ -118,7 +119,7 @@ export function InvoiceRow({
                   className="text-primary hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  #{inv.qboInvoiceId}
+                  {inv.docNumber ? `#${inv.docNumber}` : `QBO ${inv.qboInvoiceId}`}
                 </a>
               ) : (
                 <span className="text-muted-foreground">—</span>
@@ -194,10 +195,16 @@ export function InvoiceRow({
                   <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Invoice ID</dt>
                   <dd className="mt-1 font-mono text-xs">{inv.invoiceId}</dd>
                 </div>
+                {inv.docNumber && (
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Invoice #</dt>
+                    <dd className="mt-1 font-mono text-xs font-semibold">#{inv.docNumber}</dd>
+                  </div>
+                )}
                 {inv.qboInvoiceId && (
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">QBO Invoice</dt>
-                    <dd className="mt-1 font-mono text-xs">#{inv.qboInvoiceId}</dd>
+                    <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">QBO ID</dt>
+                    <dd className="mt-1 font-mono text-xs text-muted-foreground">{inv.qboInvoiceId}</dd>
                   </div>
                 )}
               </dl>

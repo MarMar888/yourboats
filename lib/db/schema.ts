@@ -199,6 +199,7 @@ export const invoices = pgTable('invoices', {
     .unique()
     .references(() => services.id, { onDelete: 'cascade' }),
   qboInvoiceId: text('qbo_invoice_id').unique(),
+  docNumber: integer('doc_number'),  // human-readable invoice # set explicitly on QBO creation
   amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
   notes: text('notes'),
   status: invoiceStatusEnum('status').notNull().default('draft'),
