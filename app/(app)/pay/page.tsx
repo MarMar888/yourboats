@@ -22,9 +22,7 @@ export default async function PayPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Pay</h1>
-      </div>
+      <h1 className="text-2xl font-semibold mb-6">Pay</h1>
       <PayClient
         employees={employees}
         tierRows={tierRows as { tier: 'top' | 'mid' | 'low'; deductionPct: string }[]}

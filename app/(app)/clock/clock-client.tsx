@@ -129,7 +129,7 @@ export function ClockClient({
       <div className="w-full max-w-sm">
         {assigned.length === 0 ? (
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-center text-sm text-muted-foreground">
-            No services assigned to you today.
+            No services scheduled for today.
           </div>
         ) : (
           <div className="space-y-2">

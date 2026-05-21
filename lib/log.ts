@@ -13,12 +13,14 @@ type LogEntry = {
 export async function log(entry: LogEntry): Promise<void> {
   try {
     const user = await getCurrentUser()
+    const version = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.npm_package_version ?? 'local'
+    const meta = { ...entry.metadata, _v: version }
     await db.insert(logs).values({
       userId: user?.id ?? null,
       action: entry.action,
       entityType: entry.entityType ?? null,
       entityId: entry.entityId ?? null,
-      metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+      metadata: meta ? JSON.stringify(meta) : JSON.stringify({ _v: version }),
       error: entry.error ?? null,
     })
   } catch {

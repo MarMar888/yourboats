@@ -2,13 +2,13 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { db } from '@/lib/db'
 import {
-  serviceBoatAssignments,
+  serviceBoats,
   services,
   boats,
   customers,
   timeEntries,
 } from '@/lib/db/schema'
-import { eq, and, isNull, sql } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { ClockClient } from './clock-client'
 import { todayET } from '@/lib/date'
 
@@ -22,23 +22,20 @@ export default async function ClockPage() {
 
   const today = todayYMD()
 
-  // All boat+service combos assigned to this user today
+  // All boat+service combos scheduled today — not filtered by assignment
   const assigned = await db
     .select({
-      serviceId: serviceBoatAssignments.serviceId,
-      boatId: serviceBoatAssignments.boatId,
+      serviceId: serviceBoats.serviceId,
+      boatId: serviceBoats.boatId,
       boatNickname: boats.nickname,
       customerName: customers.name,
-      serviceDate: services.serviceDate,
-      serviceType: services.serviceType,
     })
-    .from(serviceBoatAssignments)
-    .innerJoin(services, eq(services.id, serviceBoatAssignments.serviceId))
-    .innerJoin(boats, eq(boats.id, serviceBoatAssignments.boatId))
+    .from(serviceBoats)
+    .innerJoin(services, eq(services.id, serviceBoats.serviceId))
+    .innerJoin(boats, eq(boats.id, serviceBoats.boatId))
     .innerJoin(customers, eq(customers.id, services.customerId))
     .where(
       and(
-        eq(serviceBoatAssignments.userId, user.id), // text = uuid cast fine in PG
         eq(services.serviceDate, today),
         eq(services.status, 'scheduled')
       )

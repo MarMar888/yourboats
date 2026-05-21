@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
-import { saveTip, updateTierConfig, updateEmployeeTier } from './actions'
+import { saveTip, updateTierConfig } from './actions'
 import { savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod } from './payroll-actions'
 import type { SavedPayrollRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,17 @@ import type { PeriodServiceRow, AssignmentRow } from '@/app/api/pay/period/route
 type Employee = { id: string; displayName: string; tier: 'top' | 'mid' | 'low' | null }
 type TierRow = { tier: 'top' | 'mid' | 'low'; deductionPct: string }
 
+type SalariedLine = {
+  id: string
+  type: 'gm_salary' | 'quality_bonus'
+  displayName: string
+  amount: string
+  status: 'pending' | 'approved' | 'denied' | 'ineligible'
+  ineligibleReason: string | null
+  approvedByName: string | null
+  approvedAt: Date | null
+}
+
 function fmt(n: number) { return `$${n.toFixed(2)}` }
 
 function fmtDate(ymd: string) {
@@ -27,6 +38,126 @@ function fmtDate(ymd: string) {
   })
 }
 
+// ─── Salaried Section ─────────────────────────────────────────────────────────
+
+function SalariedSection({ lines }: { lines: SalariedLine[] }) {
+  const [pending, startTransition] = useTransition()
+  const [actionLineId, setActionLineId] = useState<string | null>(null)
+
+  async function handleApprove(id: string) {
+    setActionLineId(id)
+    startTransition(async () => {
+      try {
+        const mod = await import('./salaried-actions')
+        await mod.approveSalariedLine(id)
+      } catch {
+        // salaried-actions not yet available — no-op
+      }
+      setActionLineId(null)
+    })
+  }
+
+  async function handleDeny(id: string) {
+    setActionLineId(id)
+    startTransition(async () => {
+      try {
+        const mod = await import('./salaried-actions')
+        await mod.denySalariedLine(id)
+      } catch {
+        // salaried-actions not yet available — no-op
+      }
+      setActionLineId(null)
+    })
+  }
+
+  const statusBadge = (line: SalariedLine) => {
+    const base = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium'
+    if (line.status === 'approved') return <span className={`${base} bg-green-100 text-green-800`}>Approved</span>
+    if (line.status === 'denied') return <span className={`${base} bg-red-100 text-red-800`}>Denied</span>
+    if (line.status === 'ineligible') return <span className={`${base} bg-muted text-muted-foreground`}>Ineligible</span>
+    return <span className={`${base} bg-amber-100 text-amber-800`}>Pending</span>
+  }
+
+  const typeIcon = (type: SalariedLine['type']) =>
+    type === 'gm_salary' ? '💼' : '⭐'
+
+  const typeLabel = (type: SalariedLine['type']) =>
+    type === 'gm_salary' ? 'GM Salary' : 'Quality Bonus'
+
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center gap-2 px-4 py-3 border-b">
+        <span className="text-sm font-semibold">Salaried lines — Nathan Bongard</span>
+        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          Auto-generated
+        </span>
+      </div>
+
+      {lines.length === 0 ? (
+        <div className="px-4 py-5 text-sm text-muted-foreground/70 text-center">
+          No salaried lines for this period.
+        </div>
+      ) : (
+        <div className="divide-y">
+          {lines.map((line) => (
+            <div key={line.id} className="flex items-center gap-3 px-4 py-3">
+              {/* Left: icon + label */}
+              <span className="text-base leading-none w-5 flex-shrink-0">{typeIcon(line.type)}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{typeLabel(line.type)}</span>
+                  <span className="text-xs text-muted-foreground">{line.displayName}</span>
+                </div>
+                <div className="text-sm font-semibold tabular-nums mt-0.5">
+                  {fmt(parseFloat(line.amount) || 0)}
+                </div>
+                {line.status === 'ineligible' && line.ineligibleReason && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{line.ineligibleReason}</p>
+                )}
+                {line.status === 'approved' && line.approvedByName && (
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Approved by {line.approvedByName}
+                    {line.approvedAt && (
+                      <span className="text-muted-foreground ml-1">
+                        · {line.approvedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+
+              {/* Right: status + actions */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {statusBadge(line)}
+                {line.status === 'pending' && line.type === 'quality_bonus' && (
+                  <>
+                    <button
+                      onClick={() => handleDeny(line.id)}
+                      disabled={pending && actionLineId === line.id}
+                      className="text-xs text-muted-foreground hover:text-destructive underline-offset-2 hover:underline transition-colors disabled:opacity-50"
+                    >
+                      Deny
+                    </button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending && actionLineId === line.id}
+                      onClick={() => handleApprove(line.id)}
+                      className="h-7 text-xs"
+                    >
+                      {pending && actionLineId === line.id ? 'Saving…' : 'Approve'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Period Review ────────────────────────────────────────────────────────────
 
 function PeriodReview({
@@ -34,11 +165,13 @@ function PeriodReview({
   employees,
   tierRows,
   isOwnerOrManager,
+  salariedLines,
 }: {
   period: PayPeriod
   employees: Employee[]
   tierRows: TierRow[]
   isOwnerOrManager: boolean
+  salariedLines: SalariedLine[]
 }) {
   const [rows, setRows] = useState<PeriodServiceRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -89,10 +222,10 @@ function PeriodReview({
         if (!overrides[pr.serviceId]) overrides[pr.serviceId] = {}
         overrides[pr.serviceId][pr.userId] = pr.splitPct
 
-        // Reconstruct manually-added users: payroll rows whose userId isn't
-        // in the service's original assignments list were added via "+ Add person"
         const svcRow = serviceRows.find((s) => s.serviceId === pr.serviceId)
-        if (svcRow && !svcRow.assignments.some((a) => a.userId === pr.userId)) {
+        if (svcRow && !svcRow.assignments.some(
+          (a) => a.userId === pr.userId || a.displayName === pr.displayName
+        )) {
           if (!reconstructedAdded[pr.serviceId]) reconstructedAdded[pr.serviceId] = []
           reconstructedAdded[pr.serviceId].push({
             userId:       pr.userId,
@@ -185,7 +318,6 @@ function PeriodReview({
       ...prev,
       [serviceId]: (prev[serviceId] ?? []).filter((u) => u.userId !== userId),
     }))
-    // Also remove any split override for this user
     setSplitOverrides((sp) => {
       const overrides = { ...(sp[serviceId] ?? {}) }
       delete overrides[userId]
@@ -201,9 +333,14 @@ function PeriodReview({
     const overrides = splitOverrides[row.serviceId] ?? {}
     const added = (addedUsers[row.serviceId] ?? []).map((u) => ({
       userId: u.userId, displayName: u.displayName, deductionPct: u.deductionPct,
-      splitPct: 0, effectivePct: 0, netPay: 0,  // placeholders — recomputed below
+      splitPct: 0, effectivePct: 0, netPay: 0,
     }))
-    const allAssignments = [...row.assignments, ...added]
+    const seenNames = new Set<string>()
+    const allAssignments = [...row.assignments, ...added].filter((a) => {
+      if (seenNames.has(a.displayName)) return false
+      seenNames.add(a.displayName)
+      return true
+    })
     const activeAssignments = allAssignments.filter((a) => !excluded.has(a.userId))
 
     if (activeAssignments.length === 0) return { assignments: [], splitsValid: true }
@@ -272,7 +409,6 @@ function PeriodReview({
 
   function handleApprove() {
     startApprove(async () => {
-      // Always save current state before approving
       const entries = buildAllEntries()
       if (entries.length > 0) await savePayrollEntries(entries)
       const result = await approvePayrollForPeriod(period.startStr, period.endStr)
@@ -308,7 +444,7 @@ function PeriodReview({
 
   if (loading) {
     return (
-      <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
         Loading…
       </div>
     )
@@ -316,7 +452,7 @@ function PeriodReview({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
         No completed services in this pay period.
       </div>
     )
@@ -334,33 +470,22 @@ function PeriodReview({
 
   return (
     <div className="space-y-4">
-      {/* Approval banner */}
-      {approval && (
-        <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          <span className="text-base">✓</span>
-          <span>
-            Payroll approved by <span className="font-semibold">{approval.byName}</span> on{' '}
-            {approval.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-          </span>
-        </div>
-      )}
-
       {/* Pay review table */}
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-xs">
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap w-28">Date</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Client</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-36">Boats</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">People & splits</th>
-              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap w-24">Pool</th>
-              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap w-24">Total pay</th>
-              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground w-24">Tip</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap w-24">Date</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground w-40">Client</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground w-32">Boats</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground">People & splits</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap w-20">Pool</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap w-22">Pay</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground w-24">Tip</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((row) => {
+            {rows.map((row, rowIdx) => {
               const tipRaw = tipInputs[row.serviceId] ?? ''
               const tipNum = parseFloat(tipRaw) || 0
               const excluded = excludedUsers[row.serviceId] ?? new Set<string>()
@@ -370,28 +495,30 @@ function PeriodReview({
               const tipPerPerson = computed.length > 0 ? tipNum / computed.length : 0
 
               return (
-                <tr key={row.serviceId} className="hover:bg-muted/20 align-top">
-                  <td className="px-4 py-3 whitespace-nowrap tabular-nums text-muted-foreground text-xs">
+                <tr key={row.serviceId} className={`align-top ${rowIdx % 2 === 1 ? 'bg-muted/10' : ''} hover:bg-muted/20 transition-colors`}>
+                  <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-muted-foreground text-xs">
                     {fmtDate(row.serviceDate)}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{row.customerName}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                  <td className="px-3 py-2.5">
+                    <div className="font-medium text-sm leading-tight">{row.customerName}</div>
+                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                       <span className="text-xs text-muted-foreground">{row.serviceType}</span>
-                      <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 text-muted-foreground tabular-nums">
-                        {row.serviceTypeShare}% pool
+                      <span className="text-[10px] bg-muted rounded px-1.5 py-px text-muted-foreground tabular-nums">
+                        {row.serviceTypeShare}%
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {row.boats.length > 0 ? row.boats.join(', ') : <span className="text-muted-foreground/50">—</span>}
+                  <td className="px-3 py-2.5 text-muted-foreground text-xs">
+                    {row.boats.length > 0 ? row.boats.join(', ') : <span className="text-muted-foreground/40">—</span>}
                   </td>
 
-                  {/* People & splits — the core column */}
-                  <td className="px-4 py-3 min-w-[280px]">
+                  {/* People & splits — widest column */}
+                  <td className="px-3 py-2.5 min-w-[320px]">
                     {(() => {
-                      const rowAdded = addedUsers[row.serviceId] ?? []
-                      const allCount = row.assignments.length + rowAdded.length
+                      const assignedNames = new Set(row.assignments.map((a) => a.displayName))
+                      const rowAdded = (addedUsers[row.serviceId] ?? []).filter(
+                        (u) => !assignedNames.has(u.displayName)
+                      )
                       const alreadyInRow = new Set([
                         ...row.assignments.map((a) => a.userId),
                         ...rowAdded.map((u) => u.userId),
@@ -407,11 +534,9 @@ function PeriodReview({
                         const isExcluded = excluded.has(userId)
                         const overrideVal = overrides[userId]
                         const compA = computed.find((x) => x.userId === userId)
-                        const activeCount = [...row.assignments, ...rowAdded]
-                          .filter((x) => !excluded.has(x.userId)).length
-                        const activeIdx = [...row.assignments, ...rowAdded]
-                          .filter((x) => !excluded.has(x.userId))
-                          .findIndex((x) => x.userId === userId)
+                        const activeList = [...row.assignments, ...rowAdded].filter((x) => !excluded.has(x.userId))
+                        const activeCount = activeList.length
+                        const activeIdx = activeList.findIndex((x) => x.userId === userId)
                         const defaultSplit = activeCount > 0
                           ? activeIdx === activeCount - 1
                             ? Math.floor(100 / activeCount) + (100 - Math.floor(100 / activeCount) * activeCount)
@@ -420,7 +545,6 @@ function PeriodReview({
 
                         return (
                           <div key={userId} className={`flex items-center gap-2 ${isExcluded ? 'opacity-40' : ''}`}>
-                            {/* Exclude / remove toggle */}
                             <button
                               type="button"
                               onClick={() => isAdded ? removeAddedUser(row.serviceId, userId) : toggleExclude(row.serviceId, userId)}
@@ -430,13 +554,11 @@ function PeriodReview({
                               {!isAdded && isExcluded ? '+' : '×'}
                             </button>
 
-                            {/* Name */}
-                            <span className={`text-sm font-medium w-32 truncate ${isExcluded ? 'line-through' : ''}`}>
+                            <span className={`text-sm font-medium w-28 truncate flex-shrink-0 ${isExcluded ? 'line-through' : ''}`}>
                               {displayName}
                               {isAdded && <span className="text-[9px] text-muted-foreground ml-1 font-normal">added</span>}
                             </span>
 
-                            {/* Split input */}
                             {!isExcluded && (
                               <div className="flex items-center gap-1">
                                 <input
@@ -447,21 +569,20 @@ function PeriodReview({
                                   placeholder={String(defaultSplit)}
                                   value={overrideVal ?? ''}
                                   onChange={(e) => setSplitOverride(row.serviceId, userId, e.target.value)}
-                                  className="w-16 h-6 text-xs text-right border border-input rounded px-1.5 bg-background tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                                  className="w-14 h-6 text-xs text-right border border-input rounded px-1.5 bg-background tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
                                   title="Split %"
                                 />
                                 <span className="text-muted-foreground text-xs">%</span>
                                 {deductionPct > 0 && (
-                                  <span className="text-xs text-muted-foreground bg-muted rounded px-1 py-0.5">
+                                  <span className="text-xs text-muted-foreground bg-muted rounded px-1 py-px">
                                     −{deductionPct}%
                                   </span>
                                 )}
                               </div>
                             )}
 
-                            {/* Computed pay */}
                             {compA && (
-                              <span className="ml-auto text-sm font-medium tabular-nums text-right min-w-[56px]">
+                              <span className="ml-auto text-sm font-medium tabular-nums text-right min-w-[52px]">
                                 {fmt(compA.computedNetPay)}
                                 {tipPerPerson > 0 && (
                                   <span className="text-xs text-muted-foreground font-normal ml-1">
@@ -475,8 +596,8 @@ function PeriodReview({
                       }
 
                       return (
-                        <div className="space-y-2">
-                          {allCount === 0 && rowAdded.length === 0 && (
+                        <div className="space-y-1.5">
+                          {row.assignments.length === 0 && rowAdded.length === 0 && (
                             <span className="text-muted-foreground text-xs">Unassigned</span>
                           )}
                           {row.assignments.map((a) =>
@@ -486,9 +607,8 @@ function PeriodReview({
                             renderPersonRow(u.userId, u.displayName, u.deductionPct, true)
                           )}
                           {!splitsValid && computed.length > 0 && (
-                            <p className="text-[10px] text-amber-600">⚠ splits don&apos;t add to 100%</p>
+                            <p className="text-[10px] text-amber-600">splits don&apos;t add to 100%</p>
                           )}
-                          {/* Add person selector */}
                           {isOwnerOrManager && availableToAdd.length > 0 && (
                             <select
                               value=""
@@ -506,17 +626,17 @@ function PeriodReview({
                     })()}
                   </td>
 
-                  <td className="px-4 py-3 text-right tabular-nums text-xs text-muted-foreground align-top pt-3.5">
+                  <td className="px-3 py-2.5 text-right tabular-nums text-xs text-muted-foreground align-top pt-3">
                     {fmt(row.employeePool)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-semibold align-top pt-3.5">
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold align-top pt-3 text-sm">
                     {fmt(rowTotal)}
                   </td>
-                  <td className="px-4 py-3 align-top pt-2.5">
+                  <td className="px-3 py-2.5 align-top pt-2">
                     {isOwnerOrManager ? (
                       <div className="flex justify-end">
                         <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs pointer-events-none">$</span>
                           <Input
                             type="number"
                             min="0"
@@ -527,7 +647,7 @@ function PeriodReview({
                               setTipInputs((p) => ({ ...p, [row.serviceId]: e.target.value }))
                             }
                             onBlur={() => handleTipSave(row.serviceId)}
-                            className="w-24 h-7 text-xs pl-5 pr-1"
+                            className="w-20 h-7 text-xs pl-5 pr-1 tabular-nums"
                             disabled={savingTip[row.serviceId]}
                           />
                         </div>
@@ -544,19 +664,19 @@ function PeriodReview({
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/40">
-              <td className="px-4 py-2.5 text-xs text-muted-foreground" colSpan={4}>
+              <td className="px-3 py-2 text-xs text-muted-foreground" colSpan={4}>
                 {rows.length} service{rows.length !== 1 ? 's' : ''}
                 {grandTips > 0 && (
                   <span className="ml-2 text-muted-foreground/60">+ {fmt(grandTips)} tips</span>
                 )}
               </td>
-              <td className="px-4 py-2.5 text-right text-xs text-muted-foreground tabular-nums">
+              <td className="px-3 py-2 text-right text-xs text-muted-foreground tabular-nums">
                 {fmt(rows.reduce((s, r) => s + r.employeePool, 0))}
               </td>
-              <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
+              <td className="px-3 py-2 text-right font-semibold tabular-nums text-sm">
                 {fmt(grandTotal)}
               </td>
-              <td className="px-4 py-2.5 text-right">
+              <td className="px-3 py-2 text-right">
                 {isOwnerOrManager && isDirty && (
                   <button
                     onClick={handleSaveDraft}
@@ -572,22 +692,25 @@ function PeriodReview({
         </table>
       </div>
 
-      {/* Approve bar */}
+      {/* Sticky approve bar */}
       {isOwnerOrManager && (
-        <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+        <div className="sticky bottom-0 z-10 flex items-center justify-between rounded-lg border bg-card/95 backdrop-blur-sm px-4 py-3 shadow-md">
           <div>
-            <p className="text-sm font-medium">
-              {approval ? 'Payroll approved' : 'Approve payroll'}
-            </p>
             {approval ? (
-              <p className="text-xs text-green-700 mt-0.5">
-                Approved by <span className="font-medium">{approval.byName}</span> ·{' '}
-                {approval.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </p>
+              <>
+                <p className="text-sm font-medium text-green-800">Payroll approved</p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  By <span className="font-medium">{approval.byName}</span> ·{' '}
+                  {approval.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </>
             ) : (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Saves current splits and locks in pay for this period
-              </p>
+              <>
+                <p className="text-sm font-medium">Approve payroll</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Saves current splits and locks in pay for this period
+                </p>
+              </>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -614,90 +737,94 @@ function PeriodReview({
 
       {/* Per-employee breakdown */}
       {employees.length > 0 && (
-        <div>
-          <h2 className="text-base font-semibold mb-3">Per-employee breakdown</h2>
-          <div className="rounded-lg border bg-card p-4 flex flex-wrap items-end gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-foreground">Employee</label>
-              <select
-                value={selectedUserId}
-                onChange={(e) => { setSelectedUserId(e.target.value); setShowPerEmployee(false) }}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>{e.displayName}</option>
-                ))}
-              </select>
-            </div>
-            <Button onClick={() => setShowPerEmployee(true)}>Calculate</Button>
+        <div className="rounded-lg border bg-card">
+          <div className="px-4 py-3 border-b">
+            <h2 className="text-sm font-semibold">Per-employee breakdown</h2>
           </div>
-
-          {showPerEmployee && perEmpData && (
-            <div className="mt-4">
-              <p className="text-xs text-muted-foreground mb-3">
-                {selectedEmployee?.displayName} · {formatPeriodLabel(period)} · Payday {formatShortDate(period.payday)}
-              </p>
-              {perEmpData.services.length === 0 ? (
-                <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground text-sm">
-                  No completed services assigned to this employee in this period.
-                </div>
-              ) : (
-                <div className="rounded-lg border bg-card overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/40 text-xs">
-                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">Date</th>
-                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">Customer</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground">Revenue</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Type %</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground">Pool</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Split − Deduct</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Net Pay</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground">Tip</th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground font-semibold">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {perEmpData.services.map((s) => (
-                        <tr key={s.serviceId} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-2.5 tabular-nums whitespace-nowrap text-xs text-muted-foreground">
-                            {fmtDate(s.serviceDate)}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <div>{s.customerName}</div>
-                            <div className="text-xs text-muted-foreground">{s.serviceType}</div>
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">{fmt(s.totalPrice)}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">{s.serviceTypeShare}%</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{fmt(s.employeePool)}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-xs text-muted-foreground">
-                            {s.splitPct.toFixed(1)}%
-                            {s.deductionPct > 0 && (
-                              <span className="text-red-500 ml-0.5">−{s.deductionPct}%</span>
-                            )}
-                            <span className="ml-1 font-medium text-foreground">= {s.effectivePct.toFixed(1)}%</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums font-medium">{fmt(s.netPay)}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-xs">
-                            {s.tipShare > 0 ? fmt(s.tipShare) : '—'}
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{fmt(s.totalPay)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t bg-muted/40 font-semibold text-sm">
-                        <td className="px-4 py-2" colSpan={6}>Summary</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(perEmpData.summary.totalPay - perEmpData.summary.totalTips)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-xs">{fmt(perEmpData.summary.totalTips)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(perEmpData.summary.totalPay)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
+          <div className="p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Employee</label>
+                <select
+                  value={selectedUserId}
+                  onChange={(e) => { setSelectedUserId(e.target.value); setShowPerEmployee(false) }}
+                  className="h-8 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.displayName}</option>
+                  ))}
+                </select>
+              </div>
+              <Button size="sm" onClick={() => setShowPerEmployee(true)}>Calculate</Button>
             </div>
-          )}
+
+            {showPerEmployee && perEmpData && (
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground mb-3">
+                  {selectedEmployee?.displayName} · {formatPeriodLabel(period)} · Payday {formatShortDate(period.payday)}
+                </p>
+                {perEmpData.services.length === 0 ? (
+                  <div className="rounded-lg border bg-muted/20 p-6 text-center text-muted-foreground text-sm">
+                    No completed services assigned to this employee in this period.
+                  </div>
+                ) : (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-xs">
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">Date</th>
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">Customer</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Revenue</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Type %</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Pool</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Split − Deduct</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Net Pay</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Tip</th>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground font-semibold">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {perEmpData.services.map((s, idx) => (
+                          <tr key={s.serviceId} className={`hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? 'bg-muted/10' : ''}`}>
+                            <td className="px-3 py-2 tabular-nums whitespace-nowrap text-xs text-muted-foreground">
+                              {fmtDate(s.serviceDate)}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="text-sm">{s.customerName}</div>
+                              <div className="text-xs text-muted-foreground">{s.serviceType}</div>
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-sm">{fmt(s.totalPrice)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground text-xs">{s.serviceTypeShare}%</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground text-sm">{fmt(s.employeePool)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                              {s.splitPct.toFixed(1)}%
+                              {s.deductionPct > 0 && (
+                                <span className="text-red-500 ml-0.5">−{s.deductionPct}%</span>
+                              )}
+                              <span className="ml-1 font-medium text-foreground">= {s.effectivePct.toFixed(1)}%</span>
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium text-sm">{fmt(s.netPay)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                              {s.tipShare > 0 ? fmt(s.tipShare) : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-semibold text-sm">{fmt(s.totalPay)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t bg-muted/40 font-semibold text-sm">
+                          <td className="px-3 py-2" colSpan={6}>Summary</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(perEmpData.summary.totalPay - perEmpData.summary.totalTips)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{fmt(perEmpData.summary.totalTips)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(perEmpData.summary.totalPay)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -716,6 +843,7 @@ export function PayClient({
   isOwner: boolean
 }) {
   const [period, setPeriod] = useState<PayPeriod>(getCurrentPeriod)
+  const [salariedLines, setSalariedLines] = useState<SalariedLine[]>([])
 
   const [tierEdits, setTierEdits] = useState<Record<string, string>>(
     Object.fromEntries(tierRows.map((r) => [r.tier, r.deductionPct]))
@@ -723,10 +851,22 @@ export function PayClient({
   const [tierPending, startTierTransition] = useTransition()
   const [tierSaved, setTierSaved] = useState(false)
 
-  const [employeeTierEdits, setEmployeeTierEdits] = useState<Record<string, string>>(
-    Object.fromEntries(employees.map((e) => [e.id, e.tier ?? '']))
-  )
-  const [empTierPending, startEmpTierTransition] = useTransition()
+  // Load salaried lines when period changes
+  useEffect(() => {
+    let cancelled = false
+    async function loadSalaried() {
+      try {
+        const mod = await import('./salaried-actions')
+        const lines = await mod.getSalariedLinesForPeriod(period.startStr, period.endStr)
+        if (!cancelled) setSalariedLines(lines)
+      } catch {
+        // salaried-actions not yet available — show empty
+        if (!cancelled) setSalariedLines([])
+      }
+    }
+    loadSalaried()
+    return () => { cancelled = true }
+  }, [period.startStr, period.endStr])
 
   function prevPeriod() { setPeriod((p) => getPeriodByIndex(Math.max(0, p.index - 1))) }
   function nextPeriod() { setPeriod((p) => getPeriodByIndex(p.index + 1)) }
@@ -742,54 +882,64 @@ export function PayClient({
     })
   }
 
-  function saveEmployeeTier(userId: string) {
-    startEmpTierTransition(async () => {
-      const tier = employeeTierEdits[userId] as 'top' | 'mid' | 'low' | null
-      await updateEmployeeTier(userId, tier || null)
-    })
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Period navigator */}
-      <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={prevPeriod} disabled={period.index === 0}>←</Button>
-          <div className="flex-1 text-center">
-            <div className="text-xs font-medium text-muted-foreground">Pay period</div>
-            <div className="text-base font-semibold">{formatPeriodLabel(period)}</div>
+    <div className="space-y-6">
+      {/* Period navigator — full-width prominent card */}
+      <div className="rounded-lg border bg-card">
+        <div className="flex items-center gap-4 px-5 py-4">
+          <Button variant="outline" size="sm" onClick={prevPeriod} disabled={period.index === 0} className="w-9 h-9 p-0 flex-shrink-0">
+            ←
+          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-muted-foreground mb-0.5">Pay period</p>
+            <p className="text-xl font-semibold tracking-tight leading-tight">{formatPeriodLabel(period)}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={nextPeriod}>→</Button>
+          <Button variant="outline" size="sm" onClick={nextPeriod} className="w-9 h-9 p-0 flex-shrink-0">
+            →
+          </Button>
         </div>
-        <div className="flex justify-center gap-6 text-xs text-muted-foreground border-t pt-3">
-          <span>
-            <span className="font-medium text-foreground">Payroll deadline:</span>{' '}
-            {formatShortDate(period.deadline)}
+        <div className="flex items-center gap-3 px-5 py-2.5 border-t bg-muted/20">
+          <span className="inline-flex items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">Payroll deadline</span>
+            <span className="font-medium rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
+              {formatShortDate(period.deadline)}
+            </span>
           </span>
-          <span>
-            <span className="font-medium text-foreground">Payday:</span>{' '}
-            {formatShortDate(period.payday)}
+          <span className="text-muted-foreground/30">·</span>
+          <span className="inline-flex items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">Payday</span>
+            <span className="font-medium rounded-full bg-green-100 text-green-800 px-2 py-0.5">
+              {formatShortDate(period.payday)}
+            </span>
           </span>
         </div>
       </div>
 
-      {/* Period review + per-employee (unified, share state) */}
+      {/* Salaried automations */}
+      <SalariedSection lines={salariedLines} />
+
+      {/* Pay review */}
       <div>
-        <h2 className="text-base font-semibold mb-3">Pay review</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pay review</h2>
         <PeriodReview
           key={period.startStr}
           period={period}
           employees={employees}
           tierRows={tierRows}
           isOwnerOrManager={isOwner || true}
+          salariedLines={salariedLines}
         />
       </div>
 
-      {/* Tier settings — owner only */}
+      {/* Tier settings — owner only, collapsible */}
       {isOwner && (
-        <div>
-          <h2 className="text-base font-semibold mb-3">Tier deduction settings</h2>
-          <div className="rounded-lg border bg-card p-4 space-y-3">
+        <details className="group rounded-lg border bg-card">
+          <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium list-none hover:bg-muted/20 transition-colors rounded-lg">
+            <span>Tier deduction settings</span>
+            <span className="text-muted-foreground text-xs group-open:hidden">Show</span>
+            <span className="text-muted-foreground text-xs hidden group-open:inline">Hide</span>
+          </summary>
+          <div className="px-4 pb-4 pt-1 border-t space-y-3">
             <p className="text-xs text-muted-foreground">
               Tier deductions are taken from each employee&apos;s base pay after the service-type pool share is applied.
             </p>
@@ -804,7 +954,7 @@ export function PayClient({
                     className="w-24 pr-7"
                     disabled={tierPending}
                   />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">%</span>
                 </div>
               </div>
             ))}
@@ -812,37 +962,7 @@ export function PayClient({
               {tierPending ? 'Saving…' : tierSaved ? 'Saved!' : 'Save tier config'}
             </Button>
           </div>
-        </div>
-      )}
-
-      {/* Employee tier assignments — owner only */}
-      {isOwner && employees.length > 0 && (
-        <div>
-          <h2 className="text-base font-semibold mb-3">Employee tiers</h2>
-          <div className="rounded-lg border bg-card divide-y">
-            {employees.map((emp) => (
-              <div key={emp.id} className="flex items-center justify-between px-4 py-3 gap-4">
-                <span className="text-sm font-medium">{emp.displayName}</span>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={employeeTierEdits[emp.id] ?? ''}
-                    onChange={(e) => setEmployeeTierEdits((p) => ({ ...p, [emp.id]: e.target.value }))}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                    disabled={empTierPending}
-                  >
-                    <option value="">No tier</option>
-                    <option value="top">Top</option>
-                    <option value="mid">Mid</option>
-                    <option value="low">Low</option>
-                  </select>
-                  <Button size="sm" variant="outline" onClick={() => saveEmployeeTier(emp.id)} disabled={empTierPending}>
-                    Save
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        </details>
       )}
     </div>
   )

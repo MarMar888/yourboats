@@ -9,6 +9,7 @@ import {
   timestamp,
   date,
   primaryKey,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -372,6 +373,47 @@ export const payrollRelations = relations(payroll, ({ one }) => ({
   invoice: one(invoices, { fields: [payroll.invoiceId], references: [invoices.id] }),
 }))
 
+// ─── Salaried automations ─────────────────────────────────────────────────────
+
+// Rules define a repeating salary/bonus line for a specific employee.
+// One row per rule (e.g. "Nate GM salary" or "Nate quality bonus").
+export const salariedRules = pgTable('salaried_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull(),
+  displayName: text('display_name').notNull(),            // snapshot at rule creation
+  type: text('type').notNull(),                            // 'gm_salary' | 'quality_bonus'
+  amountPerWeek: numeric('amount_per_week', { precision: 10, scale: 2 }), // for gm_salary
+  amountFlat: numeric('amount_flat',   { precision: 10, scale: 2 }),      // for quality_bonus
+  effectiveFrom: date('effective_from').notNull(),
+  effectiveTo:   date('effective_to').notNull(),
+  requiresApproval: boolean('requires_approval').notNull().default(false),
+  active: boolean('active').notNull().default(true),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+// One row per rule per pay period — auto-generated when the period is loaded.
+// GM salary is auto-approved; quality bonus starts as 'pending' awaiting Marley.
+export const salariedPayroll = pgTable('salaried_payroll', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ruleId: uuid('rule_id').notNull().references(() => salariedRules.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  displayName: text('display_name').notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  type: text('type').notNull(),                    // 'gm_salary' | 'quality_bonus'
+  amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+  status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'denied' | 'ineligible'
+  ineligibleReason: text('ineligible_reason'),
+  notes: text('notes'),
+  approvedByUserId: text('approved_by_user_id'),
+  approvedByName: text('approved_by_name'),
+  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salaried_payroll_rule_period_uniq').on(t.ruleId, t.periodStart),
+])
+
 export const recurringSchedulesRelations = relations(recurringSchedules, ({ one, many }) => ({
   customer: one(customers, {
     fields: [recurringSchedules.customerId],
@@ -379,6 +421,20 @@ export const recurringSchedulesRelations = relations(recurringSchedules, ({ one,
   }),
   services: many(services),
 }))
+
+// ─── Calendar events ──────────────────────────────────────────────────────────
+
+// Custom events added to the calendar (not tied to services/customers).
+export const calendarEvents = pgTable('calendar_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  eventDate: date('event_date').notNull(),
+  endDate: date('end_date'),          // optional multi-day end
+  color: text('color').notNull().default('blue'), // 'blue' | 'green' | 'red' | 'yellow' | 'purple'
+  notes: text('notes'),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -397,6 +453,10 @@ export type NewInvoice = typeof invoices.$inferInsert
 export type Complaint = typeof complaints.$inferSelect
 export type NewComplaint = typeof complaints.$inferInsert
 export type CustomerReminderContact = typeof customerReminderContacts.$inferSelect
+export type SalariedRule = typeof salariedRules.$inferSelect
+export type NewSalariedRule = typeof salariedRules.$inferInsert
+export type SalariedPayroll = typeof salariedPayroll.$inferSelect
+export type NewSalariedPayroll = typeof salariedPayroll.$inferInsert
 export type NewCustomerReminderContact = typeof customerReminderContacts.$inferInsert
 export type QboItem = typeof qboItems.$inferSelect
 export type NewQboItem = typeof qboItems.$inferInsert

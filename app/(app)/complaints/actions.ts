@@ -1,12 +1,13 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { complaints } from '@/lib/db/schema'
+import { complaints, customers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { emailTransport } from '@/lib/email/client'
 
 // ─── Log complaint ─────────────────────────────────────────────────────────────
 
@@ -50,6 +51,30 @@ export async function logComplaint(formData: FormData): Promise<LogComplaintResu
       entityId: complaint.id,
       metadata: { serviceId, customerId, severity },
     })
+
+    // Send email notification — non-fatal
+    try {
+      const [customerRow] = await db
+        .select({ name: customers.name })
+        .from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1)
+      const customerName = customerRow?.name ?? customerId
+      await emailTransport.sendMail({
+        from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
+        to: 'marley@squeakycleanboats.com',
+        subject: `⚠ New ${severity} complaint — ${customerName}`,
+        text: [
+          `Severity: ${severity}`,
+          `Description: ${description}`,
+          `Service ID: ${serviceId}`,
+          ``,
+          `View all complaints: ${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.squeakycleanboats.com'}/complaints`,
+        ].join('\n'),
+      })
+    } catch (emailErr) {
+      console.error('Failed to send complaint email notification:', emailErr)
+    }
 
     revalidatePath('/complaints')
     revalidatePath(`/schedule/${serviceId}`)

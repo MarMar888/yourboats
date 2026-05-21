@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { db } from '@/lib/db'
-import { services as servicesTable, customers } from '@/lib/db/schema'
-import { eq, asc, and, gte, lte } from 'drizzle-orm'
+import { services as servicesTable, customers, calendarEvents } from '@/lib/db/schema'
+import { eq, asc, and, gte, lte, or } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { cn } from '@/lib/utils'
 import { todayET } from '@/lib/date'
+import { AddEventButton, DeleteEventButton } from './add-event-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,25 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   const currentMonthParam = toMonthParam(year, month)
   const todayMonthParam = (() => { const [ty, tm] = todayET().split('-').map(Number); return toMonthParam(ty, tm - 1) })()
 
-  // ── Query services in month ────────────────────────────────────────────────
+  // ── Query services + calendar events in month ─────────────────────────────
+  const eventRows = await db
+    .select()
+    .from(calendarEvents)
+    .where(
+      and(
+        lte(calendarEvents.eventDate, monthEndStr),
+        or(
+          gte(calendarEvents.eventDate, monthStartStr),
+          and(
+            // multi-day events that started before month but end inside it
+            lte(calendarEvents.eventDate, monthEndStr),
+            gte(calendarEvents.endDate, monthStartStr)
+          )
+        )
+      )
+    )
+    .orderBy(asc(calendarEvents.eventDate))
+
   const serviceRows = await db
     .select({
       id: servicesTable.id,
@@ -88,6 +107,24 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   for (const svc of serviceRows) {
     if (!byDate[svc.serviceDate]) byDate[svc.serviceDate] = []
     byDate[svc.serviceDate].push(svc)
+  }
+
+  // Index events by date (each event appears on every day it spans)
+  const eventsByDate: Record<string, typeof eventRows> = {}
+  for (const ev of eventRows) {
+    const start = ev.eventDate
+    const end = ev.endDate ?? ev.eventDate
+    // Walk each day in the span and attach the event
+    let cur = new Date(start + 'T12:00:00Z')
+    const endMs = new Date(end + 'T12:00:00Z').getTime()
+    while (cur.getTime() <= endMs) {
+      const ds = cur.toISOString().slice(0, 10)
+      if (ds >= monthStartStr && ds <= monthEndStr) {
+        if (!eventsByDate[ds]) eventsByDate[ds] = []
+        eventsByDate[ds].push(ev)
+      }
+      cur = new Date(cur.getTime() + 86_400_000)
+    }
   }
 
   // Days in month
@@ -121,17 +158,28 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     cancelled: 'bg-red-100 text-red-700 hover:bg-red-200 line-through opacity-60',
   }
 
+  const EVENT_COLOR: Record<string, string> = {
+    blue:   'bg-blue-100 text-blue-800',
+    green:  'bg-emerald-100 text-emerald-800',
+    red:    'bg-rose-100 text-rose-800',
+    yellow: 'bg-yellow-100 text-yellow-800',
+    purple: 'bg-purple-100 text-purple-800',
+  }
+
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-semibold">Schedule</h1>
-        <Link
-          href="/schedule"
-          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-        >
-          ← Week view
-        </Link>
+        <div className="flex items-center gap-3">
+          <AddEventButton />
+          <Link
+            href="/schedule"
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          >
+            ← Week view
+          </Link>
+        </div>
       </div>
 
       {/* Month navigation */}
@@ -177,38 +225,56 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         ))}
 
         {/* Day cells */}
-        {days.map((day) => (
-          <div
-            key={day.dateStr}
-            className={cn('bg-card min-h-[80px] p-1.5', day.isToday && 'bg-primary/5')}
-          >
-            <p
-              className={cn(
-                'text-xs font-medium mb-1',
-                day.isToday ? 'text-primary' : 'text-muted-foreground'
-              )}
+        {days.map((day) => {
+          const dayEvents = eventsByDate[day.dateStr] ?? []
+          return (
+            <div
+              key={day.dateStr}
+              className={cn('bg-card min-h-[80px] p-1.5', day.isToday && 'bg-primary/5')}
             >
-              {day.dayNum}
-            </p>
-            {day.services.map((svc) => (
-              <Link
-                key={svc.id}
-                href={`/schedule/${svc.id}`}
+              <p
                 className={cn(
-                  'block truncate text-xs px-1.5 py-0.5 rounded mb-0.5 transition-colors',
-                  STATUS_COLOR[svc.status] ?? 'bg-primary/10 text-primary hover:bg-primary/20'
+                  'text-xs font-medium mb-1',
+                  day.isToday ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
-                {svc.customerName}
-              </Link>
-            ))}
-          </div>
-        ))}
+                {day.dayNum}
+              </p>
+              {day.services.map((svc) => (
+                <Link
+                  key={svc.id}
+                  href={`/schedule/${svc.id}`}
+                  className={cn(
+                    'block truncate text-xs px-1.5 py-0.5 rounded mb-0.5 transition-colors',
+                    STATUS_COLOR[svc.status] ?? 'bg-primary/10 text-primary hover:bg-primary/20'
+                  )}
+                >
+                  {svc.customerName}
+                </Link>
+              ))}
+              {dayEvents.map((ev) => (
+                <div
+                  key={ev.id + day.dateStr}
+                  className={cn(
+                    'group flex items-center gap-0.5 truncate text-xs px-1.5 py-0.5 rounded mb-0.5',
+                    EVENT_COLOR[ev.color] ?? EVENT_COLOR.blue
+                  )}
+                >
+                  <span className="truncate flex-1">{ev.title}</span>
+                  {/* Only show delete on first day of multi-day event */}
+                  {ev.eventDate === day.dateStr && (
+                    <DeleteEventButton id={ev.id} />
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        })}
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-4">
-        <span className="text-xs text-muted-foreground">Status:</span>
+      <div className="flex flex-wrap items-center gap-4 mt-4">
+        <span className="text-xs text-muted-foreground">Jobs:</span>
         <span className="inline-flex items-center gap-1 text-xs">
           <span className="w-2.5 h-2.5 rounded-sm bg-primary/10 inline-block" />
           Scheduled
@@ -220,6 +286,11 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         <span className="inline-flex items-center gap-1 text-xs">
           <span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" />
           Cancelled
+        </span>
+        <span className="text-xs text-muted-foreground ml-2">Events:</span>
+        <span className="inline-flex items-center gap-1 text-xs">
+          <span className="w-2.5 h-2.5 rounded-sm bg-blue-100 inline-block" />
+          Custom event
         </span>
       </div>
     </div>
