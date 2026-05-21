@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { EditInvoiceForm } from './edit-invoice-form'
 import { InvoiceActionsButton } from './invoice-actions-button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
+import { deleteInvoice } from './actions'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -62,11 +63,9 @@ export type InvoiceRowData = {
 export function InvoiceRow({
   inv,
   qboItemOptions,
-  deleteAction,
 }: {
   inv: InvoiceRowData
   qboItemOptions: { qboItemId: string; name: string }[]
-  deleteAction: () => Promise<{ ok: boolean; error?: string } | void>
 }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -93,7 +92,7 @@ export function InvoiceRow({
               />
               {inv.canManage && (
                 <ConfirmDeleteButton
-                  action={deleteAction}
+                  action={deleteInvoice.bind(null, inv.invoiceId)}
                   title="Delete invoice"
                   description={`Delete the draft invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
                 />
@@ -128,7 +127,7 @@ export function InvoiceRow({
             <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
               {inv.canManage && (
                 <ConfirmDeleteButton
-                  action={deleteAction}
+                  action={deleteInvoice.bind(null, inv.invoiceId)}
                   title="Delete invoice"
                   description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
                 />
@@ -241,7 +240,7 @@ export function InvoiceRow({
                 {inv.canManage && (
                   <div className="ml-auto flex items-center gap-2">
                     <ConfirmDeleteButton
-                      action={async () => { await deleteAction(); setOpen(false) }}
+                      action={async () => { await deleteInvoice(inv.invoiceId); setOpen(false) }}
                       title="Delete invoice"
                       description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
                     />

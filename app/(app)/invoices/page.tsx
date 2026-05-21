@@ -2,7 +2,6 @@ import { db } from '@/lib/db'
 import { services, customers, invoices } from '@/lib/db/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
-import { deleteInvoice } from './actions'
 import { getCachedQboItems } from '@/lib/qbo/items'
 import { InvoiceRow } from './invoice-row'
 
@@ -114,7 +113,6 @@ export default async function InvoicesPage() {
                       qboEnv,
                     }}
                     qboItemOptions={qboItemOptions}
-                    deleteAction={deleteInvoice.bind(null, inv.invoiceId)}
                   />
                 ))}
               </tbody>
@@ -171,7 +169,6 @@ export default async function InvoicesPage() {
                       qboEnv,
                     }}
                     qboItemOptions={qboItemOptions}
-                    deleteAction={deleteInvoice.bind(null, inv.invoiceId)}
                   />
                 ))}
               </tbody>
