@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { services, customers, invoices } from '@/lib/db/schema'
-import { eq, desc, and } from 'drizzle-orm'
+import { eq, desc, and, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { getCachedQboItems } from '@/lib/qbo/items'
 import { InvoiceRow } from './invoice-row'
@@ -39,29 +39,39 @@ export default async function InvoicesPage() {
     .where(and(eq(invoices.status, 'draft'), eq(services.status, 'complete')))
     .orderBy(desc(invoices.createdAt))
 
-  // Sent / paid / overdue / void
+  const invoiceSelect = {
+    invoiceId:     invoices.id,
+    qboInvoiceId:  invoices.qboInvoiceId,
+    docNumber:     invoices.docNumber,
+    amount:        invoices.amount,
+    notes:         invoices.notes,
+    status:        invoices.status,
+    sentAt:        invoices.sentAt,
+    paidAt:        invoices.paidAt,
+    serviceDate:   services.serviceDate,
+    serviceStatus: services.status,
+    serviceId:     services.id,
+    customerName:  customers.name,
+    customerId:    customers.id,
+  }
+
+  // Sent / overdue / void (not yet paid)
   const sent = await db
-    .select({
-      invoiceId:     invoices.id,
-      qboInvoiceId:  invoices.qboInvoiceId,
-      docNumber:     invoices.docNumber,
-      amount:        invoices.amount,
-      notes:         invoices.notes,
-      status:        invoices.status,
-      sentAt:        invoices.sentAt,
-      paidAt:        invoices.paidAt,
-      serviceDate:   services.serviceDate,
-      serviceStatus: services.status,
-      serviceId:     services.id,
-      customerName:  customers.name,
-      customerId:    customers.id,
-    })
+    .select(invoiceSelect)
     .from(invoices)
     .innerJoin(services, eq(invoices.serviceId, services.id))
     .innerJoin(customers, eq(services.customerId, customers.id))
-    .where(and(eq(services.status, 'complete')))
+    .where(and(eq(services.status, 'complete'), inArray(invoices.status, ['sent', 'overdue', 'void'])))
     .orderBy(desc(invoices.createdAt))
-    .then((rows) => rows.filter((r) => r.status !== 'draft'))
+
+  // Paid
+  const paid = await db
+    .select(invoiceSelect)
+    .from(invoices)
+    .innerJoin(services, eq(invoices.serviceId, services.id))
+    .innerJoin(customers, eq(services.customerId, customers.id))
+    .where(and(eq(services.status, 'complete'), eq(invoices.status, 'paid')))
+    .orderBy(desc(invoices.paidAt))
 
   return (
     <div>
@@ -121,8 +131,8 @@ export default async function InvoicesPage() {
         )}
       </section>
 
-      {/* ── Sent / paid / void ── */}
-      <section>
+      {/* ── Sent / overdue / void ── */}
+      <section className="mb-10">
         <h2 className="text-lg font-medium mb-3">
           Sent
           {sent.length > 0 && (
@@ -151,23 +161,47 @@ export default async function InvoicesPage() {
                 {sent.map((inv) => (
                   <InvoiceRow
                     key={inv.invoiceId}
-                    inv={{
-                      invoiceId: inv.invoiceId,
-                      qboInvoiceId: inv.qboInvoiceId,
-                      docNumber: inv.docNumber,
-                      amount: inv.amount,
-                      notes: inv.notes,
-                      status: inv.status,
-                      sentAt: inv.sentAt,
-                      paidAt: inv.paidAt,
-                      serviceDate: inv.serviceDate,
-                      serviceStatus: inv.serviceStatus,
-                      serviceId: inv.serviceId,
-                      customerName: inv.customerName,
-                      customerId: inv.customerId,
-                      canManage,
-                      qboEnv,
-                    }}
+                    inv={{ ...inv, canManage, qboEnv }}
+                    qboItemOptions={qboItemOptions}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ── Paid ── */}
+      <section>
+        <h2 className="text-lg font-medium mb-3">
+          Paid
+          {paid.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">({paid.length})</span>
+          )}
+        </h2>
+
+        {paid.length === 0 ? (
+          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+            No paid invoices yet.
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Customer</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Service date</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Amount</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">QuickBooks</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {paid.map((inv) => (
+                  <InvoiceRow
+                    key={inv.invoiceId}
+                    inv={{ ...inv, canManage, qboEnv }}
                     qboItemOptions={qboItemOptions}
                   />
                 ))}
