@@ -323,6 +323,7 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
           err ? reject(err) : resolve(result)
         )
       )
+      console.log('[sendQboInvoice] full QBO response:', JSON.stringify(qboInvoice))
       invoiceUrl = qboInvoice?.InvoiceLink ?? ''
     } catch (err) {
       console.error('[sendQboInvoice] getInvoice failed:', err)
