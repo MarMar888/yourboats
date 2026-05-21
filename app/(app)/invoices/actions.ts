@@ -326,6 +326,7 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
           err ? reject(err) : resolve(result)
         )
       )
+      console.log('[sendQboInvoice] getInvoice response:', JSON.stringify(qboInvoice))
       invoiceUrl = qboInvoice?.InvoiceLink ?? ''
 
       if (!invoiceUrl) {
@@ -336,6 +337,7 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
             (err: unknown, result: any) => (err ? reject(err) : resolve(result))
           )
         )
+        console.log('[sendQboInvoice] updateInvoice response:', JSON.stringify(updated))
         invoiceUrl = updated?.InvoiceLink ?? ''
       }
     } catch (err) {
