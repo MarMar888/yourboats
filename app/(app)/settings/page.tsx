@@ -11,6 +11,7 @@ import ChangePasswordForm from './change-password-form'
 import InvoiceTestButton from './invoice-test-button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { QboSyncHealth } from './qbo-sync-health'
+import { ReconcileDocNumbersButton } from './reconcile-doc-numbers-button'
 
 export default async function SettingsPage({
   searchParams,
@@ -152,6 +153,21 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent>
               <SyncQboItemsButton />
+            </CardContent>
+          </Card>
+        )}
+
+        {connected && user.role === 'owner' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Reconcile invoice numbers</CardTitle>
+              <CardDescription>
+                Fetch the real invoice number from QuickBooks for every synced invoice and update
+                yourboats to match. Run this once to fix any numbers assigned before this was automated.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReconcileDocNumbersButton />
             </CardContent>
           </Card>
         )}
