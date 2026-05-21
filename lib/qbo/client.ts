@@ -53,7 +53,7 @@ export async function getQboClient(): Promise<InstanceType<typeof QuickBooks>> {
     tokens.realmId,
     useSandbox,
     false,
-    null,
+    '65',   // minorversion 37+ required for InvoiceLink
     '2.0',
     tokens.refreshToken
   )

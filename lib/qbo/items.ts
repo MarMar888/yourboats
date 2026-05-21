@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { qboItems, qboTokens } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, notInArray } from 'drizzle-orm'
 import { getQboClient } from './client'
 
 type QboApiItem = {
@@ -32,10 +32,15 @@ export async function syncQboItems(): Promise<{ synced: number } | { error: stri
           (err: unknown, result: any) => (err ? reject(err) : resolve(result))
         )
     )
-    items = (res.QueryResponse?.Item ?? []).filter((i) => i.Active !== false && i.Type !== 'Group')
+    // Exclude non-billable types: Category (folder/container) and Group (item bundles)
+    items = (res.QueryResponse?.Item ?? []).filter(
+      (i) => i.Active !== false && i.Type !== 'Group' && i.Type !== 'Category'
+    )
   } catch (err) {
     return { error: `Failed to fetch items from QuickBooks: ${err instanceof Error ? err.message : String(err)}` }
   }
+
+  const syncedIds = items.map((i) => i.Id)
 
   for (const item of items) {
     await db
@@ -56,6 +61,11 @@ export async function syncQboItems(): Promise<{ synced: number } | { error: stri
           syncedAt: new Date(),
         },
       })
+  }
+
+  // Purge any cached items that are no longer valid (e.g. previously synced Categories)
+  if (syncedIds.length > 0) {
+    await db.delete(qboItems).where(notInArray(qboItems.qboItemId, syncedIds))
   }
 
   return { synced: items.length }

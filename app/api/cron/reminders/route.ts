@@ -7,6 +7,7 @@ import {
   serviceReminderEmail,
   formatServiceType,
 } from '@/lib/email/templates/service-reminder'
+import { logSystem } from '@/lib/log'
 
 // Row returned by the tomorrow-services query
 interface TomorrowServiceRow {
@@ -89,6 +90,9 @@ export async function GET(req: NextRequest) {
   if (rows.length === 0) {
     const label = dateOverride ?? 'tomorrow'
     console.log(`[cron/reminders] No approved scheduled services on ${label} — nothing to send`)
+    if (!dryRun) {
+      await logSystem({ action: 'cron_reminders_run', metadata: { sent: 0, skipped: 0, errors: 0, targetDate: dateOverride ?? null } })
+    }
     return NextResponse.json({ sent: 0, skipped: 0, errors: [], dryRun, targetDate: dateOverride ?? null, preview: [] })
   }
 
@@ -188,11 +192,23 @@ export async function GET(req: NextRequest) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       console.error(`[cron/reminders] Failed to send to ${contacts.join(', ')}:`, message)
       errors.push(`${reminder.name}: ${message}`)
+      await logSystem({
+        action: 'cron_reminders_send_failed',
+        entityType: 'customer',
+        entityId: reminder.customerId,
+        metadata: { customerName: reminder.name, contacts: contacts.join(', ') },
+        error: message,
+      })
       skipped++
     }
   }
 
   console.log(`[cron/reminders] Done — sent: ${sent}, skipped: ${skipped}, errors: ${errors.length}`)
+  await logSystem({
+    action: 'cron_reminders_run',
+    metadata: { sent, skipped, errors: errors.length, targetDate: dateOverride ?? null },
+    ...(errors.length > 0 ? { error: errors.join('; ') } : {}),
+  })
   return NextResponse.json({ sent, skipped, errors, dryRun: false, targetDate: dateOverride ?? null })
 }
 

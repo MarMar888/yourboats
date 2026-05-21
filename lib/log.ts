@@ -11,17 +11,37 @@ type LogEntry = {
   error?: string
 }
 
+function appVersion(): string {
+  return process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? pkg.version ?? 'local'
+}
+
 export async function log(entry: LogEntry): Promise<void> {
   try {
     const user = await getCurrentUser()
-    const version = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? pkg.version ?? 'local'
-    const meta = { ...entry.metadata, _v: version }
+    const meta = { ...entry.metadata, _v: appVersion() }
     await db.insert(logs).values({
       userId: user?.id ?? null,
       action: entry.action,
       entityType: entry.entityType ?? null,
       entityId: entry.entityId ?? null,
-      metadata: meta ? JSON.stringify(meta) : JSON.stringify({ _v: version }),
+      metadata: JSON.stringify(meta),
+      error: entry.error ?? null,
+    })
+  } catch {
+    // Logging must never crash the caller
+  }
+}
+
+/** Log a system/cron-initiated event with no user context. */
+export async function logSystem(entry: LogEntry): Promise<void> {
+  try {
+    const meta = { ...entry.metadata, _v: appVersion() }
+    await db.insert(logs).values({
+      userId: null,
+      action: entry.action,
+      entityType: entry.entityType ?? null,
+      entityId: entry.entityId ?? null,
+      metadata: JSON.stringify(meta),
       error: entry.error ?? null,
     })
   } catch {

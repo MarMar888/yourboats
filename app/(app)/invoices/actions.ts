@@ -301,7 +301,8 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
 
   if (!svc) return { ok: false, error: 'Service not found.' }
 
-  // No primary email — fall back to sending the QBO invoice link to reminder contacts
+  // No primary email — fall back to sending the QBO invoice link to reminder contacts via Gmail
+  // (reminder contacts are often vtext addresses — plain text + link, no PDF attachment)
   if (!svc.email) {
     const reminderContacts = await db
       .select({ email: customerReminderContacts.email })
@@ -312,17 +313,19 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       return { ok: false, error: "Customer has no email address and no reminder contacts on file. Add one to their record and try again." }
     }
 
-    // Fetch the invoice from QBO to get the client-facing InvoiceLink
+    // Fetch the invoice from QBO to get the client-facing payment link (requires minorversion 37+)
     let invoiceUrl: string
     try {
       const qbo = await getQboClient()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const qboInvoice = await new Promise<any>((resolve, reject) =>
         qbo.getInvoice(inv.qboInvoiceId!, (err: unknown, result: any) =>
           err ? reject(err) : resolve(result)
         )
       )
-      invoiceUrl = qboInvoice?.InvoiceLink ?? qboInvoice?.invoice?.InvoiceLink ?? ''
-    } catch {
+      invoiceUrl = qboInvoice?.InvoiceLink ?? ''
+    } catch (err) {
+      console.error('[sendQboInvoice] getInvoice failed:', err)
       invoiceUrl = ''
     }
 
