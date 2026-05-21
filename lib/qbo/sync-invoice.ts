@@ -138,7 +138,7 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
       await log({ action: 'sync_invoice_to_qbo', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: inv.qboInvoiceId } })
     } else {
       // Create new QBO invoice
-      const created = await new Promise<{ Id: string }>((resolve, reject) =>
+      const created = await new Promise<{ Id: string; DocNumber?: string }>((resolve, reject) =>
         qbo.createInvoice(
           {
             CustomerRef: { value: service.qboCustomerId! },
@@ -153,7 +153,11 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
 
       await db
         .update(invoices)
-        .set({ qboInvoiceId: created.Id, lastSyncedAt: new Date() })
+        .set({
+          qboInvoiceId: created.Id,
+          docNumber: created.DocNumber ? parseInt(created.DocNumber, 10) : null,
+          lastSyncedAt: new Date(),
+        })
         .where(eq(invoices.id, invoiceId))
 
       await log({ action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id } })
