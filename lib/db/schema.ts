@@ -96,6 +96,7 @@ export const recurringSchedules = pgTable('recurring_schedules', {
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   active: boolean('active').notNull().default(true),
+  prepaid: boolean('prepaid').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
