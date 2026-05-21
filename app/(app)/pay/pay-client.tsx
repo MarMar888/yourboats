@@ -81,15 +81,30 @@ function PeriodReview({
 
       const payrollMap: Record<string, SavedPayrollRow> = {}
       const overrides: Record<string, Record<string, string>> = {}
+      const reconstructedAdded: Record<string, { userId: string; displayName: string; deductionPct: number }[]> = {}
+      const serviceRows = data.services as PeriodServiceRow[]
+
       for (const pr of payrollRows) {
         payrollMap[`${pr.serviceId}:${pr.userId}`] = pr
         if (!overrides[pr.serviceId]) overrides[pr.serviceId] = {}
         overrides[pr.serviceId][pr.userId] = pr.splitPct
+
+        // Reconstruct manually-added users: payroll rows whose userId isn't
+        // in the service's original assignments list were added via "+ Add person"
+        const svcRow = serviceRows.find((s) => s.serviceId === pr.serviceId)
+        if (svcRow && !svcRow.assignments.some((a) => a.userId === pr.userId)) {
+          if (!reconstructedAdded[pr.serviceId]) reconstructedAdded[pr.serviceId] = []
+          reconstructedAdded[pr.serviceId].push({
+            userId:       pr.userId,
+            displayName:  pr.displayName,
+            deductionPct: parseFloat(pr.deductionPct) || 0,
+          })
+        }
       }
       setSavedPayroll(payrollMap)
       setSplitOverrides(overrides)
       setExcludedUsers({})
-      setAddedUsers({})
+      setAddedUsers(reconstructedAdded)
 
       const approvedRow = payrollRows.find((r) => r.approvedAt && r.approvedByName)
       setApproval(approvedRow ? { at: approvedRow.approvedAt!, byName: approvedRow.approvedByName! } : null)
