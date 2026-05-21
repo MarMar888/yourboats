@@ -11,13 +11,15 @@ type Props = {
   initialAmount: string
   initialNotes: string | null
   initialStatus: string
+  initialDocNumber: number | null
   onClose: () => void
 }
 
-export function EditInvoiceForm({ invoiceId, initialAmount, initialNotes, initialStatus, onClose }: Props) {
+export function EditInvoiceForm({ invoiceId, initialAmount, initialNotes, initialStatus, initialDocNumber, onClose }: Props) {
   const [amount, setAmount] = useState(Number(initialAmount).toFixed(2))
   const [notes, setNotes] = useState(initialNotes ?? '')
   const [status, setStatus] = useState(initialStatus)
+  const [docNumber, setDocNumber] = useState(initialDocNumber ? String(initialDocNumber) : '')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -25,7 +27,7 @@ export function EditInvoiceForm({ invoiceId, initialAmount, initialNotes, initia
     e.preventDefault()
     setError('')
     startTransition(async () => {
-      const result = await updateInvoice(invoiceId, { amount, notes, status })
+      const result = await updateInvoice(invoiceId, { amount, notes, status, docNumber })
       if (result.ok) {
         onClose()
       } else {
@@ -51,6 +53,19 @@ export function EditInvoiceForm({ invoiceId, initialAmount, initialNotes, initia
             required
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="inv-doc-number">Invoice #</Label>
+        <Input
+          id="inv-doc-number"
+          type="number"
+          min="1"
+          step="1"
+          value={docNumber}
+          onChange={(e) => setDocNumber(e.target.value)}
+          placeholder="e.g. 1400"
+        />
       </div>
 
       <div className="space-y-1.5">

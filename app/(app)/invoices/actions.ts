@@ -5,6 +5,7 @@ import { services, customers, serviceBoats, boats, invoices, customerReminderCon
 import { eq } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
+import { getNextQboDocNumber } from '@/lib/qbo/doc-number'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
@@ -92,6 +93,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       serviceId:     invoices.serviceId,
       qboInvoiceId:  invoices.qboInvoiceId,
       amount:        invoices.amount,
+      docNumber:     invoices.docNumber,
     })
     .from(invoices)
     .where(eq(invoices.id, invoiceId))
@@ -183,10 +185,12 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       }
     })
 
+    const docNumber = inv.docNumber ? String(inv.docNumber) : await getNextQboDocNumber(qbo)
     const created = await new Promise<{ Id: string; DocNumber?: string }>(
       (resolve, reject) =>
         qbo.createInvoice(
           {
+            DocNumber: docNumber,
             CustomerRef: { value: service.qboCustomerId! },
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
@@ -244,10 +248,15 @@ export async function getQboItemsForSelect(): Promise<{ qboItemId: string; name:
 
 export async function updateInvoice(
   invoiceId: string,
-  { amount, notes, status }: { amount: string; notes: string; status: string }
+  { amount, notes, status, docNumber }: { amount: string; notes: string; status: string; docNumber?: string }
 ): Promise<ActionResult> {
   const parsed = Number(amount)
   if (isNaN(parsed) || parsed < 0) return { ok: false, error: 'Invalid amount.' }
+
+  const parsedDocNumber = docNumber && docNumber.trim() !== '' ? parseInt(docNumber, 10) : undefined
+  if (parsedDocNumber !== undefined && (isNaN(parsedDocNumber) || parsedDocNumber <= 0)) {
+    return { ok: false, error: 'Invoice number must be a positive number.' }
+  }
 
   await db
     .update(invoices)
@@ -256,10 +265,11 @@ export async function updateInvoice(
       notes: notes || null,
       status: status as never,
       qboNeedsSync: true,
+      ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
     })
     .where(eq(invoices.id, invoiceId))
 
-  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount, status } })
+  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount, status, docNumber: parsedDocNumber } })
   revalidatePath('/invoices')
   return { ok: true }
 }

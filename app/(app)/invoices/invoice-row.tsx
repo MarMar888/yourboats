@@ -150,6 +150,7 @@ export function InvoiceRow({
                 initialAmount={inv.amount}
                 initialNotes={inv.notes}
                 initialStatus={inv.status}
+                initialDocNumber={inv.docNumber}
                 onClose={() => { setEditing(false); setOpen(false) }}
               />
             </div>
