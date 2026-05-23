@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
-import { saveTip, updateTierConfig } from './actions'
+import { saveTip, updateTierConfig, getLaborEntriesForPeriod } from './actions'
+import type { LaborTimeEntry } from './actions'
 import { savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod } from './payroll-actions'
 import type { SavedPayrollRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
@@ -869,6 +870,221 @@ function PeriodReview({
   )
 }
 
+// ─── Labor Analytics ─────────────────────────────────────────────────────────
+
+type BoatLaborStat = {
+  boatId: string
+  boatNickname: string
+  totalHours: number
+  attributedPay: number
+  serviceCount: number
+}
+
+function LaborAnalytics({ period }: { period: PayPeriod }) {
+  const [loading, setLoading] = useState(true)
+  const [boatStats, setBoatStats] = useState<BoatLaborStat[]>([])
+  const [totalHours, setTotalHours] = useState(0)
+  const [totalPay, setTotalPay] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const [laborEntries, periodRes, payrollRows] = await Promise.all([
+          getLaborEntriesForPeriod(period.startStr, period.endStr),
+          fetch(`/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`),
+          getPayrollForPeriod(period.startStr, period.endStr),
+        ])
+        if (cancelled) return
+
+        const rows: PeriodServiceRow[] = (await periodRes.json()).services ?? []
+
+        // Build saved payroll map keyed by "serviceId:userId" → totalPay
+        const savedMap: Record<string, number> = {}
+        for (const pr of payrollRows) {
+          savedMap[`${pr.serviceId}:${pr.userId}`] = parseFloat(pr.totalPay) || 0
+        }
+
+        // Working map keyed by boatId during computation
+        const boatWork: Record<string, {
+          boatNickname: string
+          totalHours: number
+          attributedPay: number
+          serviceIds: Set<string>
+        }> = {}
+
+        for (const row of rows) {
+          // Only process services where someone clocked time
+          const svcEntries = laborEntries.filter((e) => e.serviceId === row.serviceId)
+          if (svcEntries.length === 0) continue
+
+          // Group time entries: userId → boatId → hours
+          const byUser: Record<string, Record<string, number>> = {}
+          for (const e of svcEntries) {
+            if (!byUser[e.userId]) byUser[e.userId] = {}
+            byUser[e.userId][e.boatId] = (byUser[e.userId][e.boatId] ?? 0) + e.hours
+          }
+
+          for (const [userId, boatHours] of Object.entries(byUser)) {
+            const totalUserHours = Object.values(boatHours).reduce((s, h) => s + h, 0)
+            if (totalUserHours === 0) continue
+
+            // Resolve pay: prefer saved payroll, fall back to default-split computed pay
+            const savedKey = `${row.serviceId}:${userId}`
+            let empPay: number
+            if (savedMap[savedKey] !== undefined) {
+              empPay = savedMap[savedKey]
+            } else {
+              const a = row.assignments.find((x) => x.userId === userId)
+              if (!a) continue
+              const tipNum = row.tipAmount ?? 0
+              const tipShare = row.assignments.length > 0 ? tipNum / row.assignments.length : 0
+              empPay = a.netPay + tipShare
+            }
+
+            // Prorate pay across boats by hours fraction
+            for (const [boatId, hoursOnBoat] of Object.entries(boatHours)) {
+              const fraction = hoursOnBoat / totalUserHours
+              const attributed = empPay * fraction
+              const entry = svcEntries.find((e) => e.boatId === boatId)
+              const boatNickname = entry?.boatNickname ?? 'Unknown boat'
+
+              if (!boatWork[boatId]) {
+                boatWork[boatId] = { boatNickname, totalHours: 0, attributedPay: 0, serviceIds: new Set() }
+              }
+              boatWork[boatId].totalHours += hoursOnBoat
+              boatWork[boatId].attributedPay += attributed
+              boatWork[boatId].serviceIds.add(row.serviceId)
+            }
+          }
+        }
+
+        const stats: BoatLaborStat[] = Object.entries(boatWork)
+          .map(([boatId, d]) => ({
+            boatId,
+            boatNickname: d.boatNickname,
+            totalHours: d.totalHours,
+            attributedPay: d.attributedPay,
+            serviceCount: d.serviceIds.size,
+          }))
+          .sort((a, b) => {
+            const rateA = a.totalHours > 0 ? a.attributedPay / a.totalHours : 0
+            const rateB = b.totalHours > 0 ? b.attributedPay / b.totalHours : 0
+            return rateB - rateA
+          })
+
+        if (!cancelled) {
+          setBoatStats(stats)
+          setTotalHours(stats.reduce((s, b) => s + b.totalHours, 0))
+          setTotalPay(stats.reduce((s, b) => s + b.attributedPay, 0))
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [period.startStr, period.endStr])
+
+  const periodRate = totalHours > 0 ? totalPay / totalHours : 0
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    )
+  }
+
+  if (boatStats.length === 0) {
+    return (
+      <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
+        No clocked time found for this pay period.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Period summary */}
+      <div className="rounded-lg border bg-card grid grid-cols-3 divide-x">
+        <div className="px-5 py-4">
+          <p className="text-xs text-muted-foreground">Total hours clocked</p>
+          <p className="text-2xl font-semibold tabular-nums mt-1">
+            {totalHours.toFixed(1)}
+            <span className="text-sm font-normal text-muted-foreground ml-1">hrs</span>
+          </p>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-xs text-muted-foreground">Total employee pay</p>
+          <p className="text-2xl font-semibold tabular-nums mt-1">{fmt(totalPay)}</p>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-xs text-muted-foreground">Effective rate (period)</p>
+          <p className="text-2xl font-semibold tabular-nums mt-1">
+            {fmt(periodRate)}
+            <span className="text-sm font-normal text-muted-foreground ml-1">/hr</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Per-boat breakdown */}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b">
+          <h2 className="text-sm font-semibold">By boat</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Pay attributed to each boat based on each employee&apos;s fraction of time spent on it.
+            Boats without clocked time are excluded.
+          </p>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40 text-xs">
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Boat</th>
+              <th className="px-4 py-2 text-right font-medium text-muted-foreground">Services</th>
+              <th className="px-4 py-2 text-right font-medium text-muted-foreground">Hours</th>
+              <th className="px-4 py-2 text-right font-medium text-muted-foreground">Pay attributed</th>
+              <th className="px-4 py-2 text-right font-medium text-muted-foreground">Effective $/hr</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {boatStats.map((b, i) => {
+              const rate = b.totalHours > 0 ? b.attributedPay / b.totalHours : 0
+              return (
+                <tr key={b.boatId} className={`hover:bg-muted/20 transition-colors ${i % 2 === 1 ? 'bg-muted/10' : ''}`}>
+                  <td className="px-4 py-2.5 font-medium">{b.boatNickname}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
+                    {b.serviceCount}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {b.totalHours.toFixed(1)} hrs
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{fmt(b.attributedPay)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
+                    {fmt(rate)}/hr
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t bg-muted/40 text-sm font-semibold">
+              <td className="px-4 py-2 text-muted-foreground font-normal">
+                {boatStats.length} boat{boatStats.length !== 1 ? 's' : ''}
+              </td>
+              <td />
+              <td className="px-4 py-2 text-right tabular-nums">{totalHours.toFixed(1)} hrs</td>
+              <td className="px-4 py-2 text-right tabular-nums">{fmt(totalPay)}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{fmt(periodRate)}/hr</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 export function PayClient({
@@ -881,6 +1097,7 @@ export function PayClient({
   isOwner: boolean
 }) {
   const [period, setPeriod] = useState<PayPeriod>(getCurrentPeriod)
+  const [activeTab, setActiveTab] = useState<'pay-review' | 'labor-analytics'>('pay-review')
   const [salariedLines, setSalariedLines] = useState<SalariedLine[]>([])
 
   const [tierEdits, setTierEdits] = useState<Record<string, string>>(
@@ -953,21 +1170,44 @@ export function PayClient({
         </div>
       </div>
 
-      {/* Salaried automations */}
-      <SalariedSection lines={salariedLines} />
-
-      {/* Pay review */}
-      <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pay review</h2>
-        <PeriodReview
-          key={period.startStr}
-          period={period}
-          employees={employees}
-          tierRows={tierRows}
-          isOwnerOrManager={isOwner || true}
-          salariedLines={salariedLines}
-        />
+      {/* Tab switcher */}
+      <div className="flex gap-0 border-b -mb-2">
+        {(['pay-review', 'labor-analytics'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+            }`}
+          >
+            {tab === 'pay-review' ? 'Pay review' : 'Labor analytics'}
+          </button>
+        ))}
       </div>
+
+      {/* Tab content */}
+      {activeTab === 'pay-review' && (
+        <>
+          {/* Salaried automations */}
+          <SalariedSection lines={salariedLines} />
+
+          {/* Pay review */}
+          <PeriodReview
+            key={period.startStr}
+            period={period}
+            employees={employees}
+            tierRows={tierRows}
+            isOwnerOrManager={isOwner || true}
+            salariedLines={salariedLines}
+          />
+        </>
+      )}
+
+      {activeTab === 'labor-analytics' && (
+        <LaborAnalytics key={period.startStr} period={period} />
+      )}
 
       {/* Tier settings — owner only, collapsible */}
       {isOwner && (

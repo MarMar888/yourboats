@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { tierConfig, users, services } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { tierConfig, users, services, timeEntries, boats } from '@/lib/db/schema'
+import { and, eq, gte, lte, inArray, isNotNull } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export async function saveTip(serviceId: string, tipAmount: number): Promise<void> {
@@ -32,6 +32,70 @@ export async function updateTierConfig(
 
   revalidatePath('/pay')
   revalidatePath('/team')
+}
+
+// ─── Labor analytics ──────────────────────────────────────────────────────────
+
+export type LaborTimeEntry = {
+  serviceId: string
+  boatId: string
+  userId: string
+  hours: number
+  boatNickname: string
+  displayName: string
+}
+
+/**
+ * Return all completed, clocked-out time entries with a boat for services
+ * whose serviceDate falls within [startDate, endDate].
+ * Entries without a clockOut or without a boatId are excluded.
+ */
+export async function getLaborEntriesForPeriod(
+  startDate: string,
+  endDate: string
+): Promise<LaborTimeEntry[]> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return []
+
+  const svcRows = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(and(
+      gte(services.serviceDate, startDate),
+      lte(services.serviceDate, endDate),
+      eq(services.status, 'complete'),
+    ))
+
+  if (svcRows.length === 0) return []
+  const svcIds = svcRows.map((s) => s.id)
+
+  const entries = await db
+    .select({
+      serviceId:   timeEntries.serviceId,
+      boatId:      timeEntries.boatId,
+      userId:      timeEntries.userId,
+      clockIn:     timeEntries.clockIn,
+      clockOut:    timeEntries.clockOut,
+      boatNickname: boats.nickname,
+      displayName: users.displayName,
+    })
+    .from(timeEntries)
+    .leftJoin(boats, eq(timeEntries.boatId, boats.id))
+    .innerJoin(users, eq(timeEntries.userId, users.id))
+    .where(and(
+      inArray(timeEntries.serviceId, svcIds),
+      isNotNull(timeEntries.clockOut),
+      isNotNull(timeEntries.boatId),
+    ))
+
+  return entries.map((e) => ({
+    serviceId:    e.serviceId,
+    boatId:       e.boatId!,
+    userId:       e.userId,
+    hours:        (e.clockOut!.getTime() - e.clockIn.getTime()) / (1000 * 60 * 60),
+    boatNickname: e.boatNickname ?? 'Unknown boat',
+    displayName:  e.displayName,
+  }))
 }
 
 export async function updateEmployeeTier(
