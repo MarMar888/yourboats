@@ -8,13 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AddBoatButton from './customer-detail-client'
 import ReminderContacts from './reminder-contacts-client'
 import { CustomerNotesEditor } from './customer-notes-editor'
-import { BoatNotesEditor } from './boat-notes-editor'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import { deleteScheduledServices } from './service-actions'
 import { RecurringScheduleList } from './recurring-schedule-client'
 import type { RecurringScheduleRow } from './recurring-schedule-client'
 import { EditCustomerModal } from './edit-customer-modal'
+import { EditBoatModal } from './edit-boat-modal'
 import { SyncToQboButton } from './sync-to-qbo-button'
 import { todayET } from '@/lib/date'
 
@@ -321,16 +321,19 @@ export default async function CustomerDetailPage({
             {customerBoats.map((boat) => (
               <Card key={boat.id}>
                 <CardContent className="pt-4 pb-4 space-y-2">
-                  <p className="font-medium">{boat.nickname}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium">{boat.nickname}</p>
+                    {canManage && (
+                      <EditBoatModal boat={boat} customerId={id} />
+                    )}
+                  </div>
                   {boat.makeModel && (
                     <p className="text-sm text-muted-foreground">{boat.makeModel}</p>
                   )}
                   {boat.lengthFt && (
                     <p className="text-sm text-muted-foreground">{boat.lengthFt} ft</p>
                   )}
-                  {canManage ? (
-                    <BoatNotesEditor boatId={boat.id} customerId={id} notes={boat.notes} />
-                  ) : boat.notes ? (
+                  {boat.notes ? (
                     <p className="text-xs text-muted-foreground italic">{boat.notes}</p>
                   ) : null}
                 </CardContent>
