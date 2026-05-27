@@ -1,6 +1,6 @@
 'use server'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
@@ -11,9 +11,19 @@ type ActionResult = { error?: string }
 
 const AUTH_BASE = process.env.NEON_AUTH_BASE_URL!
 
-/** Forward the current session cookies to the Neon Auth admin API. */
+/** Derive the app origin from the incoming request so Better Auth accepts the request. */
+async function getOrigin(): Promise<string> {
+  const reqHeaders = await headers()
+  const origin = reqHeaders.get('origin')
+  if (origin) return origin
+  const host = reqHeaders.get('x-forwarded-host') ?? reqHeaders.get('host') ?? 'localhost:3000'
+  const proto = reqHeaders.get('x-forwarded-proto') ?? 'http'
+  return `${proto}://${host}`
+}
+
+/** Forward the current session cookies + origin to the Neon Auth admin API. */
 async function authAdminFetch(path: string, body: object): Promise<{ ok: boolean; data?: unknown; error?: string }> {
-  const store = await cookies()
+  const [store, origin] = await Promise.all([cookies(), getOrigin()])
   const cookieHeader = store.toString()
 
   const res = await fetch(`${AUTH_BASE}/${path}`, {
@@ -21,6 +31,7 @@ async function authAdminFetch(path: string, body: object): Promise<{ ok: boolean
     headers: {
       'Content-Type': 'application/json',
       cookie: cookieHeader,
+      origin,
     },
     body: JSON.stringify(body),
   })
@@ -116,14 +127,14 @@ export async function setTeamMemberPassword(
   if (!targetUser) return { error: 'User not found' }
 
   // Find the Better Auth user ID by email using GET /admin/list-users
-  const store = await cookies()
+  const [store, origin] = await Promise.all([cookies(), getOrigin()])
   const cookieHeader = store.toString()
 
   // Better Auth list-users only supports contains/starts_with/ends_with — no exact match.
   // Search by starts_with (full email) then verify exact match client-side.
   const listRes = await fetch(
     `${AUTH_BASE}/admin/list-users?searchField=email&searchValue=${encodeURIComponent(targetUser.email)}&searchOperator=starts_with`,
-    { headers: { cookie: cookieHeader } },
+    { headers: { cookie: cookieHeader, origin } },
   )
 
   if (!listRes.ok) {
