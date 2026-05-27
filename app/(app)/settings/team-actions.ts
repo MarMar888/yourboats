@@ -119,8 +119,10 @@ export async function setTeamMemberPassword(
   const store = await cookies()
   const cookieHeader = store.toString()
 
+  // Better Auth list-users only supports contains/starts_with/ends_with — no exact match.
+  // Search by starts_with (full email) then verify exact match client-side.
   const listRes = await fetch(
-    `${AUTH_BASE}/admin/list-users?searchField=email&searchValue=${encodeURIComponent(targetUser.email)}&searchOperator=eq`,
+    `${AUTH_BASE}/admin/list-users?searchField=email&searchValue=${encodeURIComponent(targetUser.email)}&searchOperator=starts_with`,
     { headers: { cookie: cookieHeader } },
   )
 
@@ -129,8 +131,8 @@ export async function setTeamMemberPassword(
     return { error: (payload as { message?: string }).message ?? `Could not find auth account (${listRes.status})` }
   }
 
-  const listData = await listRes.json() as { users?: Array<{ id: string }> }
-  const authUser = listData.users?.[0]
+  const listData = await listRes.json() as { users?: Array<{ id: string; email: string }> }
+  const authUser = (listData.users ?? []).find((u) => u.email === targetUser.email)
   if (!authUser) return { error: 'No auth account found for that email' }
 
   // Set the password
