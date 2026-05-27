@@ -230,7 +230,7 @@ export async function sendRemindersNow(serviceIds: string[]): Promise<{ sent: nu
   }
 
   // Fetch reminder contacts
-  const customerIds = [...new Set(svcRows.map((s) => s.customerId))]
+  const customerIds = Array.from(new Set(svcRows.map((s) => s.customerId)))
   const contacts = await db
     .select({ customerId: customerReminderContacts.customerId, email: customerReminderContacts.email })
     .from(customerReminderContacts)
