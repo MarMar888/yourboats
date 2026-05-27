@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import LogComplaintModal from '@/components/log-complaint-modal'
@@ -30,8 +29,8 @@ interface ScheduleCardProps {
   serviceId: string
   customerId: string
   customerName: string
-  serviceType: string   // display label
-  serviceDate: string   // YYYY-MM-DD
+  serviceType: string
+  serviceDate: string
   status: string
   totalPrice: string | null
   notes: string | null
@@ -47,7 +46,7 @@ interface ScheduleCardProps {
   onDelete: (serviceId: string) => void
 }
 
-// ─── Assignment chips ─────────────────────────────────────────────────────────
+// ─── Employee assignment chips ─────────────────────────────────────────────────
 
 function BoatChips({
   serviceId,
@@ -76,22 +75,23 @@ function BoatChips({
     <div className="flex flex-wrap gap-1.5">
       {employees.map((emp) => {
         const assigned = assignedIds.includes(emp.id)
+        const firstName = emp.displayName.split(' ')[0]
         return (
           <button
             key={emp.id}
             disabled={isPending}
             onClick={() => toggle(emp.id)}
             className={cn(
-              'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all duration-150 cursor-pointer',
+              'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium transition-all duration-100 cursor-pointer select-none',
               assigned
-                ? 'bg-foreground text-background border-transparent shadow-sm'
+                ? 'bg-foreground text-background'
                 : anyAssigned
-                  ? 'text-muted-foreground/40 border-border/30 hover:text-muted-foreground hover:border-border'
-                  : 'text-muted-foreground border-border hover:bg-accent hover:text-accent-foreground',
-              isPending && 'opacity-60 cursor-not-allowed'
+                  ? 'text-muted-foreground/40 bg-muted/40 hover:text-muted-foreground hover:bg-muted'
+                  : 'text-muted-foreground bg-muted hover:bg-muted/70',
+              isPending && 'opacity-50 cursor-not-allowed'
             )}
           >
-            {emp.displayName}
+            {firstName}
           </button>
         )
       })}
@@ -101,18 +101,11 @@ function BoatChips({
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-const STATUS_VARIANT: Record<string, 'default' | 'success' | 'secondary' | 'destructive'> = {
-  scheduled: 'secondary',
-  complete:  'success',
-  cancelled: 'destructive',
-}
-
 export default function ScheduleCard({
   serviceId,
   customerId,
   customerName,
   serviceType,
-  serviceDate,
   status,
   totalPrice,
   notes,
@@ -128,34 +121,47 @@ export default function ScheduleCard({
   onDelete,
 }: ScheduleCardProps) {
   const [complaintOpen, setComplaintOpen] = useState(false)
+  const isComplete = status === 'complete'
+  const isCancelled = status === 'cancelled'
 
   return (
     <div className={cn(
-      'relative flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden',
-      approvedAt && 'border-green-200'
+      'relative flex flex-col rounded-xl border bg-card overflow-hidden shadow-sm transition-shadow hover:shadow-md',
+      isComplete && 'border-emerald-200 bg-emerald-50/20',
+      isCancelled && 'border-red-200 opacity-70',
     )}>
+      {/* Status accent bar */}
+      <div className={cn(
+        'h-0.5 w-full',
+        isComplete  ? 'bg-emerald-400'
+        : isCancelled ? 'bg-red-300'
+        : reminderStatus !== 'none' ? 'bg-amber-300'
+        : 'bg-border'
+      )} />
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className={cn('px-4 pt-3.5 pb-2.5', approvedAt && 'bg-green-50/30')}>
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="px-4 pt-3 pb-2">
         <div className="flex items-start justify-between gap-2">
+          {/* Name + service type */}
           <div className="min-w-0 flex-1">
-            {/* Stretched link covers the whole card; interactive children sit above it with z-10 */}
             <Link
               href={`/schedule/${serviceId}`}
-              className="font-semibold text-[15px] leading-tight after:absolute after:inset-0"
+              className="font-semibold text-[15px] leading-snug hover:underline after:absolute after:inset-0"
             >
               {customerName}
             </Link>
-            <p className="text-xs text-muted-foreground mt-0.5">{serviceType}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 font-medium uppercase tracking-wide">
+              {serviceType}
+            </p>
           </div>
 
-          <div className="relative z-10 flex items-center gap-1.5 shrink-0 pt-0.5">
+          {/* Actions + status */}
+          <div className="relative z-10 flex items-center gap-1 shrink-0">
             {approvedAt && (
-              <span className="text-xs text-green-600 font-medium leading-none">✓</span>
+              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 rounded px-1.5 py-0.5">
+                ✓ Approved
+              </span>
             )}
-            <Badge variant={STATUS_VARIANT[status] ?? 'secondary'} className="capitalize text-xs">
-              {status}
-            </Badge>
             {isManager && (
               <ConfirmDeleteButton
                 action={async () => { onDelete(serviceId) }}
@@ -167,144 +173,131 @@ export default function ScheduleCard({
           </div>
         </div>
 
-        {/* Reminder tag */}
-        <div className="relative z-10 mt-2">
-          {reminderStatus === 'sent' ? (
+        {/* Reminder badge — only shown when active */}
+        {reminderStatus === 'sent' && (
+          <div className="mt-1.5">
             <span
-              className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5"
               title={reminderSentAt ? `Sent ${reminderSentAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : undefined}
             >
               ✉ Reminder sent
             </span>
-          ) : reminderStatus === 'scheduled' ? (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+          </div>
+        )}
+        {reminderStatus === 'scheduled' && (
+          <div className="mt-1.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
               ⏰ Reminder scheduled
             </span>
-          ) : status === 'scheduled' ? (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/60 border border-border/40 rounded-full px-2 py-0.5">
-              No reminder
-            </span>
-          ) : null}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Body ───────────────────────────────────────────────────────────── */}
-      <div className="relative z-10 px-4 py-3 space-y-2.5 flex-1">
+      {/* ── Body ────────────────────────────────────────────────────────────── */}
+      <div className="relative z-10 px-4 pb-3 space-y-2.5 flex-1">
         {/* Customer-level notes */}
         {customerNotes && (
-          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug">
-            {customerNotes}
-          </p>
+          <div className="flex gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1.5">
+            <span className="text-amber-500 text-xs mt-px shrink-0">⚠</span>
+            <p className="text-[11px] text-amber-800 leading-snug">{customerNotes}</p>
+          </div>
         )}
 
         {/* Service-level notes */}
         {notes && (
-          <p className="text-xs text-muted-foreground italic border-l-2 border-border pl-2">
+          <p className="text-[11px] text-muted-foreground italic leading-snug pl-2 border-l-2 border-muted">
             {notes}
           </p>
         )}
 
-        {boats.length > 0 && employees.length > 0 && (
-          <div className="space-y-2.5">
-            {boats.map((boat) => (
-              <div key={boat.boatId}>
-                {boats.length > 1 && (
-                  <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {boat.nickname}
-                  </p>
-                )}
-                {/* Boat-level notes */}
+        {/* Boats + assignments */}
+        {boats.length > 0 && (
+          <div className="space-y-3">
+            {boats.map((boat, idx) => (
+              <div key={boat.boatId} className={cn(boats.length > 1 && idx > 0 && 'pt-2 border-t border-border/50')}>
+                {/* Boat name header — always shown so users know which boat is which */}
+                <p className="text-[11px] font-semibold text-foreground/70 mb-1 uppercase tracking-wide">
+                  {boat.nickname}
+                </p>
+
+                {/* Boat notes */}
                 {boat.boatNotes && (
-                  <p className="text-xs text-muted-foreground italic border-l-2 border-border pl-2 mb-1.5">
+                  <p className="text-[11px] text-muted-foreground italic leading-snug mb-1.5">
                     {boat.boatNotes}
                   </p>
                 )}
-                {/* Service-boat notes */}
+
+                {/* Service-boat notes (per-visit instructions) */}
                 {boat.serviceBoatNotes && (
-                  <p className="text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded px-2 py-1 mb-1.5 leading-snug">
-                    {boat.serviceBoatNotes}
-                  </p>
+                  <div className="rounded-md bg-sky-50 border border-sky-100 px-2.5 py-1.5 mb-1.5">
+                    <p className="text-[11px] text-sky-800 leading-snug">{boat.serviceBoatNotes}</p>
+                  </div>
                 )}
-                {isManager ? (
-                  <BoatChips serviceId={serviceId} boat={boat} employees={employees} />
-                ) : (
-                  boat.assignedIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {boat.assignedIds.map((id) => {
-                        const emp = employees.find((e) => e.id === id)
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex items-center rounded-full border border-transparent bg-foreground/10 px-2.5 py-0.5 text-xs font-medium"
-                          >
-                            {emp?.displayName ?? id}
-                          </span>
-                        )
-                      })}
-                    </div>
+
+                {/* Assignment chips */}
+                {employees.length > 0 && (
+                  isManager ? (
+                    <BoatChips serviceId={serviceId} boat={boat} employees={employees} />
+                  ) : (
+                    boat.assignedIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {boat.assignedIds.map((id) => {
+                          const emp = employees.find((e) => e.id === id)
+                          const firstName = emp?.displayName.split(' ')[0] ?? id
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                            >
+                              {firstName}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )
                   )
                 )}
               </div>
             ))}
           </div>
         )}
-
-        {/* Boats with no employee list (read-only fallback) */}
-        {boats.length > 0 && employees.length === 0 && (
-          <div className="space-y-1">
-            {boats.map((b) => (
-              <div key={b.boatId}>
-                <p className="text-sm font-medium">{b.nickname}</p>
-                {b.boatNotes && (
-                  <p className="text-xs text-muted-foreground italic pl-1">{b.boatNotes}</p>
-                )}
-                {b.serviceBoatNotes && (
-                  <p className="text-xs text-sky-700 italic pl-1">{b.serviceBoatNotes}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <div className="relative z-10 px-4 py-2.5 border-t bg-muted/20 flex items-center gap-2">
-        {/* Address */}
+      {/* ── Footer ──────────────────────────────────────────────────────────── */}
+      <div className="relative z-10 px-4 py-2 border-t bg-muted/10 flex items-center gap-2">
         {customerAddress && (
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="relative z-10 text-xs text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5"
+            className="text-[11px] text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5 min-w-0 truncate"
             onClick={(e) => e.stopPropagation()}
           >
-            📍 {customerAddress}
+            <span className="shrink-0">📍</span>
+            <span className="truncate">{customerAddress}</span>
           </a>
         )}
 
-        {/* Price */}
-        {totalPrice && (
-          <span className="text-sm font-semibold tabular-nums text-foreground">
-            ${parseFloat(totalPrice).toFixed(2)}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {totalPrice && (
+            <span className="text-sm font-bold tabular-nums text-foreground">
+              ${parseFloat(totalPrice).toFixed(2)}
+            </span>
+          )}
 
-        <div className="ml-auto flex items-center gap-1.5">
-          {/* Complaint */}
           <Button
             size="sm"
             variant="ghost"
-            className="text-xs h-7 px-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            className="text-[11px] h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             onClick={() => setComplaintOpen(true)}
           >
-            Flag issue
+            Flag
           </Button>
 
-          {/* Complete */}
           {isManager && status === 'scheduled' && (
             <Button
               size="sm"
-              className="text-xs h-7 px-2.5"
+              className="text-[11px] h-7 px-2.5 font-medium"
               onClick={() => onComplete(serviceId)}
             >
               Mark complete

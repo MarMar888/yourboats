@@ -136,21 +136,32 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
             onDrop={isManager ? (e) => handleDrop(e, day.dateStr) : undefined}
           >
             {/* Day header */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className={cn(
-                'text-sm font-semibold uppercase tracking-wide',
-                day.isToday ? 'text-primary' : 'text-muted-foreground'
-              )}>
-                {day.dayLabel}
-              </span>
-              <span className={cn('text-sm font-medium', day.isToday ? 'text-primary' : 'text-foreground')}>
-                {day.dateLabel}
-              </span>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-baseline gap-2">
+                <span className={cn(
+                  'text-xs font-bold uppercase tracking-widest',
+                  day.isToday ? 'text-primary' : 'text-muted-foreground'
+                )}>
+                  {day.dayLabel}
+                </span>
+                <span className={cn(
+                  'text-base font-semibold',
+                  day.isToday ? 'text-primary' : 'text-foreground'
+                )}>
+                  {day.dateLabel}
+                </span>
+              </div>
               {day.cards.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  ({day.cards.length} {day.cards.length === 1 ? 'job' : 'jobs'})
+                <span className={cn(
+                  'text-[11px] font-medium rounded-full px-2 py-0.5',
+                  day.isToday
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-muted text-muted-foreground'
+                )}>
+                  {day.cards.length} {day.cards.length === 1 ? 'job' : 'jobs'}
                 </span>
               )}
+              <div className="flex-1 h-px bg-border/60" />
             </div>
 
             {/* Cards grid */}
