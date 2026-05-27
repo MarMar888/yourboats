@@ -99,7 +99,7 @@ export function EmployeePayView() {
 
       {rows !== null && !loading && rows.length === 0 && (
         <p className="text-sm text-muted-foreground py-6 text-center">
-          No completed services for this period.
+          No saved payroll records for this period yet.
         </p>
       )}
 
@@ -126,6 +126,11 @@ export function EmployeePayView() {
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {row.splitPct}% of {fmt(row.totalPrice)}
                   </p>
+                  {row.approved && (
+                    <span className="inline-block text-[10px] font-semibold text-green-700 bg-green-50 rounded px-1.5 py-0.5 mt-1">
+                      Approved
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
