@@ -232,7 +232,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   }
 
   // ── Weather forecast (Open-Meteo, free, no key required) ─────────────────
-  const weatherByDay: Record<string, { tempMaxF: number; precipPct: number }> = {}
+  const weatherByDay: Record<string, { tempMaxF: number; precipPct: number; windMph: number }> = {}
   const weatherLat = process.env.WEATHER_LAT
   const weatherLng = process.env.WEATHER_LNG
   if (weatherLat && weatherLng) {
@@ -240,8 +240,9 @@ export default async function SchedulePage({ searchParams }: PageProps) {
       const weatherUrl =
         `https://api.open-meteo.com/v1/forecast` +
         `?latitude=${weatherLat}&longitude=${weatherLng}` +
-        `&daily=temperature_2m_max,precipitation_probability_max` +
+        `&daily=temperature_2m_max,precipitation_probability_max,windspeed_10m_max` +
         `&temperature_unit=fahrenheit` +
+        `&wind_speed_unit=mph` +
         `&timezone=America%2FChicago` +
         `&start_date=${weekStartStr}&end_date=${weekEndStr}`
       const weatherRes = await fetch(weatherUrl, { next: { revalidate: 3600 } })
@@ -251,15 +252,18 @@ export default async function SchedulePage({ searchParams }: PageProps) {
             time: string[]
             temperature_2m_max: (number | null)[]
             precipitation_probability_max: (number | null)[]
+            windspeed_10m_max: (number | null)[]
           }
         }
         for (let i = 0; i < weatherData.daily.time.length; i++) {
           const tempMax = weatherData.daily.temperature_2m_max[i]
           const precip  = weatherData.daily.precipitation_probability_max[i]
+          const wind    = weatherData.daily.windspeed_10m_max[i]
           if (tempMax != null) {
             weatherByDay[weatherData.daily.time[i]] = {
               tempMaxF: Math.round(tempMax),
               precipPct: precip ?? 0,
+              windMph: Math.round(wind ?? 0),
             }
           }
         }

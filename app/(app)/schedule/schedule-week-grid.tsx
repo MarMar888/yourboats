@@ -28,6 +28,7 @@ export type GridCardData = {
 export type WeatherDay = {
   tempMaxF: number
   precipPct: number
+  windMph: number
 }
 
 export type GridDayData = {
@@ -201,10 +202,10 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                         ? 'bg-amber-50 text-amber-700'
                         : 'bg-muted text-muted-foreground'
                   )}
-                  title={`High: ${day.weather.tempMaxF}°F · Rain: ${day.weather.precipPct}%`}
+                  title={`High: ${day.weather.tempMaxF}°F · Rain: ${day.weather.precipPct}% · Wind: ${day.weather.windMph} mph`}
                 >
                   {day.weather.precipPct >= 60 ? '🌧' : day.weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
-                  {day.weather.tempMaxF}° · {day.weather.precipPct}%
+                  {day.weather.tempMaxF}° · {day.weather.precipPct}% · {day.weather.windMph} mph
                 </span>
               )}
               <div className="flex-1 h-px bg-border/60" />
