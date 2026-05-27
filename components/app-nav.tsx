@@ -19,7 +19,7 @@ const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] 
   { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'] },
   { href: '/team', label: 'Team', roles: ['owner'] },
   { href: '/time', label: 'Time', roles: ['owner', 'manager'] },
-  { href: '/pay', label: 'Pay', roles: ['owner', 'manager'] },
+  { href: '/pay', label: 'Pay', roles: ['owner', 'manager', 'employee'] },
   { href: '/settings', label: 'Settings', roles: ['owner', 'manager'] },
   { href: '/profit-loss', label: 'P&L', roles: ['owner'] },
   { href: '/logs', label: 'Logs', roles: ['owner'] },

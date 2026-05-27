@@ -312,9 +312,9 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         </Link>
         <Link
           href="/schedule/calendar"
-          className="ml-auto text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          className="ml-auto inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
         >
-          Calendar view →
+          📅 Calendar
         </Link>
       </div>
 

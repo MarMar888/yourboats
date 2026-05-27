@@ -4,10 +4,23 @@ import { eq, asc } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { redirect } from 'next/navigation'
 import { PayClient } from './pay-client'
+import { EmployeePayView } from './employee-pay-view'
 
 export default async function PayPage() {
   const currentUser = await getCurrentUser()
-  if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) {
+  if (!currentUser) redirect('/login')
+
+  // Employees see a simplified self-service view
+  if (currentUser.role === 'employee') {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold mb-6">My Pay</h1>
+        <EmployeePayView />
+      </div>
+    )
+  }
+
+  if (currentUser.role !== 'owner' && currentUser.role !== 'manager') {
     redirect('/dashboard')
   }
 

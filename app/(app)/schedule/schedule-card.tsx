@@ -294,13 +294,13 @@ export default function ScheduleCard({
             Flag
           </Button>
 
-          {isManager && status === 'scheduled' && (
+          {status === 'scheduled' && (
             <Button
               size="sm"
               className="text-[11px] h-7 px-2.5 font-medium"
               onClick={() => onComplete(serviceId)}
             >
-              Mark complete
+              Complete
             </Button>
           )}
         </div>
