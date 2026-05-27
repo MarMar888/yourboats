@@ -21,7 +21,27 @@ beforeEach(() => {
 })
 
 describe('getNextQboDocNumber', () => {
-  it('uses QBO max + 1 when QBO query succeeds', async () => {
+  it('finds numeric max even when QBO returns lexicographic order', async () => {
+    // "999" sorts before "1400" lexicographically — we must find 1400 as the true max
+    const qboClient = {
+      query: vi.fn((_sql: string, cb: (err: null, data: object) => void) => {
+        cb(null, {
+          QueryResponse: {
+            Invoice: [
+              { DocNumber: '999' },
+              { DocNumber: '1400' },
+              { DocNumber: '1350' },
+              { DocNumber: '1033' },
+            ],
+          },
+        })
+      }),
+    }
+    const result = await getNextQboDocNumber(qboClient)
+    expect(result).toBe('1401') // numeric max is 1400 → next is 1401
+  })
+
+  it('respects MIN_DOC_NUMBER floor when all QBO numbers are below it', async () => {
     const qboClient = {
       query: vi.fn((_sql: string, cb: (err: null, data: object) => void) => {
         cb(null, { QueryResponse: { Invoice: [{ DocNumber: '1350' }] } })
@@ -31,7 +51,7 @@ describe('getNextQboDocNumber', () => {
     expect(result).toBe('1400') // max(1350, 1399) + 1 = 1400
   })
 
-  it('respects MIN_DOC_NUMBER floor even if QBO max is higher', async () => {
+  it('uses numeric max above MIN_DOC_NUMBER', async () => {
     const qboClient = {
       query: vi.fn((_sql: string, cb: (err: null, data: object) => void) => {
         cb(null, { QueryResponse: { Invoice: [{ DocNumber: '1405' }] } })

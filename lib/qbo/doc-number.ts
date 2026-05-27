@@ -6,8 +6,12 @@ const MIN_DOC_NUMBER = 1400
 
 /**
  * Returns the next DocNumber to use when creating a QBO invoice.
- * Queries QBO for the current highest DocNumber, then ensures we never go
- * below MIN_DOC_NUMBER (1400) — the floor we set when the API integration launched.
+ *
+ * QBO's ORDERBY on DocNumber is lexicographic, not numeric — "999" sorts
+ * higher than "1400" in a DESC query. We work around this by fetching the
+ * top 200 results and computing the true numeric max in JS.
+ *
+ * Falls back to the local DB max (or MIN_DOC_NUMBER) if the QBO query fails.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getNextQboDocNumber(qbo: any): Promise<string> {
@@ -18,12 +22,19 @@ export async function getNextQboDocNumber(qbo: any): Promise<string> {
     const result = await new Promise<any>((resolve, reject) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (qbo as any).query(
-        'SELECT DocNumber FROM Invoice ORDERBY DocNumber DESC MAXRESULTS 1',
+        'SELECT DocNumber FROM Invoice MAXRESULTS 200',
         (err: unknown, data: any) => (err ? reject(err) : resolve(data))
       )
     )
-    const top: string | undefined = result?.QueryResponse?.Invoice?.[0]?.DocNumber
-    if (top) highest = Math.max(highest, parseInt(top, 10))
+
+    const qboInvoices: Array<{ DocNumber?: string }> =
+      result?.QueryResponse?.Invoice ?? []
+
+    // Find true numeric max — lexicographic sort from QBO is unreliable
+    for (const inv of qboInvoices) {
+      const n = parseInt(inv.DocNumber ?? '', 10)
+      if (!isNaN(n) && n > highest) highest = n
+    }
   } catch {
     // QBO query unavailable — fall back to local DB max
     const [row] = await db.select({ max: max(invoices.docNumber) }).from(invoices)
