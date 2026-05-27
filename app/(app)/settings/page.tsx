@@ -21,7 +21,29 @@ export default async function SettingsPage({
   searchParams: Promise<{ qbo?: string }>
 }) {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'owner' && user.role !== 'manager')) redirect('/dashboard')
+  if (!user) redirect('/login')
+
+  const isManager = user.role === 'owner' || user.role === 'manager'
+
+  // Employees only see the password card — skip all the business data fetching
+  if (!isManager) {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold mb-6">Settings</h1>
+        <div className="space-y-4 max-w-lg">
+          <Card>
+            <CardHeader>
+              <CardTitle>Change password</CardTitle>
+              <CardDescription>Update your login password.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChangePasswordForm />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   const { qbo } = await searchParams
   const [tokens] = await db.select().from(qboTokens).where(eq(qboTokens.id, 1)).limit(1)
