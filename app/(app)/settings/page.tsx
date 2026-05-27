@@ -12,6 +12,8 @@ import InvoiceTestButton from './invoice-test-button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { QboSyncHealth } from './qbo-sync-health'
 import { ReconcileDocNumbersButton } from './reconcile-doc-numbers-button'
+import { TeamAccountsPanel } from './team-accounts-panel'
+import { listTeamMembers } from './team-actions'
 
 export default async function SettingsPage({
   searchParams,
@@ -24,6 +26,9 @@ export default async function SettingsPage({
   const { qbo } = await searchParams
   const [tokens] = await db.select().from(qboTokens).where(eq(qboTokens.id, 1)).limit(1)
   const connected = !!tokens
+
+  // Team members — owner only
+  const teamMembers = user.role === 'owner' ? await listTeamMembers() : []
 
   // QBO sync health data — only queried when connected
   const [unsyncedCustomers, staleInvoices] = connected
@@ -177,6 +182,21 @@ export default async function SettingsPage({
             unsyncedCustomers={unsyncedCustomers}
             staleInvoices={staleInvoices}
           />
+        )}
+
+        {user.role === 'owner' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Team accounts</CardTitle>
+              <CardDescription>
+                Create logins for new team members or reset a password. Role and tier changes
+                take effect immediately for future actions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TeamAccountsPanel members={teamMembers} />
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
