@@ -3,12 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { services, invoices, customers } from '@/lib/db/schema'
-import { and, eq, gte, lte } from 'drizzle-orm'
+import { services, invoices, customers, customerReminderContacts } from '@/lib/db/schema'
+import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { emailTransport } from '@/lib/email/client'
+import { serviceReminderEmail, formatServiceType } from '@/lib/email/templates/service-reminder'
 
 export async function rescheduleService(serviceId: string, newDate: string): Promise<{ error?: string }> {
   const user = await getCurrentUser()
@@ -189,6 +191,104 @@ export async function unapproveWeek(startDate: string, endDate: string): Promise
 
   await log({ action: 'unapprove_week', entityType: 'week', entityId: startDate, metadata: { startDate, endDate } })
   revalidatePath('/schedule')
+}
+
+/**
+ * Immediately send reminder emails for the given service IDs.
+ * Used when approving a week after the cron-scheduled send time has passed.
+ */
+export async function sendRemindersNow(serviceIds: string[]): Promise<{ sent: number; errors: string[] }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return { sent: 0, errors: ['Not authorized'] }
+  if (serviceIds.length === 0) return { sent: 0, errors: [] }
+
+  // Fetch services + customer info
+  const svcRows = await db
+    .select({
+      id:          services.id,
+      serviceDate: services.serviceDate,
+      serviceType: services.serviceType,
+      customerId:  customers.id,
+      customerName: customers.name,
+      customerPhone: customers.phone,
+    })
+    .from(services)
+    .innerJoin(customers, eq(services.customerId, customers.id))
+    .where(inArray(services.id, serviceIds))
+
+  // Fetch boat nicknames for each service
+  const { serviceBoats, boats } = await import('@/lib/db/schema')
+  const boatRows = await db
+    .select({ serviceId: serviceBoats.serviceId, nickname: boats.nickname })
+    .from(serviceBoats)
+    .innerJoin(boats, eq(serviceBoats.boatId, boats.id))
+    .where(inArray(serviceBoats.serviceId, serviceIds))
+
+  const boatsByService: Record<string, string[]> = {}
+  for (const b of boatRows) {
+    ;(boatsByService[b.serviceId] ??= []).push(b.nickname)
+  }
+
+  // Fetch reminder contacts
+  const customerIds = [...new Set(svcRows.map((s) => s.customerId))]
+  const contacts = await db
+    .select({ customerId: customerReminderContacts.customerId, email: customerReminderContacts.email })
+    .from(customerReminderContacts)
+    .where(inArray(customerReminderContacts.customerId, customerIds))
+
+  const contactsByCustomer: Record<string, string[]> = {}
+  for (const c of contacts) {
+    ;(contactsByCustomer[c.customerId] ??= []).push(c.email)
+  }
+
+  let sent = 0
+  const errors: string[] = []
+
+  for (const svc of svcRows) {
+    const to = contactsByCustomer[svc.customerId] ?? []
+    if (to.length === 0) continue
+
+    const [year, month, day] = svc.serviceDate.split('-').map(Number)
+    const d = new Date(Date.UTC(year, month - 1, day))
+    const serviceDate = d.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC',
+    })
+
+    const { subject, text, html } = serviceReminderEmail({
+      customerName: svc.customerName,
+      serviceDate,
+      boats: boatsByService[svc.id] ?? [],
+      serviceType: formatServiceType(svc.serviceType),
+      businessPhone: svc.customerPhone ?? undefined,
+    })
+
+    try {
+      await emailTransport.sendMail({
+        from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
+        to: to.join(', '),
+        subject,
+        text,
+        html,
+      })
+      await db
+        .update(services)
+        .set({ reminderSentAt: new Date() })
+        .where(eq(services.id, svc.id))
+      sent++
+    } catch (err) {
+      errors.push(`${svc.customerName}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  await log({
+    action: 'send_reminders_now',
+    entityType: 'week',
+    entityId: serviceIds[0],
+    metadata: { serviceIds, sent, errors: errors.length },
+  })
+
+  revalidatePath('/schedule')
+  return { sent, errors }
 }
 
 // TODO: Amount-change sync
