@@ -99,43 +99,52 @@ export function EmployeePayView() {
 
       {rows !== null && !loading && rows.length === 0 && (
         <p className="text-sm text-muted-foreground py-6 text-center">
-          No saved payroll records for this period yet.
+          No payroll records for this period yet — check back once the manager saves the period.
         </p>
       )}
 
       {rows && rows.length > 0 && (
-        <div className="divide-y rounded-xl border bg-card overflow-hidden text-sm">
-          {rows.map((row) => (
-            <div key={row.serviceId} className="px-4 py-3 space-y-1">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium leading-tight">{row.customerName}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {fmtDate(row.serviceDate)}
-                    {' · '}
-                    {SERVICE_TYPE_LABELS[row.serviceType] ?? row.serviceType}
-                  </p>
-                  {row.boats.length > 0 && (
+        <>
+          <div className="divide-y rounded-xl border bg-card overflow-hidden text-sm">
+            {rows.map((row) => (
+              <div key={row.serviceId} className="px-4 py-3 space-y-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium leading-tight">{row.customerName}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {row.boats.join(', ')}
+                      {fmtDate(row.serviceDate)}
+                      {' · '}
+                      {SERVICE_TYPE_LABELS[row.serviceType] ?? row.serviceType}
                     </p>
-                  )}
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="font-semibold tabular-nums">{fmt(row.netPay)}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {row.splitPct}% of {fmt(row.totalPrice)}
-                  </p>
-                  {row.approved && (
-                    <span className="inline-block text-[10px] font-semibold text-green-700 bg-green-50 rounded px-1.5 py-0.5 mt-1">
-                      Approved
+                    {row.boats.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {row.boats.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold tabular-nums">{fmt(row.netPay)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {row.splitPct}% of {fmt(row.totalPrice)}
+                    </p>
+                    <span className={
+                      row.approved
+                        ? 'inline-block text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 mt-1'
+                        : 'inline-block text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1'
+                    }>
+                      {row.approved ? '✓ Approved' : 'Draft'}
                     </span>
-                  )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          {rows.some((r) => !r.approved) && (
+            <p className="text-xs text-muted-foreground">
+              Draft entries are saved but not yet approved — amounts may still change.
+            </p>
+          )}
+        </>
       )}
     </div>
   )
