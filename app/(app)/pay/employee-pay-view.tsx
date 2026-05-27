@@ -125,7 +125,10 @@ export function EmployeePayView() {
                   <div className="text-right shrink-0">
                     <p className="font-semibold tabular-nums">{fmt(row.netPay)}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {row.splitPct}% of {fmt(row.totalPrice)}
+                      Split: {row.splitPct}%
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Revenue: {fmt(row.totalPrice)}
                     </p>
                     <span className={
                       row.approved
