@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import ScheduleCard from './schedule-card'
 import type { ScheduleCardEmployee, ReminderStatus } from './schedule-card'
 import { rescheduleService, markComplete, deleteService } from './actions'
+import { CompletionPhotoModal } from './completion-photo-modal'
 
 export type GridCardData = {
   id: string
@@ -24,11 +25,17 @@ export type GridCardData = {
   boats: { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }[]
 }
 
+export type WeatherDay = {
+  tempMaxF: number
+  precipPct: number
+}
+
 export type GridDayData = {
   dateStr: string
   dayLabel: string   // "Mon"
   dateLabel: string  // "May 19"
   isToday: boolean
+  weather?: WeatherDay
   cards: GridCardData[]
 }
 
@@ -46,7 +53,10 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
   const [, startTransition] = useTransition()
   const dragSourceDate = useRef<string | null>(null)
 
-  function handleComplete(serviceId: string) {
+  // Photo modal state
+  const [photoModalFor, setPhotoModalFor] = useState<{ id: string; customerName: string } | null>(null)
+
+  function finishComplete(serviceId: string) {
     setDays((prev) =>
       prev.map((day) => ({
         ...day,
@@ -57,6 +67,11 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
       await markComplete(serviceId)
       router.refresh()
     })
+  }
+
+  function handleComplete(serviceId: string) {
+    const card = days.flatMap((d) => d.cards).find((c) => c.id === serviceId)
+    setPhotoModalFor({ id: serviceId, customerName: card?.customerName ?? '' })
   }
 
   function handleDelete(serviceId: string) {
@@ -124,6 +139,21 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
 
   return (
     <div className="space-y-6">
+      {photoModalFor && (
+        <CompletionPhotoModal
+          serviceId={photoModalFor.id}
+          customerName={photoModalFor.customerName}
+          onPhotoSaved={(_url) => {
+            setPhotoModalFor(null)
+            finishComplete(photoModalFor.id)
+          }}
+          onSkip={() => {
+            setPhotoModalFor(null)
+            finishComplete(photoModalFor.id)
+          }}
+          onClose={() => setPhotoModalFor(null)}
+        />
+      )}
       {days.map((day) => {
         const isDropTarget = isManager && overDate === day.dateStr && draggingId !== null
         const canDrop = isDropTarget && dragSourceDate.current !== day.dateStr
@@ -161,6 +191,22 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                   {day.cards.length} {day.cards.length === 1 ? 'job' : 'jobs'}
                 </span>
               )}
+              {day.weather && (
+                <span
+                  className={cn(
+                    'text-[11px] font-medium rounded-full px-2 py-0.5 tabular-nums',
+                    day.weather.precipPct >= 60
+                      ? 'bg-blue-50 text-blue-700'
+                      : day.weather.precipPct >= 30
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-muted text-muted-foreground'
+                  )}
+                  title={`High: ${day.weather.tempMaxF}°F · Rain: ${day.weather.precipPct}%`}
+                >
+                  {day.weather.precipPct >= 60 ? '🌧' : day.weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
+                  {day.weather.tempMaxF}° · {day.weather.precipPct}%
+                </span>
+              )}
               <div className="flex-1 h-px bg-border/60" />
             </div>
 
@@ -178,7 +224,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
               </div>
             ) : (
               <div className={cn(
-                'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 rounded-xl transition-colors p-1 -m-1',
+                'columns-1 sm:columns-2 lg:columns-3 gap-3 rounded-xl transition-colors p-1 -m-1',
                 canDrop && 'bg-primary/5 ring-2 ring-primary/30 ring-inset'
               )}>
                 {day.cards.map((card) => {
@@ -190,6 +236,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                       onDragStart={canDrag ? () => handleDragStart(card.id, day.dateStr) : undefined}
                       onDragEnd={canDrag ? handleDragEnd : undefined}
                       className={cn(
+                        'break-inside-avoid mb-3',
                         canDrag && 'cursor-grab active:cursor-grabbing',
                         draggingId === card.id && 'opacity-40 scale-95 transition-transform'
                       )}
@@ -219,7 +266,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                 })}
                 {/* Drop indicator appended when target day already has cards */}
                 {canDrop && draggingCard && (
-                  <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[80px] flex items-center justify-center text-sm text-primary/70 font-medium">
+                  <div className="break-inside-avoid mb-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[80px] flex items-center justify-center text-sm text-primary/70 font-medium">
                     Drop here
                   </div>
                 )}

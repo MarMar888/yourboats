@@ -231,6 +231,44 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     reminderEmailsByCustomer.set(r.customerId, list)
   }
 
+  // ── Weather forecast (Open-Meteo, free, no key required) ─────────────────
+  const weatherByDay: Record<string, { tempMaxF: number; precipPct: number }> = {}
+  const weatherLat = process.env.WEATHER_LAT
+  const weatherLng = process.env.WEATHER_LNG
+  if (weatherLat && weatherLng) {
+    try {
+      const weatherUrl =
+        `https://api.open-meteo.com/v1/forecast` +
+        `?latitude=${weatherLat}&longitude=${weatherLng}` +
+        `&daily=temperature_2m_max,precipitation_probability_max` +
+        `&temperature_unit=fahrenheit` +
+        `&timezone=America%2FChicago` +
+        `&start_date=${weekStartStr}&end_date=${weekEndStr}`
+      const weatherRes = await fetch(weatherUrl, { next: { revalidate: 3600 } })
+      if (weatherRes.ok) {
+        const weatherData = await weatherRes.json() as {
+          daily: {
+            time: string[]
+            temperature_2m_max: (number | null)[]
+            precipitation_probability_max: (number | null)[]
+          }
+        }
+        for (let i = 0; i < weatherData.daily.time.length; i++) {
+          const tempMax = weatherData.daily.temperature_2m_max[i]
+          const precip  = weatherData.daily.precipitation_probability_max[i]
+          if (tempMax != null) {
+            weatherByDay[weatherData.daily.time[i]] = {
+              tempMaxF: Math.round(tempMax),
+              precipPct: precip ?? 0,
+            }
+          }
+        }
+      }
+    } catch {
+      // Weather is optional — silently ignore fetch errors
+    }
+  }
+
   const allScheduled = cards.filter((c) => c.status === 'scheduled')
   const weekApproved = allScheduled.length > 0 && allScheduled.every((c) => c.approvedAt)
 
@@ -328,6 +366,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
             dayLabel: DAY_LABELS[dayDate.getDay()],
             dateLabel: dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             isToday: dateStr === todayStr,
+            weather: weatherByDay[dateStr],
             cards: dayCards.map((card) => {
               const reminderStatus: ReminderStatus = card.reminderSentAt
                 ? 'sent'
