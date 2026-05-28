@@ -20,6 +20,7 @@ type CardData = {
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
+  completionPhotoUrl: string | null
   boats: { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }[]
 }
 
@@ -67,6 +68,7 @@ export function DashboardScheduleCards({
           approvedAt={svc.approvedAt}
           reminderStatus={svc.reminderStatus}
           reminderSentAt={svc.reminderSentAt}
+          completionPhotoUrl={svc.completionPhotoUrl}
           boats={svc.boats}
           employees={employees}
           isManager={isManager}

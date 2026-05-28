@@ -55,13 +55,14 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
       serviceType:     services.serviceType,
       status:          services.status,
       notes:           services.notes,
-      totalPrice:      services.totalPrice,
-      approvedAt:      services.approvedAt,
-      reminderSentAt:  services.reminderSentAt,
-      customerId:      services.customerId,
-      customerName:    customers.name,
-      customerNotes:   customers.notes,
-      customerAddress: customers.address,
+      totalPrice:         services.totalPrice,
+      approvedAt:         services.approvedAt,
+      reminderSentAt:     services.reminderSentAt,
+      completionPhotoUrl: services.completionPhotoUrl,
+      customerId:         services.customerId,
+      customerName:       customers.name,
+      customerNotes:      customers.notes,
+      customerAddress:    customers.address,
     })
     .from(services)
     .innerJoin(customers, eq(services.customerId, customers.id))
@@ -114,12 +115,13 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
 
   return serviceRows.map((s) => ({
     ...s,
-    totalPrice:      s.totalPrice ?? null,
-    approvedAt:      s.approvedAt ?? null,
-    reminderSentAt:  s.reminderSentAt ?? null,
-    customerNotes:   s.customerNotes ?? null,
-    customerAddress: s.customerAddress ?? null,
-    boats:           boatsByService[s.id] ?? [],
+    totalPrice:         s.totalPrice ?? null,
+    approvedAt:         s.approvedAt ?? null,
+    reminderSentAt:     s.reminderSentAt ?? null,
+    completionPhotoUrl: s.completionPhotoUrl ?? null,
+    customerNotes:      s.customerNotes ?? null,
+    customerAddress:    s.customerAddress ?? null,
+    boats:              boatsByService[s.id] ?? [],
   }))
 }
 
