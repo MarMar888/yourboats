@@ -225,7 +225,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
               </div>
             ) : (
               <div className={cn(
-                'columns-1 sm:columns-2 lg:columns-3 gap-3 rounded-xl transition-colors p-1 -m-1',
+                'grid gap-3 sm:grid-cols-2 items-start rounded-xl transition-colors p-1 -m-1',
                 canDrop && 'bg-primary/5 ring-2 ring-primary/30 ring-inset'
               )}>
                 {day.cards.map((card) => {
@@ -237,7 +237,6 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                       onDragStart={canDrag ? () => handleDragStart(card.id, day.dateStr) : undefined}
                       onDragEnd={canDrag ? handleDragEnd : undefined}
                       className={cn(
-                        'break-inside-avoid mb-3',
                         canDrag && 'cursor-grab active:cursor-grabbing',
                         draggingId === card.id && 'opacity-40 scale-95 transition-transform'
                       )}
@@ -267,7 +266,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                 })}
                 {/* Drop indicator appended when target day already has cards */}
                 {canDrop && draggingCard && (
-                  <div className="break-inside-avoid mb-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[80px] flex items-center justify-center text-sm text-primary/70 font-medium">
+                  <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[80px] flex items-center justify-center text-sm text-primary/70 font-medium">
                     Drop here
                   </div>
                 )}
