@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { tierConfig, users, services, timeEntries, boats } from '@/lib/db/schema'
 import { and, eq, gte, lte, inArray, isNotNull } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 
 export async function saveTip(serviceId: string, tipAmount: number): Promise<void> {
   const user = await getCurrentUser()
@@ -15,6 +16,7 @@ export async function saveTip(serviceId: string, tipAmount: number): Promise<voi
     .set({ tipAmount: tipAmount > 0 ? String(tipAmount) : null })
     .where(eq(services.id, serviceId))
 
+  await refreshServicePayroll(serviceId, 'service_tip_updated')
   revalidatePath('/pay')
 }
 

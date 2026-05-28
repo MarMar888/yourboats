@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { services, customers, invoices } from '@/lib/db/schema'
+import { boats, customers, invoices, serviceBoats, services } from '@/lib/db/schema'
 import { eq, desc, and, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { getCachedQboItems } from '@/lib/qbo/items'
@@ -77,6 +77,28 @@ export default async function InvoicesPage() {
     .where(and(eq(services.status, 'complete'), eq(invoices.status, 'paid')))
     .orderBy(desc(invoices.paidAt))
 
+  const allInvoices = [...pending, ...sent, ...paid]
+  const serviceIds = Array.from(new Set(allInvoices.map((inv) => inv.serviceId)))
+  const lineRows = serviceIds.length > 0
+    ? await db
+      .select({
+        serviceId: serviceBoats.serviceId,
+        boatId: serviceBoats.boatId,
+        nickname: boats.nickname,
+        lengthFt: boats.lengthFt,
+        description: serviceBoats.description,
+        rateType: serviceBoats.rateType,
+        rate: serviceBoats.rate,
+      })
+      .from(serviceBoats)
+      .innerJoin(boats, eq(serviceBoats.boatId, boats.id))
+      .where(inArray(serviceBoats.serviceId, serviceIds))
+    : []
+  const linesByService = new Map<string, typeof lineRows>()
+  for (const line of lineRows) {
+    linesByService.set(line.serviceId, [...(linesByService.get(line.serviceId) ?? []), line])
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-6">Invoices</h1>
@@ -125,6 +147,7 @@ export default async function InvoicesPage() {
                       customerId: inv.customerId,
                       canManage,
                       qboEnv,
+                      lineItems: linesByService.get(inv.serviceId) ?? [],
                     }}
                     qboItemOptions={qboItemOptions}
                   />
@@ -165,7 +188,7 @@ export default async function InvoicesPage() {
                 {sent.map((inv) => (
                   <InvoiceRow
                     key={inv.invoiceId}
-                    inv={{ ...inv, canManage, qboEnv }}
+                    inv={{ ...inv, canManage, qboEnv, lineItems: linesByService.get(inv.serviceId) ?? [] }}
                     qboItemOptions={qboItemOptions}
                   />
                 ))}
@@ -205,7 +228,7 @@ export default async function InvoicesPage() {
                 {paid.map((inv) => (
                   <InvoiceRow
                     key={inv.invoiceId}
-                    inv={{ ...inv, canManage, qboEnv }}
+                    inv={{ ...inv, canManage, qboEnv, lineItems: linesByService.get(inv.serviceId) ?? [] }}
                     qboItemOptions={qboItemOptions}
                   />
                 ))}

@@ -14,6 +14,8 @@ type Props = {
   title?: string
   description?: string
   triggerLabel?: string
+  confirmLabel?: string
+  pendingLabel?: string
   size?: 'sm' | 'default'
 }
 
@@ -22,6 +24,8 @@ export function ConfirmDeleteButton({
   title = 'Confirm delete',
   description = 'This action cannot be undone.',
   triggerLabel = 'Delete',
+  confirmLabel = 'Delete',
+  pendingLabel = 'Deleting…',
   size = 'sm',
 }: Props) {
   const [open, setOpen] = useState(false)
@@ -69,7 +73,7 @@ export function ConfirmDeleteButton({
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleConfirm} disabled={isPending}>
-              {isPending ? 'Deleting…' : 'Delete'}
+              {isPending ? pendingLabel : confirmLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -7,6 +7,8 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { voidInvoiceForService } from '@/lib/invoices/void-invoice'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 
 // ─── Update service ───────────────────────────────────────────────────────────
 
@@ -26,10 +28,15 @@ export async function updateService(
   const status = formData.get('status') as string
 
   const [currentService] = await db
-    .select({ serviceDate: services.serviceDate })
+    .select({ serviceDate: services.serviceDate, status: services.status })
     .from(services)
     .where(eq(services.id, serviceId))
     .limit(1)
+
+  if (status === 'cancelled' && currentService?.status !== 'cancelled') {
+    const voidResult = await voidInvoiceForService(serviceId)
+    if (!voidResult.ok) return { ok: false, error: voidResult.error }
+  }
 
   await db
     .update(services)
@@ -48,6 +55,13 @@ export async function updateService(
     await db
       .update(invoices)
       .set({ qboNeedsSync: true })
+      .where(eq(invoices.serviceId, serviceId))
+  }
+
+  if (totalPrice) {
+    await db
+      .update(invoices)
+      .set({ amount: String(Number(totalPrice)), qboNeedsSync: true })
       .where(eq(invoices.serviceId, serviceId))
   }
 
@@ -123,14 +137,25 @@ export async function updateService(
       // Also update draft invoice amount
       await db
         .update(invoices)
-        .set({ amount: String(computed) })
+        .set({ amount: String(computed), qboNeedsSync: true })
         .where(and(eq(invoices.serviceId, serviceId)))
     }
   }
 
+  if (status !== 'cancelled') {
+    await db
+      .update(invoices)
+      .set({ qboNeedsSync: true })
+      .where(eq(invoices.serviceId, serviceId))
+  }
+
+  await refreshServicePayroll(serviceId, status === 'cancelled' ? 'service_cancelled' : 'service_updated')
+
   await log({ action: 'update_service', entityType: 'service', entityId: serviceId, metadata: { serviceDate, serviceType, status } })
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/schedule')
+  revalidatePath('/invoices')
+  revalidatePath('/pay')
   return { ok: true }
 }
 
@@ -168,6 +193,7 @@ export async function generateInvoiceFromService(
     .returning()
 
   await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, serviceId))
+  await refreshServicePayroll(serviceId, 'invoice_generated')
   await log({ action: 'generate_invoice', entityType: 'service', entityId: serviceId, metadata: { invoiceId: invoice.id } })
 
   const posthog = getPostHogClient()
@@ -233,6 +259,8 @@ export async function updateBoatAssignments(
   }
 
   await log({ action: 'update_boat_assignment', entityType: 'service', entityId: serviceId, metadata: { boatId, userIds } })
+  await refreshServicePayroll(serviceId, 'boat_assignments_updated')
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/schedule')
+  revalidatePath('/pay')
 }

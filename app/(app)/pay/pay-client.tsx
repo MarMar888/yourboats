@@ -537,12 +537,26 @@ function PeriodReview({
   }, 0)
   const grandTips = rows.reduce((sum, r) =>
     sum + (parseFloat(tipInputs[r.serviceId] ?? '') || r.tipAmount || 0), 0)
+  const stalePayrollRows = Object.values(savedPayroll).filter((row) => row.staleAt)
+  const staleServiceIds = new Set(stalePayrollRows.map((row) => row.serviceId))
+  const staleServiceCount = staleServiceIds.size
 
   const perEmpData = showPerEmployee ? computePerEmployee(selectedUserId) : null
   const selectedEmployee = employees.find((e) => e.id === selectedUserId)
 
   return (
     <div className="space-y-4">
+      {staleServiceCount > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">
+            {staleServiceCount} approved payroll service{staleServiceCount === 1 ? '' : 's'} need review.
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Service details changed after approval. Unapprove, review the updated rows, then approve again.
+          </p>
+        </div>
+      )}
+
       {/* Pay review table */}
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
@@ -580,6 +594,11 @@ function PeriodReview({
                       <span className="text-[10px] bg-muted rounded px-1.5 py-px text-muted-foreground tabular-nums">
                         {row.serviceTypeShare}%
                       </span>
+                      {staleServiceIds.has(row.serviceId) && (
+                        <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 rounded px-1.5 py-px">
+                          review
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground text-xs">

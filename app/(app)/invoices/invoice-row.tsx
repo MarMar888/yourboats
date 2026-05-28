@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { EditInvoiceForm } from './edit-invoice-form'
 import { InvoiceActionsButton } from './invoice-actions-button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
-import { deleteInvoice } from './actions'
+import { deleteInvoice, voidInvoice } from './actions'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -58,6 +58,15 @@ export type InvoiceRowData = {
   customerId: string
   canManage: boolean
   qboEnv?: string
+  lineItems: {
+    serviceId: string
+    boatId: string
+    nickname: string
+    lengthFt: number | null
+    description: string | null
+    rateType: 'per_ft' | 'flat' | null
+    rate: string | null
+  }[]
 }
 
 export function InvoiceRow({
@@ -91,11 +100,21 @@ export function InvoiceRow({
                 qboItems={qboItemOptions}
               />
               {inv.canManage && (
-                <ConfirmDeleteButton
-                  action={deleteInvoice.bind(null, inv.invoiceId)}
-                  title="Delete invoice"
-                  description={`Delete the draft invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
-                />
+                <div className="flex items-center gap-1">
+                  <ConfirmDeleteButton
+                    action={voidInvoice.bind(null, inv.invoiceId)}
+                    title="Void invoice"
+                    description={`Void the invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)}) while keeping the service record?`}
+                    triggerLabel="Void"
+                    confirmLabel="Void"
+                    pendingLabel="Voiding…"
+                  />
+                  <ConfirmDeleteButton
+                    action={deleteInvoice.bind(null, inv.invoiceId)}
+                    title="Delete invoice"
+                    description={`Delete the draft invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+                  />
+                </div>
               )}
             </div>
           </td>
@@ -126,11 +145,23 @@ export function InvoiceRow({
             </td>
             <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
               {inv.canManage && (
-                <ConfirmDeleteButton
-                  action={deleteInvoice.bind(null, inv.invoiceId)}
-                  title="Delete invoice"
-                  description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
-                />
+                <div className="flex items-center justify-end gap-1">
+                  {inv.status !== 'void' && inv.status !== 'paid' && (
+                    <ConfirmDeleteButton
+                      action={voidInvoice.bind(null, inv.invoiceId)}
+                      title="Void invoice"
+                      description={`Void the invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)}) while keeping the service record?`}
+                      triggerLabel="Void"
+                      confirmLabel="Void"
+                      pendingLabel="Voiding…"
+                    />
+                  )}
+                  <ConfirmDeleteButton
+                    action={deleteInvoice.bind(null, inv.invoiceId)}
+                    title="Delete invoice"
+                    description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
+                  />
+                </div>
               )}
             </td>
           </>
@@ -138,7 +169,7 @@ export function InvoiceRow({
       </tr>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(false) }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Invoice — {inv.customerName}</DialogTitle>
           </DialogHeader>
@@ -147,10 +178,10 @@ export function InvoiceRow({
             <div className="px-6 py-4">
               <EditInvoiceForm
                 invoiceId={inv.invoiceId}
-                initialAmount={inv.amount}
                 initialNotes={inv.notes}
                 initialStatus={inv.status}
                 initialDocNumber={inv.docNumber}
+                lineItems={inv.lineItems}
                 onClose={() => { setEditing(false); setOpen(false) }}
               />
             </div>
@@ -216,6 +247,35 @@ export function InvoiceRow({
                 </div>
               )}
 
+              {inv.lineItems.length > 0 && (
+                <div className="rounded-md border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y">
+                      {inv.lineItems.map((line) => {
+                        const rateType = line.rateType ?? 'per_ft'
+                        const rate = Number(line.rate ?? 0)
+                        const qty = rateType === 'per_ft' ? (line.lengthFt ?? 0) : 1
+                        const amount = rate * qty
+                        return (
+                          <tr key={line.boatId}>
+                            <td className="px-3 py-2">
+                              <div className="font-medium">{line.nickname}</div>
+                              {line.description && (
+                                <div className="text-xs text-muted-foreground">{line.description}</div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right text-muted-foreground">
+                              {rateType === 'per_ft' ? `${line.lengthFt ?? 0} ft x $${rate.toFixed(2)}` : 'Flat'}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium">${amount.toFixed(2)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
                 <a
@@ -240,18 +300,30 @@ export function InvoiceRow({
 
                 {inv.canManage && (
                   <div className="ml-auto flex items-center gap-2">
+                    {inv.status !== 'void' && inv.status !== 'paid' && (
+                      <ConfirmDeleteButton
+                        action={async () => { await voidInvoice(inv.invoiceId); setOpen(false) }}
+                        title="Void invoice"
+                        description={`Void the invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)}) while keeping the service record?`}
+                        triggerLabel="Void"
+                        confirmLabel="Void"
+                        pendingLabel="Voiding…"
+                      />
+                    )}
                     <ConfirmDeleteButton
                       action={async () => { await deleteInvoice(inv.invoiceId); setOpen(false) }}
                       title="Delete invoice"
                       description={`Delete the ${inv.status} invoice for ${inv.customerName} (${fmtDate(inv.serviceDate)})? This cannot be undone.`}
                     />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => { e.stopPropagation(); setEditing(true) }}
-                    >
-                      Edit
-                    </Button>
+                    {inv.status !== 'paid' && inv.status !== 'void' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+                      >
+                        Edit
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

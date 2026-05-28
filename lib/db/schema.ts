@@ -366,6 +366,8 @@ export const payroll = pgTable(
     approvedAt: timestamp('approved_at'),
     approvedByUserId: text('approved_by_user_id'),
     approvedByName: text('approved_by_name'),
+    staleAt: timestamp('stale_at'),
+    staleReason: text('stale_reason'),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.serviceId, t.userId] }),
