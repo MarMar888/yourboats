@@ -39,6 +39,7 @@ interface ScheduleCardProps {
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
+  completionPhotoUrl: string | null
   boats: ScheduleCardBoat[]
   employees: ScheduleCardEmployee[]
   isManager: boolean
@@ -116,6 +117,7 @@ export default function ScheduleCard({
   reminderSentAt,
   boats,
   employees,
+  completionPhotoUrl,
   isManager,
   onComplete,
   onDelete,
@@ -157,6 +159,11 @@ export default function ScheduleCard({
 
           {/* Actions + status */}
           <div className="relative z-10 flex items-center gap-1 shrink-0">
+            {completionPhotoUrl && (
+              <span className="text-[10px] font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5">
+                📷
+              </span>
+            )}
             {approvedAt && (
               <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 rounded px-1.5 py-0.5">
                 ✓ Approved

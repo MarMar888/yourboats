@@ -20,6 +20,7 @@ export type GridCardData = {
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
+  completionPhotoUrl: string | null
   customerId: string
   customerName: string
   boats: { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }[]
@@ -255,6 +256,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                         approvedAt={card.approvedAt}
                         reminderStatus={card.reminderStatus}
                         reminderSentAt={card.reminderSentAt}
+                        completionPhotoUrl={card.completionPhotoUrl}
                         boats={card.boats}
                         employees={employees}
                         isManager={isManager}

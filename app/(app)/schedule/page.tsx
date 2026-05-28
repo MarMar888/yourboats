@@ -122,14 +122,15 @@ export default async function SchedulePage({ searchParams }: PageProps) {
           serviceDate:  services.serviceDate,
           serviceType:  services.serviceType,
           status:       services.status,
-          totalPrice:     services.totalPrice,
-          notes:          services.notes,
-          approvedAt:     services.approvedAt,
-          reminderSentAt: services.reminderSentAt,
-          customerId:    services.customerId,
-          customerName:    customers.name,
-          customerNotes:   customers.notes,
-          customerAddress: customers.address,
+          totalPrice:          services.totalPrice,
+          notes:               services.notes,
+          approvedAt:          services.approvedAt,
+          reminderSentAt:      services.reminderSentAt,
+          completionPhotoUrl:  services.completionPhotoUrl,
+          customerId:          services.customerId,
+          customerName:        customers.name,
+          customerNotes:       customers.notes,
+          customerAddress:     customers.address,
         })
         .from(services)
         .innerJoin(customers, eq(services.customerId, customers.id))
@@ -198,16 +199,17 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   type ServiceCard = {
     id: string; serviceDate: string; serviceType: string; status: string
     totalPrice: string | null; notes: string | null; customerNotes: string | null; customerAddress: string | null; approvedAt: Date | null
-    reminderSentAt: Date | null; customerId: string; customerName: string; boats: BoatEntry[]
+    reminderSentAt: Date | null; completionPhotoUrl: string | null; customerId: string; customerName: string; boats: BoatEntry[]
   }
 
   const cards: ServiceCard[] = serviceRows.map((s) => ({
     ...s,
-    totalPrice:      s.totalPrice ?? null,
-    approvedAt:      s.approvedAt ?? null,
-    reminderSentAt:  s.reminderSentAt ?? null,
-    customerNotes:   s.customerNotes ?? null,
-    customerAddress: s.customerAddress ?? null,
+    totalPrice:         s.totalPrice ?? null,
+    approvedAt:         s.approvedAt ?? null,
+    reminderSentAt:     s.reminderSentAt ?? null,
+    completionPhotoUrl: s.completionPhotoUrl ?? null,
+    customerNotes:      s.customerNotes ?? null,
+    customerAddress:    s.customerAddress ?? null,
     boats: (boatsByService[s.id] ?? []).map((b) => ({
       ...b,
       assignedIds: assignments[s.id]?.[b.boatId] ?? [],
@@ -394,6 +396,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 approvedAt: card.approvedAt,
                 reminderStatus,
                 reminderSentAt: card.reminderSentAt,
+                completionPhotoUrl: card.completionPhotoUrl,
                 customerId: card.customerId,
                 customerName: card.customerName,
                 boats: card.boats,
