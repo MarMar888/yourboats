@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { users, tierConfig } from '@/lib/db/schema'
+import { users, tierConfig, serviceTypeShares } from '@/lib/db/schema'
 import { eq, asc } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { redirect } from 'next/navigation'
@@ -24,13 +24,14 @@ export default async function PayPage() {
     redirect('/dashboard')
   }
 
-  const [employees, tierRows] = await Promise.all([
+  const [employees, tierRows, serviceTypeShareRows] = await Promise.all([
     db
       .select({ id: users.id, displayName: users.displayName, tier: users.tier })
       .from(users)
       .where(eq(users.active, true))
       .orderBy(asc(users.displayName)),
     db.select().from(tierConfig).orderBy(tierConfig.tier),
+    db.select().from(serviceTypeShares).orderBy(asc(serviceTypeShares.serviceType)),
   ])
 
   return (
@@ -39,6 +40,10 @@ export default async function PayPage() {
       <PayClient
         employees={employees}
         tierRows={tierRows as { tier: 'top' | 'mid' | 'low'; deductionPct: string }[]}
+        serviceTypeShares={serviceTypeShareRows.map((r) => ({
+          serviceType: r.serviceType,
+          employeeSharePct: r.employeeSharePct,
+        }))}
         isOwner={currentUser.role === 'owner'}
       />
     </div>
