@@ -28,7 +28,7 @@ export async function updateService(
   const status = formData.get('status') as string
 
   const [currentService] = await db
-    .select({ serviceDate: services.serviceDate, status: services.status })
+    .select({ serviceDate: services.serviceDate, status: services.status, totalPrice: services.totalPrice })
     .from(services)
     .where(eq(services.id, serviceId))
     .limit(1)
