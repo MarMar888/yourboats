@@ -3,8 +3,12 @@
 import { useState, useTransition, useCallback, useEffect } from 'react'
 import { saveTip, updateTierConfig, getLaborEntriesForPeriod } from './actions'
 import type { LaborTimeEntry } from './actions'
-import { savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod } from './payroll-actions'
-import type { SavedPayrollRow } from './payroll-actions'
+import {
+  savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod,
+  deleteServicePayroll, deletePayrollEntry,
+  getManualLinesForPeriod, createManualPayrollLine, deleteManualPayrollLine, approveManualPayrollLine,
+} from './payroll-actions'
+import type { SavedPayrollRow, ManualLineRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -179,6 +183,14 @@ function PeriodReview({
   const [addedUsers, setAddedUsers] = useState<Record<string, { userId: string; displayName: string; deductionPct: number }[]>>({})
   const [savedPayroll, setSavedPayroll] = useState<Record<string, SavedPayrollRow>>({})
   const [isDirty, setIsDirty] = useState(false)
+  // Revenue overrides: keyed by serviceId, stores raw input string for totalPrice
+  const [revenueOverrides, setRevenueOverrides] = useState<Record<string, string>>({})
+  // Manual lines
+  const [manualLines, setManualLines] = useState<ManualLineRow[]>([])
+  const [showAddManual, setShowAddManual] = useState(false)
+  const [manualForm, setManualForm] = useState({ userId: '', description: '', amount: '' })
+  const [manualPending, startManualTransition] = useTransition()
+  const [deletingService, setDeletingService] = useState<string | null>(null)
 
   // Approval state
   const [approval, setApproval] = useState<{ at: Date; byName: string } | null>(null)
@@ -194,11 +206,14 @@ function PeriodReview({
     setLoading(true)
     setShowPerEmployee(false)
     setIsDirty(false)
+    setShowAddManual(false)
     try {
-      const [res, payrollRows] = await Promise.all([
+      const [res, payrollRows, manualRows] = await Promise.all([
         fetch(`/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`),
         getPayrollForPeriod(period.startStr, period.endStr),
+        getManualLinesForPeriod(period.startStr, period.endStr),
       ])
+      setManualLines(manualRows)
       if (!res.ok) throw new Error('Failed')
       const data = await res.json()
       setRows(data.services)
@@ -237,6 +252,15 @@ function PeriodReview({
       setSplitOverrides(overrides)
       setExcludedUsers({})
       setAddedUsers(reconstructedAdded)
+
+      // Seed revenue overrides from the first saved payroll row per service
+      const revOverrides: Record<string, string> = {}
+      for (const pr of payrollRows) {
+        if (pr.totalPrice && !revOverrides[pr.serviceId]) {
+          revOverrides[pr.serviceId] = pr.totalPrice
+        }
+      }
+      setRevenueOverrides(revOverrides)
 
       const approvedRow = payrollRows.find((r) => r.approvedAt && r.approvedByName)
       setApproval(approvedRow ? { at: approvedRow.approvedAt!, byName: approvedRow.approvedByName! } : null)
@@ -324,10 +348,30 @@ function PeriodReview({
     })
   }
 
+  // Returns the effective employee pool for a row, accounting for revenue override.
+  function effectivePool(row: PeriodServiceRow): number {
+    const revRaw = revenueOverrides[row.serviceId]
+    if (revRaw !== undefined && revRaw !== '') {
+      const rev = parseFloat(revRaw)
+      if (!isNaN(rev) && rev >= 0) return rev * (row.serviceTypeShare / 100)
+    }
+    return row.employeePool
+  }
+
+  function effectiveTotalPrice(row: PeriodServiceRow): number {
+    const revRaw = revenueOverrides[row.serviceId]
+    if (revRaw !== undefined && revRaw !== '') {
+      const rev = parseFloat(revRaw)
+      if (!isNaN(rev) && rev >= 0) return rev
+    }
+    return row.totalPrice
+  }
+
   function computeAssignmentsFor(row: PeriodServiceRow): {
     assignments: (AssignmentRow & { effectiveSplitPct: number; computedNetPay: number })[]
     splitsValid: boolean
   } {
+    const pool = effectivePool(row)
     const excluded = excludedUsers[row.serviceId] ?? new Set<string>()
     const overrides = splitOverrides[row.serviceId] ?? {}
     const added = (addedUsers[row.serviceId] ?? []).map((u) => ({
@@ -354,7 +398,7 @@ function PeriodReview({
       const rawPct = overrideRaw !== undefined && overrideRaw !== '' ? parseFloat(overrideRaw) : defaultSplit
       const split = isNaN(rawPct) ? defaultSplit : rawPct
       const effectivePct = Math.max(0, split - a.deductionPct)
-      const computedNetPay = row.employeePool * (effectivePct / 100)
+      const computedNetPay = pool * (effectivePct / 100)
       return { ...a, effectiveSplitPct: split, computedNetPay }
     })
 
@@ -367,6 +411,8 @@ function PeriodReview({
       const { assignments: computed } = computeAssignmentsFor(row)
       const tipNum = parseFloat(tipInputs[row.serviceId] ?? '') || 0
       const tipPerPerson = computed.length > 0 ? tipNum / computed.length : 0
+      const totalPrice = effectiveTotalPrice(row)
+      const pool = effectivePool(row)
       return computed.map((a) => ({
         serviceId:    row.serviceId,
         userId:       a.userId,
@@ -374,8 +420,8 @@ function PeriodReview({
         serviceDate:  row.serviceDate,
         serviceType:  row.serviceType,
         customerName: row.customerName,
-        totalPrice:   row.totalPrice,
-        employeePool: row.employeePool,
+        totalPrice,
+        employeePool: pool,
         splitPct:     a.effectiveSplitPct,
         deductionPct: a.deductionPct,
         effectivePct: Math.max(0, a.effectiveSplitPct - a.deductionPct),
@@ -384,6 +430,28 @@ function PeriodReview({
         totalPay:     a.computedNetPay + tipPerPerson,
       }))
     })
+  }
+
+  function setRevenueOverride(serviceId: string, value: string) {
+    setIsDirty(true)
+    setRevenueOverrides((prev) => ({ ...prev, [serviceId]: value }))
+  }
+
+  async function handleDeleteServicePayroll(serviceId: string) {
+    setDeletingService(serviceId)
+    try {
+      await deleteServicePayroll(serviceId)
+      // Remove from savedPayroll map
+      setSavedPayroll((prev) => {
+        const next = { ...prev }
+        Object.keys(next).forEach((k) => {
+          if (k.startsWith(`${serviceId}:`)) delete next[k]
+        })
+        return next
+      })
+    } finally {
+      setDeletingService(null)
+    }
   }
 
   function handleUnapprove() {
@@ -430,8 +498,8 @@ function PeriodReview({
       svcs.push({
         serviceId: row.serviceId, serviceDate: row.serviceDate,
         serviceType: row.serviceType, customerName: row.customerName,
-        totalPrice: row.totalPrice, serviceTypeShare: row.serviceTypeShare,
-        employeePool: row.employeePool, splitPct: a.effectiveSplitPct,
+        totalPrice: effectiveTotalPrice(row), serviceTypeShare: row.serviceTypeShare,
+        employeePool: effectivePool(row), splitPct: a.effectiveSplitPct,
         deductionPct: a.deductionPct, effectivePct,
         netPay: a.computedNetPay, tipShare, totalPay: a.computedNetPay + tipShare,
       })
@@ -484,9 +552,10 @@ function PeriodReview({
               <th className="px-3 py-2 text-left font-medium text-muted-foreground w-40">Client</th>
               <th className="px-3 py-2 text-left font-medium text-muted-foreground w-32">Boats</th>
               <th className="px-3 py-2 text-left font-medium text-muted-foreground">People & splits</th>
-              <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap w-20">Pool</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap w-28">Revenue</th>
               <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap w-22">Pay</th>
               <th className="px-3 py-2 text-right font-medium text-muted-foreground w-24">Tip</th>
+              <th className="px-3 py-2 w-8" />
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -631,8 +700,32 @@ function PeriodReview({
                     })()}
                   </td>
 
-                  <td className="px-3 py-2.5 text-right tabular-nums text-xs text-muted-foreground align-top pt-3">
-                    {fmt(row.employeePool)}
+                  {/* Revenue — editable to override total price */}
+                  <td className="px-3 py-2.5 align-top pt-2">
+                    {isOwnerOrManager ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs pointer-events-none">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={revenueOverrides[row.serviceId] ?? String(row.totalPrice)}
+                            onChange={(e) => setRevenueOverride(row.serviceId, e.target.value)}
+                            className="w-24 h-7 text-xs pl-5 pr-1 tabular-nums border border-input rounded bg-background focus:outline-none focus:ring-1 focus:ring-ring text-right"
+                            title="Override revenue for pay calculation"
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          Pool: {fmt(effectivePool(row))}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-right text-xs text-muted-foreground">
+                        <div>{fmt(row.totalPrice)}</div>
+                        <div className="text-[10px]">Pool: {fmt(row.employeePool)}</div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold align-top pt-3 text-sm">
                     {fmt(rowTotal)}
@@ -663,6 +756,19 @@ function PeriodReview({
                       </span>
                     )}
                   </td>
+                  {/* Delete saved payroll for this service */}
+                  <td className="px-1 py-2.5 align-top pt-3">
+                    {isOwnerOrManager && Object.keys(savedPayroll).some((k) => k.startsWith(`${row.serviceId}:`)) && (
+                      <button
+                        onClick={() => handleDeleteServicePayroll(row.serviceId)}
+                        disabled={deletingService === row.serviceId}
+                        title="Delete saved payroll entries for this service"
+                        className="text-muted-foreground/40 hover:text-destructive transition-colors disabled:opacity-40 text-xs leading-none"
+                      >
+                        {deletingService === row.serviceId ? '…' : '🗑'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               )
             })}
@@ -676,7 +782,7 @@ function PeriodReview({
                 )}
               </td>
               <td className="px-3 py-2 text-right text-xs text-muted-foreground tabular-nums">
-                {fmt(rows.reduce((s, r) => s + r.employeePool, 0))}
+                {fmt(rows.reduce((s, r) => s + effectivePool(r), 0))}
               </td>
               <td className="px-3 py-2 text-right font-semibold tabular-nums text-sm">
                 {fmt(grandTotal)}
@@ -692,10 +798,171 @@ function PeriodReview({
                   </button>
                 )}
               </td>
+              <td />
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {/* Manual adjustment lines */}
+      {isOwnerOrManager && (
+        <div className="rounded-lg border bg-card">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div>
+              <h2 className="text-sm font-semibold">Manual adjustments</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Bonuses, corrections, or off-system jobs</p>
+            </div>
+            {!showAddManual && (
+              <button
+                onClick={() => {
+                  setManualForm({ userId: employees[0]?.id ?? '', description: '', amount: '' })
+                  setShowAddManual(true)
+                }}
+                className="text-xs text-primary font-medium hover:underline underline-offset-2 transition-colors"
+              >
+                + Add line
+              </button>
+            )}
+          </div>
+
+          {/* Add form */}
+          {showAddManual && (
+            <div className="px-4 py-3 border-b bg-muted/20 flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Employee</label>
+                <select
+                  value={manualForm.userId}
+                  onChange={(e) => setManualForm((p) => ({ ...p, userId: e.target.value }))}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.displayName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                <label className="text-xs font-medium text-muted-foreground">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Detailing bonus"
+                  value={manualForm.description}
+                  onChange={(e) => setManualForm((p) => ({ ...p, description: e.target.value }))}
+                  className="h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={manualForm.amount}
+                    onChange={(e) => setManualForm((p) => ({ ...p, amount: e.target.value }))}
+                    className="h-8 w-28 rounded-md border border-input bg-background pl-6 pr-2 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={manualPending || !manualForm.description.trim() || !manualForm.amount}
+                  onClick={() => {
+                    const emp = employees.find((e) => e.id === manualForm.userId)
+                    if (!emp) return
+                    startManualTransition(async () => {
+                      const result = await createManualPayrollLine({
+                        userId:      emp.id,
+                        displayName: emp.displayName,
+                        periodStart: period.startStr,
+                        periodEnd:   period.endStr,
+                        description: manualForm.description,
+                        amount:      parseFloat(manualForm.amount) || 0,
+                      })
+                      if (!result.error) {
+                        const lines = await getManualLinesForPeriod(period.startStr, period.endStr)
+                        setManualLines(lines)
+                        setShowAddManual(false)
+                        setManualForm({ userId: employees[0]?.id ?? '', description: '', amount: '' })
+                      }
+                    })
+                  }}
+                >
+                  {manualPending ? 'Saving…' : 'Save'}
+                </Button>
+                <button
+                  onClick={() => setShowAddManual(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Line list */}
+          {manualLines.length === 0 && !showAddManual ? (
+            <div className="px-4 py-5 text-sm text-muted-foreground/60 text-center">
+              No manual lines for this period.
+            </div>
+          ) : manualLines.length > 0 ? (
+            <div className="divide-y">
+              {manualLines.map((line) => (
+                <div key={line.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{line.displayName}</span>
+                      <span className="text-xs text-muted-foreground truncate">{line.description}</span>
+                    </div>
+                    <div className="text-sm font-semibold tabular-nums mt-0.5">{fmt(parseFloat(line.amount))}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {line.approvedAt ? (
+                      <span className="text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
+                        ✓ Approved
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                          Draft
+                        </span>
+                        <button
+                          onClick={() => {
+                            startManualTransition(async () => {
+                              await approveManualPayrollLine(line.id)
+                              const lines = await getManualLinesForPeriod(period.startStr, period.endStr)
+                              setManualLines(lines)
+                            })
+                          }}
+                          disabled={manualPending}
+                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => {
+                        startManualTransition(async () => {
+                          await deleteManualPayrollLine(line.id)
+                          setManualLines((prev) => prev.filter((l) => l.id !== line.id))
+                        })
+                      }}
+                      disabled={manualPending}
+                      title="Delete line"
+                      className="text-muted-foreground/40 hover:text-destructive transition-colors text-xs disabled:opacity-40"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Sticky approve bar */}
       {isOwnerOrManager && (

@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { payroll, services } from '@/lib/db/schema'
-import { and, gte, inArray, lte, sql } from 'drizzle-orm'
+import { payroll, services, manualPayrollLines } from '@/lib/db/schema'
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
@@ -107,6 +107,8 @@ export type SavedPayrollRow = {
   serviceId:        string
   userId:           string
   displayName:      string
+  totalPrice:       string | null
+  employeePool:     string | null
   splitPct:         string
   deductionPct:     string
   effectivePct:     string
@@ -134,6 +136,8 @@ export async function getPayrollForPeriod(
       serviceId:        payroll.serviceId,
       userId:           payroll.userId,
       displayName:      payroll.displayName,
+      totalPrice:       payroll.totalPrice,
+      employeePool:     payroll.employeePool,
       splitPct:         payroll.splitPct,
       deductionPct:     payroll.deductionPct,
       effectivePct:     payroll.effectivePct,
@@ -153,6 +157,151 @@ export async function getPayrollForPeriod(
         lte(payroll.serviceDate, endDate)
       )
     )
+}
+
+// ─── Delete actions ───────────────────────────────────────────────────────────
+
+// Delete all saved payroll entries for a specific service.
+export async function deleteServicePayroll(
+  serviceId: string
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  await db.delete(payroll).where(eq(payroll.serviceId, serviceId))
+  await log({
+    action: 'delete_service_payroll',
+    entityType: 'payroll',
+    entityId: serviceId,
+    metadata: { deletedBy: user.displayName },
+  })
+  revalidatePath('/pay')
+  return {}
+}
+
+// Delete a single (serviceId, userId) payroll entry.
+export async function deletePayrollEntry(
+  serviceId: string,
+  userId: string
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  await db.delete(payroll).where(
+    and(eq(payroll.serviceId, serviceId), eq(payroll.userId, userId))
+  )
+  revalidatePath('/pay')
+  return {}
+}
+
+// ─── Manual payroll lines ─────────────────────────────────────────────────────
+
+export type ManualLineInput = {
+  userId: string
+  displayName: string
+  periodStart: string
+  periodEnd: string
+  description: string
+  amount: number
+}
+
+export type ManualLineRow = {
+  id: string
+  userId: string
+  displayName: string
+  description: string
+  amount: string
+  createdAt: Date
+  approvedAt: Date | null
+  approvedByName: string | null
+}
+
+export async function getManualLinesForPeriod(
+  startDate: string,
+  endDate: string
+): Promise<ManualLineRow[]> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return []
+
+  return db
+    .select({
+      id:             manualPayrollLines.id,
+      userId:         manualPayrollLines.userId,
+      displayName:    manualPayrollLines.displayName,
+      description:    manualPayrollLines.description,
+      amount:         manualPayrollLines.amount,
+      createdAt:      manualPayrollLines.createdAt,
+      approvedAt:     manualPayrollLines.approvedAt,
+      approvedByName: manualPayrollLines.approvedByName,
+    })
+    .from(manualPayrollLines)
+    .where(
+      and(
+        eq(manualPayrollLines.periodStart, startDate),
+        eq(manualPayrollLines.periodEnd, endDate),
+      )
+    )
+}
+
+export async function createManualPayrollLine(
+  data: ManualLineInput
+): Promise<{ error?: string; id?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  if (!data.description.trim()) return { error: 'Description is required' }
+  if (isNaN(data.amount) || data.amount <= 0) return { error: 'Amount must be a positive number' }
+
+  const [row] = await db
+    .insert(manualPayrollLines)
+    .values({
+      userId:          data.userId,
+      displayName:     data.displayName,
+      periodStart:     data.periodStart,
+      periodEnd:       data.periodEnd,
+      description:     data.description.trim(),
+      amount:          String(data.amount),
+      createdByUserId: user.id,
+    })
+    .returning({ id: manualPayrollLines.id })
+
+  await log({
+    action: 'create_manual_payroll_line',
+    entityType: 'manual_payroll_line',
+    entityId: row.id,
+    metadata: { userId: data.userId, amount: data.amount, description: data.description },
+  })
+  revalidatePath('/pay')
+  return { id: row.id }
+}
+
+export async function deleteManualPayrollLine(
+  id: string
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  await db.delete(manualPayrollLines).where(eq(manualPayrollLines.id, id))
+  revalidatePath('/pay')
+  return {}
+}
+
+export async function approveManualPayrollLine(
+  id: string
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  await db.update(manualPayrollLines)
+    .set({ approvedAt: new Date(), approvedByUserId: user.id, approvedByName: user.displayName })
+    .where(eq(manualPayrollLines.id, id))
+  revalidatePath('/pay')
+  return {}
 }
 
 // Approve all saved payroll rows for a period. Sets approved_at / approved_by on every row.

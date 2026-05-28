@@ -426,6 +426,25 @@ export const recurringSchedulesRelations = relations(recurringSchedules, ({ one,
   services: many(services),
 }))
 
+// ─── Manual payroll lines ─────────────────────────────────────────────────────
+
+// One-off manual pay entries (bonuses, adjustments, unreported jobs) that
+// aren't tied to a service record. Scoped to a pay period via period_start/end.
+export const manualPayrollLines = pgTable('manual_payroll_lines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull(),
+  displayName: text('display_name').notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  description: text('description').notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+  createdByUserId: text('created_by_user_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  approvedAt: timestamp('approved_at'),
+  approvedByUserId: text('approved_by_user_id'),
+  approvedByName: text('approved_by_name'),
+})
+
 // ─── Calendar events ──────────────────────────────────────────────────────────
 
 // Custom events added to the calendar (not tied to services/customers).
@@ -469,3 +488,5 @@ export type NewTimeEntry = typeof timeEntries.$inferInsert
 export type ServiceTypeShare = typeof serviceTypeShares.$inferSelect
 export type Payroll = typeof payroll.$inferSelect
 export type NewPayroll = typeof payroll.$inferInsert
+export type ManualPayrollLine = typeof manualPayrollLines.$inferSelect
+export type NewManualPayrollLine = typeof manualPayrollLines.$inferInsert
