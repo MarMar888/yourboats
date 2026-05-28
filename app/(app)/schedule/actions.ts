@@ -6,11 +6,19 @@ import { db } from '@/lib/db'
 import { services, invoices, customers, customerReminderContacts } from '@/lib/db/schema'
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 import { voidQboInvoice } from '@/lib/qbo/void-invoice'
+import { voidInvoiceForService } from '@/lib/invoices/void-invoice'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getPostHogClient } from '@/lib/posthog-server'
 import { emailTransport } from '@/lib/email/client'
 import { serviceReminderEmail, formatServiceType } from '@/lib/email/templates/service-reminder'
+
+function uuidOrNull(value: string): string | null {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null
+}
 
 export async function rescheduleService(serviceId: string, newDate: string): Promise<{ error?: string }> {
   const user = await getCurrentUser()
@@ -26,6 +34,8 @@ export async function rescheduleService(serviceId: string, newDate: string): Pro
   if (service.status === 'complete') return { error: 'Cannot reschedule a completed service' }
 
   await db.update(services).set({ serviceDate: newDate }).where(eq(services.id, serviceId))
+  await db.update(invoices).set({ qboNeedsSync: true }).where(eq(invoices.serviceId, serviceId))
+  await refreshServicePayroll(serviceId, 'service_rescheduled')
   await log({ action: 'reschedule_service', entityType: 'service', entityId: serviceId, metadata: { newDate } })
 
   const posthog = getPostHogClient()
@@ -58,7 +68,7 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
 
   await db
     .update(services)
-    .set({ status: 'complete', completedAt: new Date(), completedByUserId: user.id })
+    .set({ status: 'complete', completedAt: new Date(), completedByUserId: uuidOrNull(user.id) })
     .where(eq(services.id, serviceId))
 
   // Prepaid customers never get invoices
@@ -77,6 +87,7 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
   }
 
   await log({ action: 'mark_complete', entityType: 'service', entityId: serviceId })
+  await refreshServicePayroll(serviceId, 'service_completed')
 
   const posthog = getPostHogClient()
   posthog.capture({ distinctId: user.id, event: 'service_completed', properties: { service_id: serviceId, total_price: service.totalPrice, is_prepaid: service.isPrepaid } })
@@ -107,6 +118,7 @@ export async function markIncomplete(serviceId: string): Promise<{ error?: strin
     .set({ status: 'scheduled', completedAt: null, completedByUserId: null })
     .where(eq(services.id, serviceId))
 
+  await refreshServicePayroll(serviceId, 'service_marked_incomplete')
   await log({ action: 'mark_incomplete', entityType: 'service', entityId: serviceId })
 
   const posthog = getPostHogClient()

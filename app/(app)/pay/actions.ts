@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { tierConfig, users, services, timeEntries, boats, serviceTypeShares, invoices, qboItems } from '@/lib/db/schema'
 import { and, eq, gte, lte, inArray, isNotNull } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 import { log } from '@/lib/log'
 
 export async function saveTip(serviceId: string, tipAmount: number): Promise<void> {
@@ -16,6 +17,7 @@ export async function saveTip(serviceId: string, tipAmount: number): Promise<voi
     .set({ tipAmount: tipAmount > 0 ? String(tipAmount) : null })
     .where(eq(services.id, serviceId))
 
+  await refreshServicePayroll(serviceId, 'service_tip_updated')
   revalidatePath('/pay')
 }
 
@@ -55,6 +57,7 @@ export async function updatePayrollServiceType(
     .set({ qboNeedsSync: true })
     .where(eq(invoices.serviceId, serviceId))
 
+  await refreshServicePayroll(serviceId, 'payroll_service_type_updated')
   await log({
     action: 'update_payroll_service_type',
     entityType: 'service',

@@ -2,10 +2,11 @@
 
 import { db } from '@/lib/db'
 import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
-import { syncPayrollPriceForService } from '@/lib/pay/sync-payroll-price'
+import { and, eq } from 'drizzle-orm'
 import { getQboClient, fetchQboInvoiceLink } from '@/lib/qbo/client'
 import { voidQboInvoice } from '@/lib/qbo/void-invoice'
+import { voidInvoiceById } from '@/lib/invoices/void-invoice'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
 import { getNextQboDocNumber } from '@/lib/qbo/doc-number'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
@@ -59,6 +60,32 @@ export async function deleteInvoice(invoiceId: string): Promise<ActionResult> {
     return { ok: true }
   } catch (err) {
     return { ok: false, error: `Failed to delete: ${err instanceof Error ? err.message : String(err)}` }
+  }
+}
+
+export async function voidInvoice(invoiceId: string): Promise<ActionResult> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { ok: false, error: 'Not authorized.' }
+  }
+
+  try {
+    const result = await voidInvoiceById(invoiceId)
+    if (!result.ok) return result
+
+    await log({
+      action: 'void_invoice',
+      entityType: 'invoice',
+      entityId: invoiceId,
+      metadata: { serviceId: result.serviceId },
+    })
+
+    revalidatePath('/invoices')
+    revalidatePath('/schedule')
+    revalidatePath(`/schedule/${result.serviceId}`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: `Failed to void: ${err instanceof Error ? err.message : String(err)}` }
   }
 }
 
@@ -231,57 +258,114 @@ export async function getQboItemsForSelect(): Promise<{ qboItemId: string; name:
 
 export async function updateInvoice(
   invoiceId: string,
-  { amount, notes, status, docNumber }: { amount: string; notes: string; status: string; docNumber?: string }
+  {
+    notes,
+    status,
+    docNumber,
+    lineItems,
+  }: {
+    notes: string
+    status: string
+    docNumber?: string
+    lineItems: {
+      boatId: string
+      description: string
+      rateType: 'per_ft' | 'flat'
+      rate: string
+    }[]
+  }
 ): Promise<ActionResult> {
-  const parsed = Number(amount)
-  if (isNaN(parsed) || parsed < 0) return { ok: false, error: 'Invalid amount.' }
+  if (lineItems.length === 0) return { ok: false, error: 'Invoice must have at least one line item.' }
 
   const parsedDocNumber = docNumber && docNumber.trim() !== '' ? parseInt(docNumber, 10) : undefined
   if (parsedDocNumber !== undefined && (isNaN(parsedDocNumber) || parsedDocNumber <= 0)) {
     return { ok: false, error: 'Invoice number must be a positive number.' }
   }
 
-  // Fetch current invoice to detect amount change and get linked service
-  const [currentInvoice] = await db
-    .select({ amount: invoices.amount, serviceId: invoices.serviceId })
-    .from(invoices)
-    .where(eq(invoices.id, invoiceId))
-    .limit(1)
-
-  const amountChanged = currentInvoice && Number(currentInvoice.amount) !== parsed
-
-  await db
-    .update(invoices)
-    .set({
-      amount: String(parsed),
-      notes: notes || null,
-      status: status as never,
-      qboNeedsSync: true,
-      ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
-    })
-    .where(eq(invoices.id, invoiceId))
-
-  // When amount changes, keep services.totalPrice in sync and update saved payroll
-  if (amountChanged && currentInvoice.serviceId) {
-    const [svc] = await db
-      .select({ serviceType: services.serviceType })
-      .from(services)
-      .where(eq(services.id, currentInvoice.serviceId))
-      .limit(1)
-
-    if (svc) {
-      await db
-        .update(services)
-        .set({ totalPrice: String(parsed) })
-        .where(eq(services.id, currentInvoice.serviceId))
-
-      await syncPayrollPriceForService(currentInvoice.serviceId, svc.serviceType, parsed)
+  for (const item of lineItems) {
+    const rate = Number(item.rate)
+    if (isNaN(rate) || rate < 0) return { ok: false, error: 'Line item rates must be valid non-negative numbers.' }
+    if (item.rateType !== 'per_ft' && item.rateType !== 'flat') {
+      return { ok: false, error: 'Invalid rate type.' }
     }
   }
 
-  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount, status, docNumber: parsedDocNumber } })
+  const result = await db.transaction(async (tx) => {
+    const [invoice] = await tx
+      .select({ serviceId: invoices.serviceId, status: invoices.status })
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId))
+      .limit(1)
+
+    if (!invoice) return { ok: false as const, error: 'Invoice not found.' }
+    if (invoice.status === 'paid' || invoice.status === 'void') {
+      return { ok: false as const, error: 'Paid or void invoices cannot be edited.' }
+    }
+
+    const serviceLines = await tx
+      .select({
+        boatId: serviceBoats.boatId,
+        rateType: serviceBoats.rateType,
+        rate: serviceBoats.rate,
+        lengthFt: boats.lengthFt,
+      })
+      .from(serviceBoats)
+      .leftJoin(boats, eq(boats.id, serviceBoats.boatId))
+      .where(eq(serviceBoats.serviceId, invoice.serviceId))
+
+    const serviceLineMap = new Map(serviceLines.map((line) => [line.boatId, line]))
+    const boatIds = lineItems.map((item) => item.boatId)
+    const missingLine = boatIds.find((boatId) => !serviceLineMap.has(boatId))
+    if (missingLine) return { ok: false as const, error: 'Invoice line item no longer exists on this service.' }
+
+    const editedByBoatId = new Map(lineItems.map((item) => [item.boatId, item]))
+    for (const item of lineItems) {
+      const rate = Number(item.rate)
+
+      await tx
+        .update(serviceBoats)
+        .set({
+          description: item.description.trim() || null,
+          rateType: item.rateType,
+          rate: String(rate),
+        })
+        .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, item.boatId)))
+    }
+
+    const amount = serviceLines.reduce((sum, line) => {
+      const edited = editedByBoatId.get(line.boatId)
+      const rateType = edited?.rateType ?? line.rateType ?? 'per_ft'
+      const rate = Number(edited?.rate ?? line.rate ?? 0)
+      const qty = rateType === 'per_ft' ? (line.lengthFt ?? 0) : 1
+      return sum + rate * qty
+    }, 0)
+
+    await tx
+      .update(services)
+      .set({ totalPrice: String(amount) })
+      .where(eq(services.id, invoice.serviceId))
+
+    await tx
+      .update(invoices)
+      .set({
+        amount: String(amount),
+        notes: notes || null,
+        status: status as never,
+        qboNeedsSync: true,
+        ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
+      })
+      .where(eq(invoices.id, invoiceId))
+
+    return { ok: true as const, amount, serviceId: invoice.serviceId }
+  })
+
+  if (!result.ok) return result
+  await refreshServicePayroll(result.serviceId, 'invoice_lines_updated')
+
+  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount: result.amount, status, docNumber: parsedDocNumber } })
   revalidatePath('/invoices')
   revalidatePath('/schedule')
+  revalidatePath('/pay')
   return { ok: true }
 }
 

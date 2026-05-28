@@ -6,6 +6,7 @@ import { services, invoices } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 
 function isTipLine(line: Record<string, unknown>): boolean {
   const desc = ((line.Description as string) ?? '').toLowerCase()
@@ -53,6 +54,8 @@ export async function syncTipFromQbo(serviceId: string): Promise<{ error?: strin
     .set({ tipAmount: tipTotal > 0 ? String(tipTotal) : null })
     .where(eq(services.id, serviceId))
 
+  await refreshServicePayroll(serviceId, 'qbo_tip_synced')
   revalidatePath(`/schedule/${serviceId}`)
+  revalidatePath('/pay')
   return { tipAmount: tipTotal }
 }

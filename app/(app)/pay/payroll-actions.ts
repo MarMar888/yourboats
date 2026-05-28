@@ -66,6 +66,8 @@ export async function savePayrollEntries(
     totalPay:      String(e.totalPay),
     savedByUserId: user.id,
     savedAt:       now,
+    staleAt:       null,
+    staleReason:   null,
   }))
 
   await db
@@ -89,6 +91,8 @@ export async function savePayrollEntries(
         totalPay:      sql`excluded.total_pay`,
         savedByUserId: sql`excluded.saved_by_user_id`,
         savedAt:       sql`excluded.saved_at`,
+        staleAt:       sql`excluded.stale_at`,
+        staleReason:   sql`excluded.stale_reason`,
       },
     })
 
@@ -120,6 +124,8 @@ export type SavedPayrollRow = {
   approvedAt:       Date | null
   approvedByUserId: string | null
   approvedByName:   string | null
+  staleAt:          Date | null
+  staleReason:      string | null
 }
 
 // Return all saved payroll entries for services whose dates fall in [startDate, endDate].
@@ -149,6 +155,8 @@ export async function getPayrollForPeriod(
       approvedAt:       payroll.approvedAt,
       approvedByUserId: payroll.approvedByUserId,
       approvedByName:   payroll.approvedByName,
+      staleAt:          payroll.staleAt,
+      staleReason:      payroll.staleReason,
     })
     .from(payroll)
     .where(
@@ -321,6 +329,8 @@ export async function approvePayrollForPeriod(
       approvedAt:       now,
       approvedByUserId: user.id,
       approvedByName:   user.displayName,
+      staleAt:          null,
+      staleReason:      null,
     })
     .where(
       and(
@@ -352,7 +362,7 @@ export async function unapprovePayrollForPeriod(
 
   await db
     .update(payroll)
-    .set({ approvedAt: null, approvedByUserId: null, approvedByName: null })
+    .set({ approvedAt: null, approvedByUserId: null, approvedByName: null, staleAt: null, staleReason: null })
     .where(
       and(
         gte(payroll.serviceDate, startDate),

@@ -65,6 +65,10 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+type NextFetchOptions = RequestInit & {
+  next?: { revalidate?: number }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface PageProps {
@@ -245,7 +249,8 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         `&wind_speed_unit=mph` +
         `&timezone=America%2FChicago` +
         `&start_date=${weekStartStr}&end_date=${weekEndStr}`
-      const weatherRes = await fetch(weatherUrl, { next: { revalidate: 3600 } })
+      const weatherFetchOptions: NextFetchOptions = { next: { revalidate: 3600 } }
+      const weatherRes = await fetch(weatherUrl, weatherFetchOptions)
       if (weatherRes.ok) {
         const weatherData = await weatherRes.json() as {
           daily: {
