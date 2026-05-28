@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { syncPayrollPriceForService } from '@/lib/pay/sync-payroll-price'
 import { getQboClient, fetchQboInvoiceLink } from '@/lib/qbo/client'
 import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
@@ -240,6 +241,15 @@ export async function updateInvoice(
     return { ok: false, error: 'Invoice number must be a positive number.' }
   }
 
+  // Fetch current invoice to detect amount change and get linked service
+  const [currentInvoice] = await db
+    .select({ amount: invoices.amount, serviceId: invoices.serviceId })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1)
+
+  const amountChanged = currentInvoice && Number(currentInvoice.amount) !== parsed
+
   await db
     .update(invoices)
     .set({
@@ -251,8 +261,27 @@ export async function updateInvoice(
     })
     .where(eq(invoices.id, invoiceId))
 
+  // When amount changes, keep services.totalPrice in sync and update saved payroll
+  if (amountChanged && currentInvoice.serviceId) {
+    const [svc] = await db
+      .select({ serviceType: services.serviceType })
+      .from(services)
+      .where(eq(services.id, currentInvoice.serviceId))
+      .limit(1)
+
+    if (svc) {
+      await db
+        .update(services)
+        .set({ totalPrice: String(parsed) })
+        .where(eq(services.id, currentInvoice.serviceId))
+
+      await syncPayrollPriceForService(currentInvoice.serviceId, svc.serviceType, parsed)
+    }
+  }
+
   await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount, status, docNumber: parsedDocNumber } })
   revalidatePath('/invoices')
+  revalidatePath('/schedule')
   return { ok: true }
 }
 

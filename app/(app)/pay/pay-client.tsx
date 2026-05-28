@@ -626,6 +626,8 @@ function PeriodReview({
               const { assignments: computed, splitsValid } = computeAssignmentsFor(row)
               const rowTotal = computed.reduce((s, a) => s + a.computedNetPay, 0)
               const tipPerPerson = computed.length > 0 ? tipNum / computed.length : 0
+              const revNum = parseFloat(revenueOverrides[row.serviceId] ?? String(row.totalPrice))
+              const isRevModified = !isNaN(revNum) && Math.abs(revNum - row.totalPrice) > 0.005
 
               return (
                 <tr key={row.serviceId} className={`align-top ${rowIdx % 2 === 1 ? 'bg-muted/10' : ''} hover:bg-muted/20 transition-colors`}>
@@ -796,7 +798,11 @@ function PeriodReview({
                             step="0.01"
                             value={revenueOverrides[row.serviceId] ?? String(row.totalPrice)}
                             onChange={(e) => setRevenueOverride(row.serviceId, e.target.value)}
-                            className="w-24 h-7 text-xs pl-5 pr-1 tabular-nums border border-input rounded bg-background focus:outline-none focus:ring-1 focus:ring-ring text-right"
+                            className={`w-24 h-7 text-xs pl-5 pr-1 tabular-nums border rounded focus:outline-none focus:ring-1 text-right transition-colors ${
+                              isRevModified
+                                ? 'border-amber-400 bg-amber-50 focus:ring-amber-400'
+                                : 'border-input bg-background focus:ring-ring'
+                            }`}
                             title="Override revenue for pay calculation"
                           />
                         </div>

@@ -7,6 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { syncPayrollPriceForService } from '@/lib/pay/sync-payroll-price'
 
 // ─── Update service ───────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ export async function updateService(
   const status = formData.get('status') as string
 
   const [currentService] = await db
-    .select({ serviceDate: services.serviceDate })
+    .select({ serviceDate: services.serviceDate, totalPrice: services.totalPrice })
     .from(services)
     .where(eq(services.id, serviceId))
     .limit(1)
@@ -49,6 +50,20 @@ export async function updateService(
       .update(invoices)
       .set({ qboNeedsSync: true })
       .where(eq(invoices.serviceId, serviceId))
+  }
+
+  // If totalPrice was manually set and changed, keep invoice.amount in sync
+  // and propagate the new price to any saved payroll records.
+  if (totalPrice) {
+    const newPrice = Number(totalPrice)
+    const oldPrice = currentService ? Number(currentService.totalPrice ?? 0) : undefined
+    if (oldPrice === undefined || Math.abs(newPrice - oldPrice) > 0.005) {
+      await db
+        .update(invoices)
+        .set({ amount: String(newPrice), qboNeedsSync: true })
+        .where(eq(invoices.serviceId, serviceId))
+      await syncPayrollPriceForService(serviceId, serviceType, newPrice)
+    }
   }
 
   // Update boat rows and assignments
@@ -125,6 +140,7 @@ export async function updateService(
         .update(invoices)
         .set({ amount: String(computed) })
         .where(and(eq(invoices.serviceId, serviceId)))
+      await syncPayrollPriceForService(serviceId, serviceType, computed)
     }
   }
 
