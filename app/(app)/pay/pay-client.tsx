@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
-import { saveTip, updateTierConfig, getLaborEntriesForPeriod } from './actions'
+import { saveTip, updateTierConfig, getLaborEntriesForPeriod, updatePayrollServiceType } from './actions'
 import type { LaborTimeEntry } from './actions'
 import {
   savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod,
@@ -22,6 +22,7 @@ import type { PeriodServiceRow, AssignmentRow } from '@/app/api/pay/period/route
 
 type Employee = { id: string; displayName: string; tier: 'top' | 'mid' | 'low' | null }
 type TierRow = { tier: 'top' | 'mid' | 'low'; deductionPct: string }
+type ServiceTypeShareOption = { serviceType: string; employeeSharePct: string }
 
 type SalariedLine = {
   id: string
@@ -36,6 +37,20 @@ type SalariedLine = {
 }
 
 function fmt(n: number) { return `$${n.toFixed(2)}` }
+
+function formatServiceTypeLabel(serviceType: string) {
+  const labels: Record<string, string> = {
+    recurring: 'Standard Clean',
+    detailing: 'Detailing',
+    buffing_waxing: 'Buffing & Waxing',
+    acid_washing: 'Acid Washing',
+    powerwashing: 'Powerwashing',
+    gelcoat_wetsanding: 'Gelcoat Wet-Sanding',
+    captaining: 'Captaining',
+    other: 'Other',
+  }
+  return labels[serviceType] ?? serviceType
+}
 
 function fmtDate(ymd: string) {
   const [y, m, d] = ymd.split('-').map(Number)
@@ -165,12 +180,14 @@ function PeriodReview({
   period,
   employees,
   tierRows,
+  serviceTypeShares,
   isOwnerOrManager,
   salariedLines,
 }: {
   period: PayPeriod
   employees: Employee[]
   tierRows: TierRow[]
+  serviceTypeShares: ServiceTypeShareOption[]
   isOwnerOrManager: boolean
   salariedLines: SalariedLine[]
 }) {
@@ -191,6 +208,8 @@ function PeriodReview({
   const [manualForm, setManualForm] = useState({ userId: '', description: '', amount: '' })
   const [manualPending, startManualTransition] = useTransition()
   const [deletingService, setDeletingService] = useState<string | null>(null)
+  const [savingServiceType, setSavingServiceType] = useState<Record<string, boolean>>({})
+  const [serviceTypeErrors, setServiceTypeErrors] = useState<Record<string, string>>({})
 
   // Approval state
   const [approval, setApproval] = useState<{ at: Date; byName: string } | null>(null)
@@ -286,6 +305,46 @@ function PeriodReview({
     } finally {
       setSavingTip((p) => ({ ...p, [serviceId]: false }))
     }
+  }
+
+  async function handleServiceTypeChange(serviceId: string, serviceType: string) {
+    const option = serviceTypeShares.find((s) => s.serviceType === serviceType)
+    if (!option) return
+
+    const previous = rows.find((r) => r.serviceId === serviceId)
+    setRows((prev) =>
+      prev.map((r) =>
+        r.serviceId === serviceId
+          ? { ...r, serviceType, serviceTypeShare: Number(option.employeeSharePct) }
+          : r
+      )
+    )
+    setIsDirty(true)
+    setServiceTypeErrors((prev) => {
+      const next = { ...prev }
+      delete next[serviceId]
+      return next
+    })
+    setSavingServiceType((prev) => ({ ...prev, [serviceId]: true }))
+
+    const result = await updatePayrollServiceType(serviceId, serviceType)
+    setSavingServiceType((prev) => ({ ...prev, [serviceId]: false }))
+
+    if (result.ok) {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.serviceId === serviceId
+            ? { ...r, serviceType, serviceTypeShare: result.serviceTypeShare }
+            : r
+        )
+      )
+      return
+    }
+
+    if (previous) {
+      setRows((prev) => prev.map((r) => r.serviceId === serviceId ? previous : r))
+    }
+    setServiceTypeErrors((prev) => ({ ...prev, [serviceId]: result.error }))
   }
 
   function setSplitOverride(serviceId: string, userId: string, value: string) {
@@ -575,12 +634,37 @@ function PeriodReview({
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="font-medium text-sm leading-tight">{row.customerName}</div>
-                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                      <span className="text-xs text-muted-foreground">{row.serviceType}</span>
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {isOwnerOrManager ? (
+                        <select
+                          value={row.serviceType}
+                          onChange={(e) => handleServiceTypeChange(row.serviceId, e.target.value)}
+                          disabled={savingServiceType[row.serviceId]}
+                          className="h-7 max-w-[150px] rounded border border-input bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          title="Service type for payroll percentage"
+                        >
+                          {!serviceTypeShares.some((s) => s.serviceType === row.serviceType) && (
+                            <option value={row.serviceType}>{formatServiceTypeLabel(row.serviceType)}</option>
+                          )}
+                          {serviceTypeShares.map((s) => (
+                            <option key={s.serviceType} value={s.serviceType}>
+                              {formatServiceTypeLabel(s.serviceType)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{formatServiceTypeLabel(row.serviceType)}</span>
+                      )}
                       <span className="text-[10px] bg-muted rounded px-1.5 py-px text-muted-foreground tabular-nums">
                         {row.serviceTypeShare}%
                       </span>
+                      {savingServiceType[row.serviceId] && (
+                        <span className="text-[10px] text-muted-foreground">Saving…</span>
+                      )}
                     </div>
+                    {serviceTypeErrors[row.serviceId] && (
+                      <div className="text-[10px] text-destructive mt-0.5">{serviceTypeErrors[row.serviceId]}</div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground text-xs">
                     {row.boats.length > 0 ? row.boats.join(', ') : <span className="text-muted-foreground/40">—</span>}
@@ -1441,10 +1525,12 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
 export function PayClient({
   employees,
   tierRows,
+  serviceTypeShares,
   isOwner,
 }: {
   employees: Employee[]
   tierRows: TierRow[]
+  serviceTypeShares: ServiceTypeShareOption[]
   isOwner: boolean
 }) {
   const [period, setPeriod] = useState<PayPeriod>(getCurrentPeriod)
@@ -1550,6 +1636,7 @@ export function PayClient({
             period={period}
             employees={employees}
             tierRows={tierRows}
+            serviceTypeShares={serviceTypeShares}
             isOwnerOrManager={isOwner || true}
             salariedLines={salariedLines}
           />
