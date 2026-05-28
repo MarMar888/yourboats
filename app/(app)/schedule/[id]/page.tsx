@@ -80,11 +80,12 @@ export default async function ServiceDetailPage({
       notes:        services.notes,
       totalPrice:   services.totalPrice,
       tipAmount:    services.tipAmount,
-      approvedAt:        services.approvedAt,
-      approvedBy:        services.approvedByUserId,
-      completedAt:       services.completedAt,
-      completedByUserId: services.completedByUserId,
-      reminderSentAt:    services.reminderSentAt,
+      approvedAt:           services.approvedAt,
+      approvedBy:           services.approvedByUserId,
+      completedAt:          services.completedAt,
+      completedByUserId:    services.completedByUserId,
+      reminderSentAt:       services.reminderSentAt,
+      completionPhotoUrl:   services.completionPhotoUrl,
       customerName: customers.name,
       customerId:   customers.id,
       isPrepaid:    customers.isPrepaid,
@@ -213,7 +214,9 @@ export default async function ServiceDetailPage({
   const showTimeTracker = canManage || isAssigned
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-4xl">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6 items-start">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <Link
@@ -593,6 +596,27 @@ export default async function ServiceDetailPage({
           View customer profile →
         </Link>
       </div>
+    </div>{/* end space-y-6 */}
+
+    {/* Right column: completion photo */}
+    {svc.completionPhotoUrl && (
+      <div className="lg:sticky lg:top-6">
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-3 py-2 border-b">
+            <p className="text-xs font-medium text-muted-foreground">Completion photo</p>
+          </div>
+          <a href={svc.completionPhotoUrl} target="_blank" rel="noopener noreferrer" title="Open full size">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={svc.completionPhotoUrl}
+              alt="Service completion photo"
+              className="w-full object-cover hover:opacity-90 transition-opacity"
+            />
+          </a>
+        </div>
+      </div>
+    )}
+    </div>{/* end grid */}
     </div>
   )
 }
