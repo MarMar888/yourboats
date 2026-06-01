@@ -229,8 +229,8 @@ function PeriodReview({
     try {
       const [res, payrollRows, manualRows] = await Promise.all([
         fetch(`/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`),
-        getPayrollForPeriod(period.startStr, period.endStr),
-        getManualLinesForPeriod(period.startStr, period.endStr),
+        getPayrollForPeriod(period.startStr, period.endStr).catch(() => [] as SavedPayrollRow[]),
+        getManualLinesForPeriod(period.startStr, period.endStr).catch(() => [] as ManualLineRow[]),
       ])
       setManualLines(manualRows)
       if (!res.ok) throw new Error('Failed')
