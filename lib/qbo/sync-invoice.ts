@@ -7,7 +7,6 @@ import { getQboClient, fetchQboInvoiceLink } from './client'
 import { findBestQboItem } from './items'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
-import { getNextQboDocNumber } from './doc-number'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -141,12 +140,10 @@ export async function syncInvoiceToQbo(invoiceId: string): Promise<ActionResult>
 
       await log({ action: 'sync_invoice_to_qbo', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: inv.qboInvoiceId } })
     } else {
-      // Create new QBO invoice
-      const docNumber = inv.docNumber ? String(inv.docNumber) : await getNextQboDocNumber(qbo)
+      // Create new QBO invoice — let QBO auto-assign DocNumber to avoid duplicate conflicts
       const created = await new Promise<{ Id: string; DocNumber?: string }>((resolve, reject) =>
         qbo.createInvoice(
           {
-            DocNumber: docNumber,
             CustomerRef: { value: service.qboCustomerId! },
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
