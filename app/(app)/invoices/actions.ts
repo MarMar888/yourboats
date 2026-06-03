@@ -8,7 +8,6 @@ import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { voidInvoiceById } from '@/lib/invoices/void-invoice'
 import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 import { findBestQboItem, getCachedQboItems } from '@/lib/qbo/items'
-import { getNextQboDocNumber } from '@/lib/qbo/doc-number'
 import { syncInvoiceToQbo } from '@/lib/qbo/sync-invoice'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
@@ -190,12 +189,11 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       }
     })
 
-    const docNumber = inv.docNumber ? String(inv.docNumber) : await getNextQboDocNumber(qbo)
+    // Let QBO auto-assign DocNumber to avoid duplicate conflicts
     const created = await new Promise<{ Id: string; DocNumber?: string }>(
       (resolve, reject) =>
         qbo.createInvoice(
           {
-            DocNumber: docNumber,
             CustomerRef: { value: service.qboCustomerId! },
             TxnDate: service.serviceDate,
             DueDate: dueDate.toISOString().split('T')[0],
