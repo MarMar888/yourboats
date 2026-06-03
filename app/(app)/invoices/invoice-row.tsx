@@ -56,6 +56,7 @@ export type InvoiceRowData = {
   serviceId: string
   customerName: string
   customerId: string
+  isPrepaid: boolean
   canManage: boolean
   qboEnv?: string
   lineItems: {
@@ -97,6 +98,7 @@ export function InvoiceRow({
                 invoiceId={inv.invoiceId}
                 hasQboId={!!inv.qboInvoiceId}
                 status={inv.status}
+                isPrepaid={inv.isPrepaid}
                 qboItems={qboItemOptions}
               />
               {inv.canManage && (

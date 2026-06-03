@@ -36,6 +36,7 @@ export default async function InvoicesPage() {
       serviceId:     services.id,
       customerName:  customers.name,
       customerId:    customers.id,
+      isPrepaid:     customers.isPrepaid,
     })
     .from(invoices)
     .innerJoin(services, eq(invoices.serviceId, services.id))
@@ -57,6 +58,7 @@ export default async function InvoicesPage() {
     serviceId:     services.id,
     customerName:  customers.name,
     customerId:    customers.id,
+    isPrepaid:     customers.isPrepaid,
   }
 
   // Sent / overdue / void (not yet paid)
@@ -145,6 +147,7 @@ export default async function InvoicesPage() {
                       serviceId: inv.serviceId,
                       customerName: inv.customerName,
                       customerId: inv.customerId,
+                      isPrepaid: inv.isPrepaid ?? false,
                       canManage,
                       qboEnv,
                       lineItems: linesByService.get(inv.serviceId) ?? [],

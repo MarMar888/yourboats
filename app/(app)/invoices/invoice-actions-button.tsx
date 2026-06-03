@@ -8,14 +8,17 @@ type Props = {
   invoiceId: string
   hasQboId: boolean
   status: string
+  isPrepaid?: boolean
   qboItems?: unknown  // kept for API compatibility — no longer used in UI
 }
 
-export function InvoiceActionsButton({ invoiceId, hasQboId, status }: Props) {
+export function InvoiceActionsButton({ invoiceId, hasQboId, status, isPrepaid }: Props) {
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
   if (status === 'sent' || status === 'paid' || status === 'void') return null
+  // Prepaid customers don't get invoiced through QBO
+  if (!hasQboId && isPrepaid) return null
 
   const label = !hasQboId ? 'Create in QBO' : 'Send to customer'
 
