@@ -16,6 +16,7 @@ import type { RecurringScheduleRow } from './recurring-schedule-client'
 import { EditCustomerModal } from './edit-customer-modal'
 import { EditBoatModal } from './edit-boat-modal'
 import { SyncToQboButton } from './sync-to-qbo-button'
+import { CopyContextButton } from './copy-context-button'
 import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -230,7 +231,48 @@ export default async function CustomerDetailPage({
             )}
           </div>
           {canManage && (
-            <div className="sm:ml-auto">
+            <div className="sm:ml-auto flex items-center gap-2">
+              <CopyContextButton
+                customerName={customer.name}
+                notes={customer.notes ?? null}
+                isPrepaid={customer.isPrepaid ?? false}
+                boats={customerBoats.map((b) => ({
+                  nickname: b.nickname,
+                  makeModel: b.makeModel ?? null,
+                  lengthFt: b.lengthFt ?? null,
+                  notes: b.notes ?? null,
+                }))}
+                recurringSchedules={recurringScheduleRows.map((s) => ({
+                  serviceType: s.serviceType,
+                  frequencyWeeks: s.frequencyWeeks,
+                  dayOfWeek: typeof s.dayOfWeek === 'number' ? s.dayOfWeek : Number(s.dayOfWeek),
+                  startDate: s.startDate,
+                  endDate: s.endDate ?? null,
+                  active: s.active,
+                }))}
+                scheduledServices={scheduledServices.map((s) => ({
+                  serviceDate: s.serviceDate,
+                  serviceType: s.serviceType,
+                  status: s.status,
+                  totalPrice: s.totalPrice ?? null,
+                  boats: boatsByService.get(s.id) ?? [],
+                }))}
+                recentServices={recentServices.map((s) => ({
+                  serviceDate: s.serviceDate,
+                  serviceType: s.serviceType,
+                  status: s.status,
+                  totalPrice: s.totalPrice ?? null,
+                  boats: boatsByService.get(s.id) ?? [],
+                }))}
+                invoices={customerInvoices.map((inv) => ({
+                  serviceDate: inv.serviceDate,
+                  serviceType: inv.serviceType,
+                  status: inv.status,
+                  amount: inv.amount,
+                  sentAt: inv.sentAt,
+                  paidAt: inv.paidAt,
+                }))}
+              />
               <EditCustomerModal
                 customerId={id}
                 initialValues={{
