@@ -113,7 +113,7 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
             <DialogTitle>Approve week</DialogTitle>
           </DialogHeader>
 
-          <div className="px-6 space-y-4">
+          <div className="px-6 space-y-4 overflow-y-auto flex-1">
             <p className="text-sm text-muted-foreground">
               Approving this week enables reminder emails. Reminders are sent the evening
               before each service to the voice/SMS addresses on file.
