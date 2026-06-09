@@ -26,7 +26,7 @@ export default async function PayPage() {
 
   const [employees, tierRows, serviceTypeShareRows] = await Promise.all([
     db
-      .select({ id: users.id, displayName: users.displayName, tier: users.tier })
+      .select({ id: users.id, displayName: users.displayName, tier: users.tier, role: users.role })
       .from(users)
       .where(eq(users.active, true))
       .orderBy(asc(users.displayName)),

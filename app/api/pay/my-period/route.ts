@@ -28,9 +28,17 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
+  const requestedUserId = searchParams.get('userId')
   if (!startDate || !endDate) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
+
+  const canPreviewEmployee = user.role === 'owner' || user.role === 'manager'
+  if (requestedUserId && !canPreviewEmployee) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const targetUserId = requestedUserId || user.id
 
   // Pull saved payroll rows for this user in the period
   const rows = await db
@@ -52,7 +60,7 @@ export async function GET(req: NextRequest) {
     .from(payroll)
     .where(
       and(
-        sql`${payroll.userId} = ${user.id}::text`,
+        sql`${payroll.userId} = ${targetUserId}::text`,
         gte(payroll.serviceDate, startDate),
         lte(payroll.serviceDate, endDate)
       )

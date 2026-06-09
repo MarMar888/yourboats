@@ -19,8 +19,9 @@ import {
   type PayPeriod,
 } from '@/lib/pay/periods'
 import type { PeriodServiceRow, AssignmentRow } from '@/app/api/pay/period/route'
+import { EmployeePayView } from './employee-pay-view'
 
-type Employee = { id: string; displayName: string; tier: 'top' | 'mid' | 'low' | null }
+type Employee = { id: string; displayName: string; tier: 'top' | 'mid' | 'low' | null; role?: 'owner' | 'manager' | 'employee' }
 type TierRow = { tier: 'top' | 'mid' | 'low'; deductionPct: string }
 type ServiceTypeShareOption = { serviceType: string; employeeSharePct: string }
 
@@ -1559,8 +1560,12 @@ export function PayClient({
   isOwner: boolean
 }) {
   const [period, setPeriod] = useState<PayPeriod>(getCurrentPeriod)
-  const [activeTab, setActiveTab] = useState<'pay-review' | 'labor-analytics'>('pay-review')
+  const [activeTab, setActiveTab] = useState<'pay-review' | 'employee-view' | 'labor-analytics'>('pay-review')
   const [salariedLines, setSalariedLines] = useState<SalariedLine[]>([])
+  const employeeViewOptions = employees.some((e) => e.role)
+    ? employees.filter((e) => e.role === 'employee')
+    : employees
+  const [previewUserId, setPreviewUserId] = useState(employeeViewOptions[0]?.id ?? '')
 
   const [tierEdits, setTierEdits] = useState<Record<string, string>>(
     Object.fromEntries(tierRows.map((r) => [r.tier, r.deductionPct]))
@@ -1632,9 +1637,9 @@ export function PayClient({
         </div>
       </div>
 
-      {/* Tab switcher — Labor analytics is owner-only */}
+      {/* Tab switcher — employee preview and labor analytics are owner-only */}
       <div className="flex gap-0 border-b -mb-2">
-        {(['pay-review', ...(isOwner ? ['labor-analytics'] : [])] as const).map((tab) => (
+        {(['pay-review', ...(isOwner ? ['employee-view', 'labor-analytics'] : [])] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as typeof activeTab)}
@@ -1644,7 +1649,7 @@ export function PayClient({
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
             }`}
           >
-            {tab === 'pay-review' ? 'Pay review' : 'Labor analytics'}
+            {tab === 'pay-review' ? 'Pay review' : tab === 'employee-view' ? 'Employee view' : 'Labor analytics'}
           </button>
         ))}
       </div>
@@ -1666,6 +1671,35 @@ export function PayClient({
             salariedLines={salariedLines}
           />
         </>
+      )}
+
+      {activeTab === 'employee-view' && isOwner && (
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <label className="text-xs font-medium text-muted-foreground">View as employee</label>
+            <select
+              value={previewUserId}
+              onChange={(e) => setPreviewUserId(e.target.value)}
+              className="mt-1 h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {employeeViewOptions.map((e) => (
+                <option key={e.id} value={e.id}>{e.displayName}</option>
+              ))}
+            </select>
+          </div>
+
+          {previewUserId ? (
+            <EmployeePayView
+              key={previewUserId}
+              viewedUserId={previewUserId}
+              viewedEmployeeName={employeeViewOptions.find((e) => e.id === previewUserId)?.displayName}
+            />
+          ) : (
+            <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
+              No employees are available to preview.
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === 'labor-analytics' && isOwner && (

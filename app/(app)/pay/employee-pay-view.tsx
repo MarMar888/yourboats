@@ -245,7 +245,13 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export function EmployeePayView() {
+export function EmployeePayView({
+  viewedUserId,
+  viewedEmployeeName,
+}: {
+  viewedUserId?: string
+  viewedEmployeeName?: string
+} = {}) {
   const [periodOffset, setPeriodOffset] = useState(0)
   const [tab, setTab] = useState<'services' | 'how-it-works'>('services')
   const [rows, setRows] = useState<MyServiceRow[] | null>(null)
@@ -260,9 +266,13 @@ export function EmployeePayView() {
     setError('')
     startTransition(async () => {
       try {
-        const res = await fetch(
-          `/api/pay/my-period?startDate=${period.startStr}&endDate=${period.endStr}`
-        )
+        const params = new URLSearchParams({
+          startDate: period.startStr,
+          endDate: period.endStr,
+        })
+        if (viewedUserId) params.set('userId', viewedUserId)
+
+        const res = await fetch(`/api/pay/my-period?${params.toString()}`)
         if (!res.ok) throw new Error('Failed to load pay data')
         const data = await res.json() as { services: MyServiceRow[] }
         setRows(data.services)
@@ -270,7 +280,7 @@ export function EmployeePayView() {
         setError(e instanceof Error ? e.message : 'Error loading pay')
       }
     })
-  }, [period.startStr, period.endStr])
+  }, [period.startStr, period.endStr, viewedUserId])
 
   const totalEarnings = rows?.reduce((sum, r) => sum + r.totalPay, 0) ?? 0
 
@@ -299,8 +309,10 @@ export function EmployeePayView() {
 
       {/* Summary total */}
       {rows && rows.length > 0 && (
-        <div className="rounded-xl border bg-card px-4 py-3 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">My earnings this period</span>
+        <div className="rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-muted-foreground">
+            {viewedEmployeeName ? `${viewedEmployeeName}'s earnings this period` : 'My earnings this period'}
+          </span>
           <span className="text-lg font-bold tabular-nums">{fmt(totalEarnings)}</span>
         </div>
       )}
