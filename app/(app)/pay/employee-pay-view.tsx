@@ -56,7 +56,7 @@ export function EmployeePayView() {
     })
   }, [period.startStr, period.endStr])
 
-  const totalNetPay = rows?.reduce((sum, r) => sum + r.netPay, 0) ?? 0
+  const totalEarnings = rows?.reduce((sum, r) => sum + r.totalPay, 0) ?? 0
 
   return (
     <div className="space-y-4 max-w-lg">
@@ -84,7 +84,7 @@ export function EmployeePayView() {
       {rows && rows.length > 0 && (
         <div className="rounded-xl border bg-card px-4 py-3 flex items-center justify-between">
           <span className="text-sm text-muted-foreground">My earnings this period</span>
-          <span className="text-lg font-bold tabular-nums">{fmt(totalNetPay)}</span>
+          <span className="text-lg font-bold tabular-nums">{fmt(totalEarnings)}</span>
         </div>
       )}
 
@@ -106,41 +106,54 @@ export function EmployeePayView() {
       {rows && rows.length > 0 && (
         <>
           <div className="divide-y rounded-xl border bg-card overflow-hidden text-sm">
-            {rows.map((row) => (
-              <div key={row.serviceId} className="px-4 py-3 space-y-1">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium leading-tight">{row.customerName}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {fmtDate(row.serviceDate)}
-                      {' · '}
-                      {SERVICE_TYPE_LABELS[row.serviceType] ?? row.serviceType}
-                    </p>
-                    {row.boats.length > 0 && (
+            {rows.map((row) => {
+              const crewSharePct = row.totalPrice > 0
+                ? Math.round(row.employeePool / row.totalPrice * 100)
+                : null
+              return (
+                <div key={row.serviceId} className="px-4 py-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium leading-tight">{row.customerName}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {row.boats.join(', ')}
+                        {fmtDate(row.serviceDate)}
+                        {' · '}
+                        {SERVICE_TYPE_LABELS[row.serviceType] ?? row.serviceType}
+                      </p>
+                      {row.boats.length > 0 && (
+                        <p className="text-xs text-muted-foreground">{row.boats.join(', ')}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold tabular-nums">{fmt(row.totalPay)}</p>
+                      <span className={
+                        row.approved
+                          ? 'inline-block text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 mt-1'
+                          : 'inline-block text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1'
+                      }>
+                        {row.approved ? '✓ Approved' : 'Draft'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pay math breakdown */}
+                  <div className="text-[11px] text-muted-foreground space-y-0.5 tabular-nums">
+                    {crewSharePct !== null && row.employeePool > 0 && (
+                      <p>
+                        Revenue {fmt(row.totalPrice)} · {crewSharePct}% to crew = pool {fmt(row.employeePool)}
                       </p>
                     )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold tabular-nums">{fmt(row.netPay)}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Split: {row.splitPct}%
+                    <p>
+                      {row.deductionPct > 0
+                        ? `${row.splitPct}% split − ${row.deductionPct}% tier deduction = ${row.effectivePct}% of pool = ${fmt(row.netPay)}`
+                        : `Your ${row.splitPct}% of pool = ${fmt(row.netPay)}`
+                      }
+                      {row.tipShare > 0 && ` + ${fmt(row.tipShare)} tip`}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Revenue: {fmt(row.totalPrice)}
-                    </p>
-                    <span className={
-                      row.approved
-                        ? 'inline-block text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 mt-1'
-                        : 'inline-block text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1'
-                    }>
-                      {row.approved ? '✓ Approved' : 'Draft'}
-                    </span>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           {rows.some((r) => !r.approved) && (
             <p className="text-xs text-muted-foreground">

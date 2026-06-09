@@ -11,8 +11,13 @@ export type MyServiceRow = {
   customerName: string
   boats: string[]
   totalPrice: number
+  employeePool: number
   splitPct: number
+  deductionPct: number
+  effectivePct: number
   netPay: number
+  tipShare: number
+  totalPay: number
   approved: boolean
 }
 
@@ -35,8 +40,13 @@ export async function GET(req: NextRequest) {
       serviceType:  payroll.serviceType,
       customerName: payroll.customerName,
       totalPrice:   payroll.totalPrice,
+      employeePool: payroll.employeePool,
       splitPct:     payroll.splitPct,
+      deductionPct: payroll.deductionPct,
+      effectivePct: payroll.effectivePct,
       netPay:       payroll.netPay,
+      tipShare:     payroll.tipShare,
+      totalPay:     payroll.totalPay,
       approvedAt:   payroll.approvedAt,
     })
     .from(payroll)
@@ -73,8 +83,13 @@ export async function GET(req: NextRequest) {
     customerName: r.customerName,
     boats:        boatsByService[r.serviceId] ?? [],
     totalPrice:   Number(r.totalPrice ?? 0),
+    employeePool: Number(r.employeePool ?? 0),
     splitPct:     Number(r.splitPct),
+    deductionPct: Number(r.deductionPct),
+    effectivePct: Number(r.effectivePct),
     netPay:       Number(r.netPay),
+    tipShare:     Number(r.tipShare ?? 0),
+    totalPay:     Number(r.totalPay),
     approved:     r.approvedAt != null,
   }))
 
