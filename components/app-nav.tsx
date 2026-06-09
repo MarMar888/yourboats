@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import GlobalCreateModal from '@/components/global-create-modal'
+import ReportErrorModal from '@/components/report-error-modal'
 import { logout } from '@/app/(auth)/login/actions'
 import type { CurrentUser } from '@/lib/auth/get-current-user'
 
@@ -32,6 +33,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
   const visible = navItems.filter((item) => item.roles.includes(user.role))
   const [createOpen, setCreateOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
   const canCreate = user.role === 'owner' || user.role === 'manager'
 
   return (
@@ -61,6 +63,13 @@ export default function AppNav({ user }: { user: CurrentUser }) {
           </nav>
 
           <div className="flex items-center gap-3 ml-auto">
+            <Button
+              size="sm"
+              onClick={() => setReportOpen(true)}
+              className="hidden md:inline-flex bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              Report error
+            </Button>
             {canCreate && (
               <Button size="sm" onClick={() => setCreateOpen(true)} className="hidden md:inline-flex">
                 + New
@@ -117,6 +126,14 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 {item.label}
               </Link>
             ))}
+            <div className="px-4 py-2 border-t mt-1">
+              <button
+                onClick={() => { setMenuOpen(false); setReportOpen(true) }}
+                className="w-full text-left text-sm text-destructive font-medium"
+              >
+                Report error
+              </button>
+            </div>
             {canCreate && (
               <div className="px-4 py-2 border-t mt-1">
                 <button
@@ -132,6 +149,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
       </header>
 
       <GlobalCreateModal open={createOpen} onOpenChange={setCreateOpen} />
+      <ReportErrorModal open={reportOpen} onOpenChange={setReportOpen} />
     </>
   )
 }
