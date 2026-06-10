@@ -47,6 +47,7 @@ const navGroups: NavGroup[] = [
       { href: '/team', label: 'Team', roles: ['owner'] },
       { href: '/time', label: 'Time', roles: ['owner', 'manager'] },
       { href: '/performance', label: 'Performance', roles: ['owner', 'manager'] },
+      { href: '/highlights', label: 'Highlights', roles: ['owner', 'manager', 'employee'] },
       { href: '/settings', label: 'Settings', roles: ['owner', 'manager', 'employee'] },
       { href: '/logs', label: 'Logs', roles: ['owner'] },
     ],
