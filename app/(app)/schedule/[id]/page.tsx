@@ -282,24 +282,24 @@ export default async function ServiceDetailPage({
       {(svc.approvedAt || svc.completedAt || svc.reminderSentAt) && (
         <div className="flex min-w-0 flex-wrap gap-3 text-xs">
           {svc.approvedAt && (
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
-              <span className="truncate">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
+              <span className="min-w-0 truncate">
               ✓ Approved {fmtDateTime(svc.approvedAt)}
               {svc.approvedBy && ` by ${userNames[svc.approvedBy] ?? svc.approvedBy}`}
               </span>
             </span>
           )}
           {svc.completedAt && (
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
-              <span className="truncate">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
+              <span className="min-w-0 truncate">
               ✓ Completed {fmtDateTime(svc.completedAt)}
               {svc.completedByUserId && ` by ${userNames[svc.completedByUserId] ?? svc.completedByUserId}`}
               </span>
             </span>
           )}
           {svc.reminderSentAt && (
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 px-3 py-1 font-medium">
-              <span className="truncate">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 px-3 py-1 font-medium">
+              <span className="min-w-0 truncate">
               ✉ Reminder sent {fmtDateTime(svc.reminderSentAt)}
               </span>
             </span>

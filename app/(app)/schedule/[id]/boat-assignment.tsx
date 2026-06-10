@@ -34,7 +34,7 @@ export function BoatAssignment({ serviceId, boatId, employees, assignedIds }: Pr
             onClick={() => toggle(emp.id)}
             disabled={isPending}
             className={cn(
-              'max-w-full truncate px-2.5 py-0.5 rounded-full border text-xs font-medium transition-colors',
+              'min-w-0 max-w-full truncate px-2.5 py-0.5 rounded-full border text-xs font-medium transition-colors',
               active
                 ? 'bg-foreground text-background border-transparent shadow-sm'
                 : 'border-border text-muted-foreground hover:bg-muted'

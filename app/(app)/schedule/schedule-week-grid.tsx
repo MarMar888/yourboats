@@ -115,7 +115,7 @@ function WeatherBadge({ weather }: { weather: WeatherDay }) {
       <button
         type="button"
         className={cn(
-          'max-w-full cursor-default select-none truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums',
+          'min-w-0 max-w-full cursor-default select-none truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           hasHourly && 'cursor-pointer',
           weather.precipPct >= 60 ? 'border-sky-200 bg-sky-50 text-sky-700'
