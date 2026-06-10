@@ -30,6 +30,7 @@ export type WeatherDay = {
   tempMaxF: number
   precipPct: number
   windMph: number
+  hourlyRainPct?: number[]
 }
 
 export type GridDayData = {
@@ -194,20 +195,55 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                 </span>
               )}
               {day.weather && (
-                <span
-                  className={cn(
-                    'text-[11px] font-medium rounded-full px-2 py-0.5 tabular-nums',
-                    day.weather.precipPct >= 60
-                      ? 'bg-blue-50 text-blue-700'
-                      : day.weather.precipPct >= 30
-                        ? 'bg-amber-50 text-amber-700'
-                        : 'bg-muted text-muted-foreground'
+                <div className="relative group/weather">
+                  <span
+                    className={cn(
+                      'text-[11px] font-medium rounded-full px-2 py-0.5 tabular-nums cursor-default',
+                      day.weather.precipPct >= 60
+                        ? 'bg-blue-50 text-blue-700'
+                        : day.weather.precipPct >= 30
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {day.weather.precipPct >= 60 ? '🌧' : day.weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
+                    {day.weather.tempMaxF}° · {day.weather.precipPct}% · {day.weather.windMph} mph
+                  </span>
+                  {day.weather.hourlyRainPct && day.weather.hourlyRainPct.length === 13 && (
+                    <div className="absolute left-0 top-full mt-1.5 z-50 invisible group-hover/weather:visible bg-white border border-border rounded-lg shadow-lg p-3 w-[260px]">
+                      <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                        Rain chance 7am–7pm · High {day.weather.tempMaxF}°F · Wind {day.weather.windMph} mph
+                      </p>
+                      <div className="flex items-end gap-[3px] h-10">
+                        {day.weather.hourlyRainPct.map((pct, i) => (
+                          <div key={i} className="flex flex-col items-center gap-0.5 flex-1">
+                            <div
+                              className={cn(
+                                'w-full rounded-sm',
+                                pct >= 60 ? 'bg-blue-400' : pct >= 30 ? 'bg-amber-400' : 'bg-slate-300'
+                              )}
+                              style={{ height: `${Math.max(2, Math.round((pct / 100) * 36))}px` }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-[3px] mt-1">
+                        {(['7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p'] as const).map((label, i) => (
+                          <div key={i} className="flex-1 text-center">
+                            <span className="text-[8px] text-muted-foreground leading-none">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-[3px] mt-0.5">
+                        {day.weather.hourlyRainPct.map((pct, i) => (
+                          <div key={i} className="flex-1 text-center">
+                            <span className="text-[8px] tabular-nums text-muted-foreground leading-none">{pct}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  title={`High: ${day.weather.tempMaxF}°F · Rain: ${day.weather.precipPct}% · Wind: ${day.weather.windMph} mph`}
-                >
-                  {day.weather.precipPct >= 60 ? '🌧' : day.weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
-                  {day.weather.tempMaxF}° · {day.weather.precipPct}% · {day.weather.windMph} mph
-                </span>
+                </div>
               )}
               <div className="flex-1 h-px bg-border/60" />
             </div>
