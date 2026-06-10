@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { payroll, services, manualPayrollLines } from '@/lib/db/schema'
+import { payroll, services, manualPayrollLines, invoices } from '@/lib/db/schema'
 import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
@@ -38,14 +38,30 @@ export async function savePayrollEntries(
   }
   if (entries.length === 0) return { saved: 0 }
 
-  // Look up invoice IDs for these services (optional FK — may not exist)
+  // Look up invoice IDs for these services. Services can retain stale invoice_id
+  // values after historical invoice deletes, but payroll.invoice_id enforces an FK.
   const svcIds = Array.from(new Set(entries.map((e) => e.serviceId)))
   const svcRows = await db
-    .select({ id: services.id, invoiceId: services.invoiceId })
+    .select({ id: services.id, invoiceId: services.invoiceId, existingInvoiceId: invoices.id })
     .from(services)
+    .leftJoin(invoices, eq(services.invoiceId, invoices.id))
     .where(inArray(services.id, svcIds))
   const invoiceById: Record<string, string | null> = {}
-  for (const s of svcRows) invoiceById[s.id] = s.invoiceId ?? null
+  const staleInvoiceServiceIds: string[] = []
+  for (const s of svcRows) {
+    const validInvoiceId = s.invoiceId && s.existingInvoiceId ? s.invoiceId : null
+    invoiceById[s.id] = validInvoiceId
+    if (s.invoiceId && !s.existingInvoiceId) {
+      staleInvoiceServiceIds.push(s.id)
+    }
+  }
+
+  if (staleInvoiceServiceIds.length > 0) {
+    await db
+      .update(services)
+      .set({ invoiceId: null })
+      .where(inArray(services.id, staleInvoiceServiceIds))
+  }
 
   const now = new Date()
   const rows = entries.map((e) => ({

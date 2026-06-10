@@ -9,6 +9,7 @@ import GlobalCreateModal from '@/components/global-create-modal'
 import ReportErrorModal from '@/components/report-error-modal'
 import { logout } from '@/app/(auth)/login/actions'
 import type { CurrentUser } from '@/lib/auth/get-current-user'
+import { AlertTriangle } from 'lucide-react'
 
 const navItems: { href: string; label: string; roles: CurrentUser['role'][] }[] = [
   { href: '/dashboard', label: 'Today', roles: ['owner', 'manager', 'employee'] },
@@ -38,20 +39,20 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
   return (
     <>
-      <header className="border-b bg-background sticky top-0 z-40 relative">
-        <div className="container flex h-14 items-center gap-6">
+      <header className="border-b bg-white sticky top-0 z-40 relative">
+        <div className="flex h-14 w-full items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/dashboard" className="font-semibold text-primary shrink-0">
             yourboats
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 flex-1">
+          <nav className="hidden xl:flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto">
             {visible.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'text-sm px-3 py-2.5 rounded-md transition-colors hover:bg-muted inline-flex items-center min-h-[44px]',
+                  'text-sm px-2 py-2.5 rounded-md transition-colors hover:bg-muted inline-flex items-center min-h-[44px] whitespace-nowrap shrink-0',
                   pathname.startsWith(item.href)
                     ? 'bg-muted font-medium text-foreground'
                     : 'text-muted-foreground'
@@ -62,29 +63,31 @@ export default function AppNav({ user }: { user: CurrentUser }) {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button
-              size="sm"
-              onClick={() => setReportOpen(true)}
-              className="hidden md:inline-flex bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              size="icon"
+              onClick={() => { setMenuOpen(false); setReportOpen(true) }}
+              aria-label="Report error"
+              title="Report error"
+              className="inline-flex h-9 w-9 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
-              Report error
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             </Button>
             {canCreate && (
-              <Button size="sm" onClick={() => setCreateOpen(true)} className="hidden md:inline-flex">
+              <Button size="sm" onClick={() => setCreateOpen(true)} className="hidden xl:inline-flex">
                 + New
               </Button>
             )}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden xl:flex items-center gap-2 shrink-0">
               {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
                 <Link
                   href="/pick-user"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="max-w-36 truncate whitespace-nowrap text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {user.displayName} ({user.role})
                 </Link>
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="max-w-36 truncate whitespace-nowrap text-sm text-muted-foreground">
                   {user.displayName}
                 </span>
               )}
@@ -99,7 +102,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
             {/* Hamburger for mobile */}
             <button
-              className="md:hidden flex items-center justify-center w-10 h-10 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+              className="xl:hidden flex items-center justify-center w-10 h-10 rounded-md hover:bg-muted transition-colors text-muted-foreground"
               onClick={() => setMenuOpen((prev) => !prev)}
               aria-label="Toggle menu"
             >
@@ -110,7 +113,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden absolute top-14 left-0 right-0 border-b bg-background shadow-lg z-50 py-2">
+          <div className="xl:hidden absolute top-14 left-0 right-0 border-b bg-white shadow-lg z-50 py-2">
             {visible.map((item) => (
               <Link
                 key={item.href}
