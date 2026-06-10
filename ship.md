@@ -44,32 +44,38 @@ git diff origin/main...HEAD
 
 Look for accidental env changes, debug logs, secrets, generated files, and unrelated edits.
 
-4. Commit if needed.
+4. Add a highlight for user-facing features or additions.
+
+If the branch ships a new feature, visible workflow change, or meaningful addition, add a short entry to `lib/highlights.ts` before pushing. Skip this for bug fixes, internal cleanup, tests, refactors, or invisible maintenance.
+
+Keep the highlight user-facing: what changed, why it matters, and where to use it.
+
+5. Commit if needed.
 
 ```bash
 git add <changed-files>
 git commit -m "<short user-facing summary>"
 ```
 
-5. Push the workspace branch.
+6. Push the workspace branch.
 
 ```bash
 git push -u origin HEAD
 ```
 
-6. Open or update the PR.
+7. Open or update the PR.
 
 ```bash
 gh pr view --web || gh pr create --base main --head "$(git branch --show-current)" --fill --web
 ```
 
-7. Check Vercel with MCP.
+8. Check Vercel with MCP.
 
 Use the Vercel MCP to find the latest deployment for the PR/branch, wait for it to finish, and read the build logs if it fails.
 
 Only debug failures that are caused by this branch. If Vercel fails on a known unrelated issue, report that explicitly with the failing file or log line.
 
-8. Merge after the PR is green and reviewed.
+9. Merge after the PR is green and reviewed.
 
 Prefer the repo's normal merge method. If there is no stated preference, use the GitHub UI.
 

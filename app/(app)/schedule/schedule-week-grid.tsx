@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
+import { useEffect, useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import ScheduleCard from './schedule-card'
@@ -49,60 +49,132 @@ interface Props {
 }
 
 const HOUR_LABELS = ['7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p']
-const BAR_MAX_H = 64
 
 function WeatherBadge({ weather }: { weather: WeatherDay }) {
   const [open, setOpen] = useState(false)
   const [hoveredHour, setHoveredHour] = useState<number | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true) }
-  const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 120) }
 
   const hourly = weather.hourlyRainPct
   const hasHourly = hourly && hourly.length === 13
 
+  const showTooltip = () => {
+    if (!hasHourly) return
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+    setOpen(true)
+  }
+
+  const hideTooltip = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+    setOpen(false)
+    setHoveredHour(null)
+  }
+
+  const queueHideTooltip = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => {
+      hideTooltip()
+      closeTimer.current = null
+    }, 180)
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return
+      hideTooltip()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [open])
+
   return (
-    <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
-      <span className={cn(
-        'cursor-default select-none rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums',
-        weather.precipPct >= 60 ? 'border-sky-200 bg-sky-50 text-sky-700'
-          : weather.precipPct >= 30 ? 'border-amber-200 bg-amber-50 text-amber-700'
-          : 'border-border bg-card text-muted-foreground'
-      )}>
+    <div
+      ref={rootRef}
+      className="relative inline-flex items-center"
+      onPointerEnter={(event) => {
+        if (event.pointerType !== 'touch') showTooltip()
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'touch') queueHideTooltip()
+      }}
+    >
+      <button
+        type="button"
+        className={cn(
+          'cursor-default select-none rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+          hasHourly && 'cursor-pointer',
+          weather.precipPct >= 60 ? 'border-sky-200 bg-sky-50 text-sky-700'
+            : weather.precipPct >= 30 ? 'border-amber-200 bg-amber-50 text-amber-700'
+            : 'border-border bg-card text-muted-foreground'
+        )}
+        aria-expanded={hasHourly ? open : undefined}
+        aria-label="Show hourly rain chance"
+        onClick={() => {
+          if (!hasHourly) return
+          setOpen((current) => !current)
+        }}
+      >
         {weather.precipPct >= 60 ? 'Rain' : weather.precipPct >= 30 ? 'Risk' : 'Clear'}{' '}
         {weather.tempMaxF}° · {weather.precipPct}% · {weather.windMph} mph
-      </span>
+      </button>
 
       {open && hasHourly && (
         <div
-          className="absolute left-0 top-full pt-1 z-50"
-          onMouseEnter={enter}
-          onMouseLeave={leave}
+          className="fixed inset-x-3 top-20 z-50 sm:absolute sm:inset-auto sm:left-0 sm:top-[calc(100%+6px)] sm:before:absolute sm:before:-top-2 sm:before:left-0 sm:before:h-2 sm:before:w-full sm:before:content-['']"
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'touch') showTooltip()
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType !== 'touch') queueHideTooltip()
+          }}
         >
-          <div className="w-[310px] rounded-lg border border-border/80 bg-card p-4 shadow-[0_18px_46px_hsl(var(--foreground)/0.16)]">
+          <div className="w-full rounded-lg border border-border/80 bg-card p-4 shadow-[0_18px_46px_hsl(var(--foreground)/0.16)] sm:w-[310px]">
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-start justify-between gap-3 mb-3">
               <span className="text-[12px] font-semibold text-foreground">Hourly rain chance</span>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span>{weather.tempMaxF}°F high</span>
-                <span>·</span>
-                <span>{weather.windMph} mph wind</span>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground text-right">
+                <span className="whitespace-nowrap">{weather.tempMaxF}°F high</span>
+                <span className="hidden min-[360px]:inline">·</span>
+                <span className="whitespace-nowrap">{weather.windMph} mph wind</span>
+                <button
+                  type="button"
+                  className="-mr-1 ml-1 rounded-md px-1.5 py-0.5 text-[13px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  aria-label="Close hourly rain chance"
+                  onClick={hideTooltip}
+                >
+                  x
+                </button>
               </div>
             </div>
 
             {/* Bar chart */}
-            <div className="flex items-end gap-[3px]" style={{ height: `${BAR_MAX_H}px` }}>
+            <div className="flex items-end gap-[3px] sm:h-16 h-20">
               {hourly!.map((pct, i) => {
-                const barH = Math.max(3, Math.round((pct / 100) * BAR_MAX_H))
+                const barH = `max(3px, ${pct}%)`
                 const isHovered = hoveredHour === i
                 const isDimmed = hoveredHour !== null && !isHovered
                 return (
                   <div
                     key={i}
                     className="relative flex-1 h-full flex flex-col justify-end cursor-default"
-                    onMouseEnter={() => setHoveredHour(i)}
-                    onMouseLeave={() => setHoveredHour(null)}
+                    onPointerEnter={() => setHoveredHour(i)}
+                    onPointerLeave={() => setHoveredHour(null)}
+                    onClick={() => setHoveredHour(isHovered ? null : i)}
                   >
                     {/* Rail */}
                     <div className="absolute inset-0 rounded-sm bg-muted" />
@@ -113,7 +185,7 @@ function WeatherBadge({ weather }: { weather: WeatherDay }) {
                         isDimmed ? 'opacity-30' : 'opacity-100',
                         pct >= 60 ? 'bg-sky-600' : pct >= 30 ? 'bg-amber-400' : 'bg-sky-300'
                       )}
-                      style={{ height: `${barH}px` }}
+                      style={{ height: barH }}
                     />
                     {/* Hover label */}
                     {isHovered && (
