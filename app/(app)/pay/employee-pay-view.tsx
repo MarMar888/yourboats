@@ -50,9 +50,17 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
   const totalTips    = hasData ? rows.reduce((s, r) => s + r.tipShare, 0) : 0
   const totalPay     = hasData ? rows.reduce((s, r) => s + r.totalPay, 0) : 0
 
-  // For bars — default to 60/40 split if no data yet
-  const crewPct         = totalRevenue > 0 ? (totalPool / totalRevenue) * 100 : 60
+  const crewPct         = totalRevenue > 0 ? (totalPool / totalRevenue) * 100 : 0
   const yourShareOfPool = totalPool    > 0 ? (totalNetPay / totalPool)    * 100 : 0
+  const serviceTypeRates = hasData
+    ? Array.from(new Set(rows
+        .filter((r) => r.totalPrice > 0)
+        .map((r) => Math.round(r.employeePool / r.totalPrice * 100))))
+        .sort((a, b) => a - b)
+    : []
+  const crewRateLabel = serviceTypeRates.length <= 1
+    ? 'Service-type crew rate'
+    : 'Blended service-type crew rate'
 
   // Pick first row as the worked example
   const ex = hasData ? rows[0] : null
@@ -69,34 +77,59 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
           {hasData ? 'This period — where your pay comes from' : 'How your pay is calculated'}
         </p>
 
-        {/* Stage 1: Revenue split */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Service revenue</span>
-            {hasData && <span className="font-medium tabular-nums">{fmt(totalRevenue)}</span>}
-          </div>
-          <div className="h-7 rounded-lg overflow-hidden flex text-[11px] font-semibold">
-            <div
-              className="bg-sky-400 flex items-center justify-center text-white"
-              style={{ width: `${crewPct}%` }}
-            >
-              {Math.round(crewPct)}%
+        {hasData ? (
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Service revenue</span>
+              <span className="font-medium tabular-nums">{fmt(totalRevenue)}</span>
             </div>
-            <div className="flex-1 bg-muted flex items-center justify-center text-muted-foreground">
-              {Math.round(100 - crewPct)}%
+            <div className="h-7 rounded-lg overflow-hidden flex text-[11px] font-semibold">
+              <div
+                className="bg-sky-400 flex items-center justify-center text-white"
+                style={{ width: `${crewPct}%` }}
+              >
+                {Math.round(crewPct)}%
+              </div>
+              <div className="flex-1 bg-muted flex items-center justify-center text-muted-foreground">
+                {Math.round(100 - crewPct)}%
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-400" />
+                Crew pool {fmt(totalPool)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-muted border" />
+                Business {fmt(totalRevenue - totalPool)}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {crewRateLabel}: {Math.round(crewPct)}%
+              {serviceTypeRates.length > 1 && ` from ${serviceTypeRates.join('%, ')}% service rates`}. Each service type can use a different crew-pool percentage.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
+              <div className="rounded-md bg-background border px-3 py-2">
+                <p className="font-medium">Service revenue</p>
+                <p className="text-muted-foreground mt-0.5">What the job brought in</p>
+              </div>
+              <span className="text-muted-foreground">×</span>
+              <div className="rounded-md bg-background border px-3 py-2">
+                <p className="font-medium">Service-type %</p>
+                <p className="text-muted-foreground mt-0.5">Different for each type</p>
+              </div>
+            </div>
+            <div className="rounded-md bg-sky-50 border border-sky-100 px-3 py-2 text-xs">
+              <p className="font-medium text-sky-900">= Crew pool</p>
+              <p className="text-sky-900/70 mt-0.5">
+                Standard cleans, detailing, waxing, and other service types can each put a different percentage into the crew pool.
+              </p>
             </div>
           </div>
-          <div className="flex gap-4 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-400" />
-              Crew pool{hasData ? ` ${fmt(totalPool)}` : ''}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-2.5 h-2.5 rounded-sm bg-muted border" />
-              Business{hasData ? ` ${fmt(totalRevenue - totalPool)}` : ''}
-            </span>
-          </div>
-        </div>
+        )}
 
         {hasData && (
           <>
