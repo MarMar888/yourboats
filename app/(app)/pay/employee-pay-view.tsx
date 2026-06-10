@@ -21,6 +21,11 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   other:              'Other',
 }
 
+const CREW_POOL_RATES = [
+  { label: 'Recurring Clean', pct: 55 },
+  { label: 'Detailing', pct: 50 },
+]
+
 function fmt(n: number) { return `$${n.toFixed(2)}` }
 
 function fmtDate(ymd: string) {
@@ -52,15 +57,6 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
 
   const crewPct         = totalRevenue > 0 ? (totalPool / totalRevenue) * 100 : 0
   const yourShareOfPool = totalPool    > 0 ? (totalNetPay / totalPool)    * 100 : 0
-  const serviceTypeRates = hasData
-    ? Array.from(new Set(rows
-        .filter((r) => r.totalPrice > 0)
-        .map((r) => Math.round(r.employeePool / r.totalPrice * 100))))
-        .sort((a, b) => a - b)
-    : []
-  const crewRateLabel = serviceTypeRates.length <= 1
-    ? 'Service-type crew rate'
-    : 'Blended service-type crew rate'
 
   // Pick first row as the worked example
   const ex = hasData ? rows[0] : null
@@ -76,6 +72,15 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
         <p className="text-sm font-semibold">
           {hasData ? 'This period — where your pay comes from' : 'How your pay is calculated'}
         </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          {CREW_POOL_RATES.map((rate) => (
+            <div key={rate.label} className="rounded-lg border bg-muted/30 px-3 py-2">
+              <p className="text-xs text-muted-foreground">{rate.label}</p>
+              <p className="text-sm font-semibold tabular-nums">{rate.pct}% to crew pool</p>
+            </div>
+          ))}
+        </div>
 
         {hasData ? (
           <div className="space-y-2">
@@ -105,8 +110,7 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {crewRateLabel}: {Math.round(crewPct)}%
-              {serviceTypeRates.length > 1 && ` from ${serviceTypeRates.join('%, ')}% service rates`}. Each service type can use a different crew-pool percentage.
+              This bar uses the saved payroll records in this period. The two crew-pool rates employees need to know are recurring and detailing.
             </p>
           </div>
         ) : (
@@ -118,14 +122,14 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
               </div>
               <span className="text-muted-foreground">×</span>
               <div className="rounded-md bg-background border px-3 py-2">
-                <p className="font-medium">Service-type %</p>
-                <p className="text-muted-foreground mt-0.5">Different for each type</p>
+                <p className="font-medium">Crew-pool rate</p>
+                <p className="text-muted-foreground mt-0.5">55% recurring or 50% detailing</p>
               </div>
             </div>
             <div className="rounded-md bg-sky-50 border border-sky-100 px-3 py-2 text-xs">
               <p className="font-medium text-sky-900">= Crew pool</p>
               <p className="text-sky-900/70 mt-0.5">
-                Standard cleans, detailing, waxing, and other service types can each put a different percentage into the crew pool.
+                After the crew pool is set, your split and any tier deduction determine your pay.
               </p>
             </div>
           </div>
@@ -245,7 +249,7 @@ function ExplanationTab({ rows }: { rows: MyServiceRow[] | null }) {
         <div className="px-4 py-3 text-sm font-semibold">What each term means</div>
         <GlossaryItem
           term="Crew pool"
-          def="The portion of a service's revenue shared among the crew. Different service types have different crew percentages — so more specialized work may put more into the pool."
+          def="The portion of a service's revenue shared among the crew. Recurring clean puts 55% into the pool; detailing puts 50% into the pool."
         />
         <GlossaryItem
           term="Split %"
