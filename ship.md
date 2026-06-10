@@ -46,7 +46,7 @@ Look for accidental env changes, debug logs, secrets, generated files, and unrel
 
 4. Add a highlight for user-facing features or additions.
 
-If the branch ships a new feature, visible workflow change, or meaningful addition, add a short entry to `lib/highlights.ts` before pushing. Skip this for bug fixes, internal cleanup, tests, refactors, or invisible maintenance.
+If the branch ships a new feature, visible workflow change, or meaningful addition, append a short entry to `lib/highlights.ts` before pushing. Skip this for bug fixes, internal cleanup, tests, refactors, or invisible maintenance.
 
 Keep the highlight user-facing: what changed, why it matters, and where to use it.
 

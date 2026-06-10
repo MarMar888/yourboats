@@ -13,21 +13,6 @@ export type Highlight = {
 
 export const highlights: Highlight[] = [
   {
-    slug: 'highlights-page',
-    title: 'Highlights page',
-    date: '2026-06-10',
-    status: 'Launched',
-    summary: 'There is now one place to see recent product changes and where to use them.',
-    bullets: [
-      'Highlights are listed inside the app for everyone on the team.',
-      'Each update includes a short summary and links to the relevant pages.',
-      'New user-facing features should get a highlight before they ship.',
-    ],
-    links: [
-      { href: '/highlights', label: 'View highlights' },
-    ],
-  },
-  {
     slug: 'weather-aware-scheduling',
     title: 'Weather-aware scheduling',
     date: '2026-06-10',
@@ -41,6 +26,21 @@ export const highlights: Highlight[] = [
     links: [
       { href: '/schedule', label: 'View schedule' },
       { href: '/exceptions', label: 'Review exceptions' },
+    ],
+  },
+  {
+    slug: 'highlights-page',
+    title: 'Highlights page',
+    date: '2026-06-10',
+    status: 'Launched',
+    summary: 'There is now one place to see recent product changes and where to use them.',
+    bullets: [
+      'Highlights are listed inside the app for everyone on the team.',
+      'Each update includes a short summary and links to the relevant pages.',
+      'New user-facing features should get a highlight before they ship.',
+    ],
+    links: [
+      { href: '/highlights', label: 'View highlights' },
     ],
   },
 ]

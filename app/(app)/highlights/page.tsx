@@ -14,6 +14,11 @@ function formatHighlightDate(date: string) {
 }
 
 export default function HighlightsPage() {
+  const sortedHighlights = highlights
+    .map((highlight, index) => ({ highlight, index }))
+    .sort((a, b) => b.highlight.date.localeCompare(a.highlight.date) || b.index - a.index)
+    .map(({ highlight }) => highlight)
+
   return (
     <div className="space-y-6">
       <div>
@@ -27,7 +32,7 @@ export default function HighlightsPage() {
         </p>
       </div>
 
-      {highlights.length === 0 ? (
+      {sortedHighlights.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             No highlights have been added yet.
@@ -35,7 +40,7 @@ export default function HighlightsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {highlights.map((highlight, index) => (
+          {sortedHighlights.map((highlight, index) => (
             <Card key={highlight.slug} className={index === 0 ? 'border-primary/30' : undefined}>
               <CardHeader className="gap-3">
                 <div className="flex flex-wrap items-center gap-2">
