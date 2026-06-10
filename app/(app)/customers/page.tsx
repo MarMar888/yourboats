@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { customers, boats, services } from '@/lib/db/schema'
-import { eq, sql, and, gte } from 'drizzle-orm'
+import { sql, gte } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -15,46 +15,41 @@ export default async function CustomersPage() {
     redirect('/dashboard')
   }
 
-  // Fetch all customers with boat and service counts in one efficient query
-  const rows = await db
-    .select({
-      id:        customers.id,
-      name:      customers.name,
-      email:     customers.email,
-      phone:     customers.phone,
-      notes:     customers.notes,
-      isPrepaid: customers.isPrepaid,
-    })
-    .from(customers)
-    .orderBy(customers.name)
-
-  // Boat counts per customer
-  const boatCounts = await db
-    .select({
-      customerId: boats.customerId,
-      count:      sql<number>`count(*)::int`.as('count'),
-    })
-    .from(boats)
-    .groupBy(boats.customerId)
-
-  // Total service counts per customer
-  const serviceCounts = await db
-    .select({
-      customerId: services.customerId,
-      count:      sql<number>`count(*)::int`.as('count'),
-    })
-    .from(services)
-    .groupBy(services.customerId)
-
-  // This-season service counts per customer
-  const seasonCounts = await db
-    .select({
-      customerId: services.customerId,
-      count:      sql<number>`count(*)::int`.as('count'),
-    })
-    .from(services)
-    .where(gte(services.serviceDate, SEASON_START))
-    .groupBy(services.customerId)
+  const [rows, boatCounts, serviceCounts, seasonCounts] = await Promise.all([
+    db
+      .select({
+        id:        customers.id,
+        name:      customers.name,
+        email:     customers.email,
+        phone:     customers.phone,
+        notes:     customers.notes,
+        isPrepaid: customers.isPrepaid,
+      })
+      .from(customers)
+      .orderBy(customers.name),
+    db
+      .select({
+        customerId: boats.customerId,
+        count:      sql<number>`count(*)::int`.as('count'),
+      })
+      .from(boats)
+      .groupBy(boats.customerId),
+    db
+      .select({
+        customerId: services.customerId,
+        count:      sql<number>`count(*)::int`.as('count'),
+      })
+      .from(services)
+      .groupBy(services.customerId),
+    db
+      .select({
+        customerId: services.customerId,
+        count:      sql<number>`count(*)::int`.as('count'),
+      })
+      .from(services)
+      .where(gte(services.serviceDate, SEASON_START))
+      .groupBy(services.customerId),
+  ])
 
   const boatMap = new Map(boatCounts.map((r) => [r.customerId, r.count]))
   const svcMap  = new Map(serviceCounts.map((r) => [r.customerId, r.count]))

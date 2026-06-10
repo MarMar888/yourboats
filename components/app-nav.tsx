@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AlertTriangle, ChevronDown, Menu, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -56,17 +56,41 @@ const navGroups: NavGroup[] = [
 
 export default function AppNav({ user }: { user: CurrentUser }) {
   const pathname = usePathname()
-  const visibleGroups = navGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => item.roles.includes(user.role)),
-    }))
-    .filter((group) => group.items.length > 0)
+  const router = useRouter()
+  const visibleGroups = useMemo(
+    () => navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.roles.includes(user.role)),
+      }))
+      .filter((group) => group.items.length > 0),
+    [user.role]
+  )
+  const visibleHrefs = useMemo(
+    () => Array.from(new Set(visibleGroups.flatMap((group) => group.items.map((item) => item.href)))),
+    [visibleGroups]
+  )
   const [createOpen, setCreateOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const canCreate = user.role === 'owner' || user.role === 'manager'
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+
+  useEffect(() => {
+    const prefetchRoutes = () => {
+      for (const href of visibleHrefs) {
+        if (pathname !== href && !pathname.startsWith(`${href}/`)) router.prefetch(href)
+      }
+    }
+
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(prefetchRoutes, { timeout: 1500 })
+      return () => window.cancelIdleCallback(id)
+    }
+
+    const timeout = globalThis.setTimeout(prefetchRoutes, 250)
+    return () => globalThis.clearTimeout(timeout)
+  }, [pathname, router, visibleHrefs])
 
   return (
     <>
@@ -102,6 +126,8 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                       <DropdownMenu.Item key={item.href} asChild>
                         <Link
                           href={item.href}
+                          onFocus={() => router.prefetch(item.href)}
+                          onMouseEnter={() => router.prefetch(item.href)}
                           className={cn(
                             'block rounded-md px-3 py-2 text-sm outline-none transition-colors hover:bg-muted focus:bg-muted',
                             isActive(item.href)
@@ -184,6 +210,8 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onFocus={() => router.prefetch(item.href)}
+                    onMouseEnter={() => router.prefetch(item.href)}
                     onClick={() => setMenuOpen(false)}
                     className={cn(
                       'block px-4 py-2.5 text-sm transition-colors hover:bg-muted',
