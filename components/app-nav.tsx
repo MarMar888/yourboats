@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, Menu, Plus, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Menu, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import GlobalCreateModal from '@/components/global-create-modal'
@@ -69,14 +69,14 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
   return (
     <>
-      <header className="border-b bg-background sticky top-0 z-40 relative">
-        <div className="container flex h-14 items-center gap-6">
+      <header className="border-b bg-white sticky top-0 z-40 relative">
+        <div className="flex h-14 w-full items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/dashboard" className="font-semibold text-primary shrink-0">
             yourboats
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 flex-1">
+          <nav className="hidden md:flex items-center gap-1 flex-1 min-w-0">
             {visibleGroups.map((group) => (
               <DropdownMenu.Root key={group.label}>
                 <DropdownMenu.Trigger
@@ -94,7 +94,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                   <DropdownMenu.Content
                     align="start"
                     sideOffset={6}
-                    className="z-50 min-w-[190px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                    className="z-50 min-w-[190px] rounded-md border bg-white p-1 text-foreground shadow-md"
                   >
                     {group.items.map((item) => (
                       <DropdownMenu.Item key={item.href} asChild>
@@ -117,13 +117,15 @@ export default function AppNav({ user }: { user: CurrentUser }) {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button
-              size="sm"
-              onClick={() => setReportOpen(true)}
-              className="hidden md:inline-flex bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              size="icon"
+              onClick={() => { setMenuOpen(false); setReportOpen(true) }}
+              aria-label="Report error"
+              title="Report error"
+              className="inline-flex h-9 w-9 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
-              Report error
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             </Button>
             {canCreate && (
               <Button size="sm" onClick={() => setCreateOpen(true)} className="hidden md:inline-flex">
@@ -131,16 +133,16 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 New
               </Button>
             )}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2 shrink-0">
               {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
                 <Link
                   href="/pick-user"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="max-w-36 truncate whitespace-nowrap text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {user.displayName} ({user.role})
                 </Link>
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="max-w-36 truncate whitespace-nowrap text-sm text-muted-foreground">
                   {user.displayName}
                 </span>
               )}
@@ -166,7 +168,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden absolute top-14 left-0 right-0 border-b bg-background shadow-lg z-50 py-2">
+          <div className="md:hidden absolute top-14 left-0 right-0 border-b bg-white shadow-lg z-50 py-2">
             {visibleGroups.map((group) => (
               <div key={group.label} className="py-1">
                 <div className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
