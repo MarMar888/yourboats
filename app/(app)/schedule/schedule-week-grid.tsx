@@ -48,6 +48,105 @@ interface Props {
   isManager: boolean
 }
 
+const HOUR_LABELS = ['7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p']
+const BAR_MAX_H = 64
+
+function WeatherBadge({ weather }: { weather: WeatherDay }) {
+  const [open, setOpen] = useState(false)
+  const [hoveredHour, setHoveredHour] = useState<number | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true) }
+  const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 120) }
+
+  const hourly = weather.hourlyRainPct
+  const hasHourly = hourly && hourly.length === 13
+
+  return (
+    <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
+      <span className={cn(
+        'text-[11px] font-medium rounded-full px-2 py-0.5 tabular-nums cursor-default select-none',
+        weather.precipPct >= 60 ? 'bg-blue-50 text-blue-700'
+          : weather.precipPct >= 30 ? 'bg-amber-50 text-amber-700'
+          : 'bg-muted text-muted-foreground'
+      )}>
+        {weather.precipPct >= 60 ? '🌧' : weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
+        {weather.tempMaxF}° · {weather.precipPct}% · {weather.windMph} mph
+      </span>
+
+      {open && hasHourly && (
+        <div
+          className="absolute left-0 top-full pt-1 z-50"
+          onMouseEnter={enter}
+          onMouseLeave={leave}
+        >
+          <div className="bg-white border border-border/80 rounded-xl shadow-xl p-4 w-[310px]">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[12px] font-semibold text-foreground">Hourly rain chance</span>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span>{weather.tempMaxF}°F high</span>
+                <span>·</span>
+                <span>{weather.windMph} mph wind</span>
+              </div>
+            </div>
+
+            {/* Bar chart */}
+            <div className="flex items-end gap-[3px]" style={{ height: `${BAR_MAX_H}px` }}>
+              {hourly!.map((pct, i) => {
+                const barH = Math.max(3, Math.round((pct / 100) * BAR_MAX_H))
+                const isHovered = hoveredHour === i
+                const isDimmed = hoveredHour !== null && !isHovered
+                return (
+                  <div
+                    key={i}
+                    className="relative flex-1 h-full flex flex-col justify-end cursor-default"
+                    onMouseEnter={() => setHoveredHour(i)}
+                    onMouseLeave={() => setHoveredHour(null)}
+                  >
+                    {/* Rail */}
+                    <div className="absolute inset-0 rounded-sm bg-slate-100" />
+                    {/* Bar */}
+                    <div
+                      className={cn(
+                        'relative rounded-sm transition-opacity duration-75',
+                        isDimmed ? 'opacity-30' : 'opacity-100',
+                        pct >= 60 ? 'bg-blue-500' : pct >= 30 ? 'bg-amber-400' : 'bg-blue-300'
+                      )}
+                      style={{ height: `${barH}px` }}
+                    />
+                    {/* Hover label */}
+                    {isHovered && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-[10px] font-semibold rounded-md px-1.5 py-1 whitespace-nowrap z-10 pointer-events-none shadow-sm">
+                        <span className="text-gray-400 mr-0.5">{HOUR_LABELS[i]}</span> {pct}%
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Hour labels */}
+            <div className="flex gap-[3px] mt-2">
+              {HOUR_LABELS.map((label, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'flex-1 text-center text-[8.5px] leading-none transition-colors',
+                    hoveredHour === i ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                  )}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Props) {
   const router = useRouter()
   const [days, setDays] = useState(initialDays)
@@ -194,57 +293,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                   {day.cards.length} {day.cards.length === 1 ? 'job' : 'jobs'}
                 </span>
               )}
-              {day.weather && (
-                <div className="relative group/weather">
-                  <span
-                    className={cn(
-                      'text-[11px] font-medium rounded-full px-2 py-0.5 tabular-nums cursor-default',
-                      day.weather.precipPct >= 60
-                        ? 'bg-blue-50 text-blue-700'
-                        : day.weather.precipPct >= 30
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {day.weather.precipPct >= 60 ? '🌧' : day.weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
-                    {day.weather.tempMaxF}° · {day.weather.precipPct}% · {day.weather.windMph} mph
-                  </span>
-                  {day.weather.hourlyRainPct && day.weather.hourlyRainPct.length === 13 && (
-                    <div className="absolute left-0 top-full mt-1.5 z-50 invisible group-hover/weather:visible bg-white border border-border rounded-lg shadow-lg p-3 w-[260px]">
-                      <p className="text-[11px] font-medium text-muted-foreground mb-2">
-                        Rain chance 7am–7pm · High {day.weather.tempMaxF}°F · Wind {day.weather.windMph} mph
-                      </p>
-                      <div className="flex items-end gap-[3px] h-10">
-                        {day.weather.hourlyRainPct.map((pct, i) => (
-                          <div key={i} className="flex flex-col items-center gap-0.5 flex-1">
-                            <div
-                              className={cn(
-                                'w-full rounded-sm',
-                                pct >= 60 ? 'bg-blue-400' : pct >= 30 ? 'bg-amber-400' : 'bg-slate-300'
-                              )}
-                              style={{ height: `${Math.max(2, Math.round((pct / 100) * 36))}px` }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-[3px] mt-1">
-                        {(['7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p'] as const).map((label, i) => (
-                          <div key={i} className="flex-1 text-center">
-                            <span className="text-[8px] text-muted-foreground leading-none">{label}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-[3px] mt-0.5">
-                        {day.weather.hourlyRainPct.map((pct, i) => (
-                          <div key={i} className="flex-1 text-center">
-                            <span className="text-[8px] tabular-nums text-muted-foreground leading-none">{pct}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {day.weather && <WeatherBadge weather={day.weather} />}
               <div className="flex-1 h-px bg-border/60" />
             </div>
 
