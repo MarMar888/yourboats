@@ -14,8 +14,9 @@ async function pickUser(formData: FormData) {
 
 export default function PickUserPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <Card className="w-full max-w-sm overflow-hidden">
+        <div className="h-1 bg-primary" />
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">yourboats</CardTitle>
           <CardDescription>Who are you today?</CardDescription>

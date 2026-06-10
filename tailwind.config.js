@@ -14,7 +14,9 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        default: ['var(--font-inter)'],
+        sans: ['var(--font-sans)'],
+        mono: ['var(--font-mono)'],
+        default: ['var(--font-sans)'],
       },
       colors: {
         border: 'hsl(var(--border))',

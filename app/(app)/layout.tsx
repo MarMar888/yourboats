@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <PostHogIdentify userId={user.id} email={user.email} displayName={user.displayName} role={user.role} />
       <AppNav user={user} />
-      <main className="flex-1 container w-full max-w-screen-xl px-4 py-4 sm:px-6 sm:py-6">
+      <main className="flex-1 container w-full max-w-screen-xl px-4 py-5 sm:px-6 sm:py-7">
         {children}
       </main>
       <AppFooter />
