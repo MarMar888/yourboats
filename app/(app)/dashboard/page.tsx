@@ -73,26 +73,27 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
 
   const serviceIds = serviceRows.map((s) => s.id)
 
-  const boatRows = await db
-    .select({
-      serviceId:        serviceBoats.serviceId,
-      boatId:           serviceBoats.boatId,
-      nickname:         boats.nickname,
-      boatNotes:        boats.notes,
-      serviceBoatNotes: serviceBoats.notes,
-    })
-    .from(serviceBoats)
-    .innerJoin(boats, eq(boats.id, serviceBoats.boatId))
-    .where(inArray(serviceBoats.serviceId, serviceIds))
-
-  const assignmentRows = await db
-    .select({
-      serviceId: serviceBoatAssignments.serviceId,
-      boatId:    serviceBoatAssignments.boatId,
-      userId:    serviceBoatAssignments.userId,
-    })
-    .from(serviceBoatAssignments)
-    .where(inArray(serviceBoatAssignments.serviceId, serviceIds))
+  const [boatRows, assignmentRows] = await Promise.all([
+    db
+      .select({
+        serviceId:        serviceBoats.serviceId,
+        boatId:           serviceBoats.boatId,
+        nickname:         boats.nickname,
+        boatNotes:        boats.notes,
+        serviceBoatNotes: serviceBoats.notes,
+      })
+      .from(serviceBoats)
+      .innerJoin(boats, eq(boats.id, serviceBoats.boatId))
+      .where(inArray(serviceBoats.serviceId, serviceIds)),
+    db
+      .select({
+        serviceId: serviceBoatAssignments.serviceId,
+        boatId:    serviceBoatAssignments.boatId,
+        userId:    serviceBoatAssignments.userId,
+      })
+      .from(serviceBoatAssignments)
+      .where(inArray(serviceBoatAssignments.serviceId, serviceIds)),
+  ])
 
   const assignments: Record<string, Record<string, string[]>> = {}
   for (const r of assignmentRows) {
@@ -134,6 +135,12 @@ export default async function DashboardPage() {
   const today = todayET()
   const { start: weekStart, end: weekEnd } = thisWeekBounds()
 
+  const employeeListPromise = db
+    .select({ id: users.id, displayName: users.displayName })
+    .from(users)
+    .where(eq(users.active, true))
+    .orderBy(asc(users.displayName))
+
   const todayServices = await fetchServiceData({ start: today, end: today })
   let displayServices = todayServices
   let showingThisWeek = false
@@ -144,11 +151,7 @@ export default async function DashboardPage() {
     showingThisWeek = true
   }
 
-  const employeeList = await db
-    .select({ id: users.id, displayName: users.displayName })
-    .from(users)
-    .where(eq(users.active, true))
-    .orderBy(asc(users.displayName))
+  const employeeList = await employeeListPromise
 
   const isManager = user.role === 'owner' || user.role === 'manager'
 

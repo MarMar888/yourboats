@@ -69,6 +69,74 @@ type NextFetchOptions = RequestInit & {
   next?: { revalidate?: number }
 }
 
+type WeatherByDay = Record<string, { tempMaxF: number; precipPct: number; windMph: number; hourlyRainPct: number[] }>
+
+async function fetchWeatherByDay(weekStartStr: string, weekEndStr: string): Promise<WeatherByDay> {
+  const weatherByDay: WeatherByDay = {}
+  const weatherLat = process.env.WEATHER_LAT
+  const weatherLng = process.env.WEATHER_LNG
+  if (!weatherLat || !weatherLng) return weatherByDay
+
+  try {
+    const weatherUrl =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${weatherLat}&longitude=${weatherLng}` +
+      `&daily=temperature_2m_max,precipitation_probability_max,windspeed_10m_max` +
+      `&hourly=precipitation_probability` +
+      `&temperature_unit=fahrenheit` +
+      `&wind_speed_unit=mph` +
+      `&timezone=America%2FChicago` +
+      `&start_date=${weekStartStr}&end_date=${weekEndStr}`
+    const weatherFetchOptions: NextFetchOptions = { next: { revalidate: 3600 } }
+    const weatherRes = await fetch(weatherUrl, weatherFetchOptions)
+    if (!weatherRes.ok) return weatherByDay
+
+    const weatherData = await weatherRes.json() as {
+      daily: {
+        time: string[]
+        temperature_2m_max: (number | null)[]
+        precipitation_probability_max: (number | null)[]
+        windspeed_10m_max: (number | null)[]
+      }
+      hourly: {
+        time: string[]
+        precipitation_probability: (number | null)[]
+      }
+    }
+
+    // Build hourly rain arrays (hours 7-19) indexed by date string.
+    const hourlyByDay: Record<string, number[]> = {}
+    for (const dateStr of weatherData.daily.time) {
+      hourlyByDay[dateStr] = new Array(13).fill(0)
+    }
+    for (let i = 0; i < weatherData.hourly.time.length; i++) {
+      const ts = weatherData.hourly.time[i]
+      const datePart = ts.slice(0, 10)
+      const hourPart = parseInt(ts.slice(11, 13), 10)
+      if (hourPart >= 7 && hourPart <= 19 && hourlyByDay[datePart]) {
+        hourlyByDay[datePart][hourPart - 7] = weatherData.hourly.precipitation_probability[i] ?? 0
+      }
+    }
+    for (let i = 0; i < weatherData.daily.time.length; i++) {
+      const tempMax = weatherData.daily.temperature_2m_max[i]
+      const precip  = weatherData.daily.precipitation_probability_max[i]
+      const wind    = weatherData.daily.windspeed_10m_max[i]
+      if (tempMax != null) {
+        weatherByDay[weatherData.daily.time[i]] = {
+          tempMaxF: Math.round(tempMax),
+          precipPct: precip ?? 0,
+          windMph: Math.round(wind ?? 0),
+          hourlyRainPct: hourlyByDay[weatherData.daily.time[i]] ?? [],
+        }
+      }
+    }
+  } catch {
+    // Weather is optional - silently ignore fetch errors.
+  }
+
+  return weatherByDay
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface PageProps {
@@ -91,27 +159,33 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   const nextWeekStr = toISODate(addDays(weekStart, 7))
   const selectedEmployee = params.employee ?? ''
 
-  // ── Employee list (active DB users) ──────────────────────────────────────
-  const employeeList = await db
+  const employeeListPromise = db
     .select({ id: users.id, displayName: users.displayName })
     .from(users)
     .where(eq(users.active, true))
     .orderBy(asc(users.displayName))
 
-  // ── Employee filter pre-query ─────────────────────────────────────────────
-  let filteredServiceIds: string[] | null = null
-  if (selectedEmployee) {
-    const rows = await db
+  const filteredServiceIdsPromise = selectedEmployee
+    ? db
       .select({ serviceId: serviceBoatAssignments.serviceId })
       .from(serviceBoatAssignments)
       .where(eq(serviceBoatAssignments.userId, selectedEmployee))
-    const seen = new Set<string>()
-    filteredServiceIds = rows.map((r) => r.serviceId).filter((id) => {
-      if (seen.has(id)) return false
-      seen.add(id)
-      return true
-    })
-  }
+      .then((rows) => {
+        const seen = new Set<string>()
+        return rows.map((r) => r.serviceId).filter((id) => {
+          if (seen.has(id)) return false
+          seen.add(id)
+          return true
+        })
+      })
+    : Promise.resolve(null)
+
+  const weatherByDayPromise = fetchWeatherByDay(weekStartStr, weekEndStr)
+
+  const [employeeList, filteredServiceIds] = await Promise.all([
+    employeeListPromise,
+    filteredServiceIdsPromise,
+  ])
 
   // ── Services in week ──────────────────────────────────────────────────────
   const serviceRows = filteredServiceIds !== null && filteredServiceIds.length === 0
@@ -147,9 +221,9 @@ export default async function SchedulePage({ searchParams }: PageProps) {
 
   const serviceIds = serviceRows.map((s) => s.id)
 
-  // ── Boats per service ─────────────────────────────────────────────────────
-  const boatRows = serviceIds.length
-    ? await db
+  const [boatRows, assignmentRows] = serviceIds.length
+    ? await Promise.all([
+      db
         .select({
           serviceId:       serviceBoats.serviceId,
           boatId:          serviceBoats.boatId,
@@ -159,21 +233,18 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         })
         .from(serviceBoats)
         .innerJoin(boats, eq(serviceBoats.boatId, boats.id))
-        .where(inArray(serviceBoats.serviceId, serviceIds))
-    : []
-
-  // ── Per-boat assignments ──────────────────────────────────────────────────
-  // serviceBoatAssignments.userId is text — works with dev user IDs
-  const assignmentRows = serviceIds.length
-    ? await db
+        .where(inArray(serviceBoats.serviceId, serviceIds)),
+      // serviceBoatAssignments.userId is text - works with dev user IDs.
+      db
         .select({
           serviceId: serviceBoatAssignments.serviceId,
           boatId:    serviceBoatAssignments.boatId,
           userId:    serviceBoatAssignments.userId,
         })
         .from(serviceBoatAssignments)
-        .where(inArray(serviceBoatAssignments.serviceId, serviceIds))
-    : []
+        .where(inArray(serviceBoatAssignments.serviceId, serviceIds)),
+    ])
+    : [[], []]
 
   // ── Build per-service boat+assignment data ────────────────────────────────
   // assignments[serviceId][boatId] = userId[]
@@ -237,67 +308,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     reminderEmailsByCustomer.set(r.customerId, list)
   }
 
-  // ── Weather forecast (Open-Meteo, free, no key required) ─────────────────
-  const weatherByDay: Record<string, { tempMaxF: number; precipPct: number; windMph: number; hourlyRainPct: number[] }> = {}
-  const weatherLat = process.env.WEATHER_LAT
-  const weatherLng = process.env.WEATHER_LNG
-  if (weatherLat && weatherLng) {
-    try {
-      const weatherUrl =
-        `https://api.open-meteo.com/v1/forecast` +
-        `?latitude=${weatherLat}&longitude=${weatherLng}` +
-        `&daily=temperature_2m_max,precipitation_probability_max,windspeed_10m_max` +
-        `&hourly=precipitation_probability` +
-        `&temperature_unit=fahrenheit` +
-        `&wind_speed_unit=mph` +
-        `&timezone=America%2FChicago` +
-        `&start_date=${weekStartStr}&end_date=${weekEndStr}`
-      const weatherFetchOptions: NextFetchOptions = { next: { revalidate: 3600 } }
-      const weatherRes = await fetch(weatherUrl, weatherFetchOptions)
-      if (weatherRes.ok) {
-        const weatherData = await weatherRes.json() as {
-          daily: {
-            time: string[]
-            temperature_2m_max: (number | null)[]
-            precipitation_probability_max: (number | null)[]
-            windspeed_10m_max: (number | null)[]
-          }
-          hourly: {
-            time: string[]
-            precipitation_probability: (number | null)[]
-          }
-        }
-        // Build hourly rain arrays (hours 7–19) indexed by date string
-        const hourlyByDay: Record<string, number[]> = {}
-        for (const dateStr of weatherData.daily.time) {
-          hourlyByDay[dateStr] = new Array(13).fill(0)
-        }
-        for (let i = 0; i < weatherData.hourly.time.length; i++) {
-          const ts = weatherData.hourly.time[i]            // "2024-06-09T07:00"
-          const datePart = ts.slice(0, 10)
-          const hourPart = parseInt(ts.slice(11, 13), 10)
-          if (hourPart >= 7 && hourPart <= 19 && hourlyByDay[datePart]) {
-            hourlyByDay[datePart][hourPart - 7] = weatherData.hourly.precipitation_probability[i] ?? 0
-          }
-        }
-        for (let i = 0; i < weatherData.daily.time.length; i++) {
-          const tempMax = weatherData.daily.temperature_2m_max[i]
-          const precip  = weatherData.daily.precipitation_probability_max[i]
-          const wind    = weatherData.daily.windspeed_10m_max[i]
-          if (tempMax != null) {
-            weatherByDay[weatherData.daily.time[i]] = {
-              tempMaxF: Math.round(tempMax),
-              precipPct: precip ?? 0,
-              windMph: Math.round(wind ?? 0),
-              hourlyRainPct: hourlyByDay[weatherData.daily.time[i]] ?? [],
-            }
-          }
-        }
-      }
-    } catch {
-      // Weather is optional — silently ignore fetch errors
-    }
-  }
+  const weatherByDay = await weatherByDayPromise
 
   const allScheduled = cards.filter((c) => c.status === 'scheduled')
   const weekApproved = allScheduled.length > 0 && allScheduled.every((c) => c.approvedAt)

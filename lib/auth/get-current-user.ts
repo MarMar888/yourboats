@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
@@ -18,7 +19,7 @@ export type CurrentUser = Pick<User, 'id' | 'displayName' | 'role' | 'email'>
  *
  * Returns null when unauthenticated.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+async function resolveCurrentUser(): Promise<CurrentUser | null> {
   // ── Dev-auth shortcut ────────────────────────────────────────────────────
   if (process.env.NEXT_PUBLIC_DEV_AUTH === 'true') {
     const cookieStore = await cookies()
@@ -49,3 +50,5 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return null
   }
 }
+
+export const getCurrentUser = cache(resolveCurrentUser)

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent, type PointerEvent } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AlertTriangle, ChevronDown, Menu, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -56,23 +56,79 @@ const navGroups: NavGroup[] = [
 
 export default function AppNav({ user }: { user: CurrentUser }) {
   const pathname = usePathname()
-  const visibleGroups = navGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => item.roles.includes(user.role)),
-    }))
-    .filter((group) => group.items.length > 0)
+  const router = useRouter()
+  const visibleGroups = useMemo(
+    () => navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.roles.includes(user.role)),
+      }))
+      .filter((group) => group.items.length > 0),
+    [user.role]
+  )
+  const visibleHrefs = useMemo(
+    () => Array.from(new Set(visibleGroups.flatMap((group) => group.items.map((item) => item.href)))),
+    [visibleGroups]
+  )
   const [createOpen, setCreateOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
   const [reportOpen, setReportOpen] = useState(false)
   const canCreate = user.role === 'owner' || user.role === 'manager'
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  const isPending = (href: string) => pendingHref === href
+
+  useEffect(() => {
+    const prefetchRoutes = () => {
+      for (const href of visibleHrefs) {
+        if (pathname !== href && !pathname.startsWith(`${href}/`)) router.prefetch(href)
+      }
+    }
+
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(prefetchRoutes, { timeout: 1500 })
+      return () => window.cancelIdleCallback(id)
+    }
+
+    const timeout = globalThis.setTimeout(prefetchRoutes, 250)
+    return () => globalThis.clearTimeout(timeout)
+  }, [pathname, router, visibleHrefs])
+
+  useEffect(() => {
+    setPendingHref(null)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!pendingHref) return
+    const timeout = globalThis.setTimeout(() => setPendingHref(null), 8000)
+    return () => globalThis.clearTimeout(timeout)
+  }, [pendingHref])
+
+  function startNavigation(href: string) {
+    if (!isActive(href)) setPendingHref(href)
+  }
+
+  function startNavigationFromEvent(
+    href: string,
+    event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>
+  ) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+    startNavigation(href)
+  }
 
   return (
     <>
       <header className="sticky top-0 z-40 border-b bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/78">
         <div className="flex h-14 w-full items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/dashboard" className="group flex shrink-0 items-center gap-2 font-semibold text-foreground">
+          <Link
+            href="/dashboard"
+            onClick={(event) => startNavigationFromEvent('/dashboard', event)}
+            onPointerDown={(event) => startNavigationFromEvent('/dashboard', event)}
+            className={cn(
+              'group flex shrink-0 items-center gap-2 font-semibold text-foreground transition-opacity',
+              isPending('/dashboard') && 'opacity-70'
+            )}
+          >
             <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)] transition-shadow group-hover:shadow-[0_0_0_6px_hsl(var(--primary)/0.16)]" />
             <span className="tracking-tight">yourboats</span>
           </Link>
@@ -84,7 +140,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 <DropdownMenu.Trigger
                   className={cn(
                     'inline-flex min-h-[40px] items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    group.items.some((item) => isActive(item.href))
+                    group.items.some((item) => isActive(item.href) || isPending(item.href))
                       ? 'bg-card text-foreground shadow-sm ring-1 ring-border/70'
                       : 'text-muted-foreground'
                   )}
@@ -102,10 +158,17 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                       <DropdownMenu.Item key={item.href} asChild>
                         <Link
                           href={item.href}
+                          aria-busy={isPending(item.href) || undefined}
+                          onFocus={() => router.prefetch(item.href)}
+                          onMouseEnter={() => router.prefetch(item.href)}
+                          onClick={(event) => startNavigationFromEvent(item.href, event)}
+                          onPointerDown={(event) => startNavigationFromEvent(item.href, event)}
                           className={cn(
                             'block rounded-md px-3 py-2 text-sm outline-none transition-colors hover:bg-muted focus:bg-muted',
                             isActive(item.href)
                               ? 'bg-primary/10 font-semibold text-primary'
+                              : isPending(item.href)
+                              ? 'bg-accent font-semibold text-accent-foreground'
                               : 'text-muted-foreground'
                           )}
                         >
@@ -184,11 +247,20 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => setMenuOpen(false)}
+                    aria-busy={isPending(item.href) || undefined}
+                    onFocus={() => router.prefetch(item.href)}
+                    onMouseEnter={() => router.prefetch(item.href)}
+                    onClick={(event) => {
+                      startNavigationFromEvent(item.href, event)
+                      setMenuOpen(false)
+                    }}
+                    onPointerDown={(event) => startNavigationFromEvent(item.href, event)}
                     className={cn(
                       'block px-4 py-2.5 text-sm transition-colors hover:bg-muted',
                       isActive(item.href)
                         ? 'border-l-2 border-primary bg-primary/10 font-semibold text-primary'
+                        : isPending(item.href)
+                        ? 'border-l-2 border-accent-foreground bg-accent font-semibold text-accent-foreground'
                         : 'text-muted-foreground'
                     )}
                   >
@@ -216,6 +288,11 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                 </button>
               </div>
             )}
+          </div>
+        )}
+        {pendingHref && (
+          <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-primary/10" aria-hidden="true">
+            <div className="h-full w-1/3 animate-nav-progress rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.45)]" />
           </div>
         )}
       </header>

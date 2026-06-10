@@ -12,38 +12,17 @@ export const dynamic = 'force-dynamic'
 
 export default async function InvoicesPage() {
   // Sync payment status from QBO before rendering — updates sent→paid/overdue silently
-  await syncInvoiceStatuses()
+  const syncStatusesPromise = syncInvoiceStatuses()
 
-  const currentUser = await getCurrentUser()
+  const [currentUser, qboItems] = await Promise.all([
+    getCurrentUser(),
+    getCachedQboItems(),
+  ])
   const canManage = currentUser?.role === 'owner' || currentUser?.role === 'manager'
   const qboEnv = process.env.QBO_ENVIRONMENT
-  const qboItems = await getCachedQboItems()
   const qboItemOptions = qboItems.map((i) => ({ qboItemId: i.qboItemId, name: i.name }))
 
   // Draft invoices for completed services — ready to send
-  const pending = await db
-    .select({
-      invoiceId:     invoices.id,
-      qboInvoiceId:  invoices.qboInvoiceId,
-      docNumber:     invoices.docNumber,
-      amount:        invoices.amount,
-      notes:         invoices.notes,
-      status:        invoices.status,
-      sentAt:        invoices.sentAt,
-      paidAt:        invoices.paidAt,
-      serviceDate:   services.serviceDate,
-      serviceStatus: services.status,
-      serviceId:     services.id,
-      customerName:  customers.name,
-      customerId:    customers.id,
-      isPrepaid:     customers.isPrepaid,
-    })
-    .from(invoices)
-    .innerJoin(services, eq(invoices.serviceId, services.id))
-    .innerJoin(customers, eq(services.customerId, customers.id))
-    .where(and(eq(invoices.status, 'draft'), eq(services.status, 'complete')))
-    .orderBy(desc(invoices.createdAt))
-
   const invoiceSelect = {
     invoiceId:     invoices.id,
     qboInvoiceId:  invoices.qboInvoiceId,
@@ -61,23 +40,31 @@ export default async function InvoicesPage() {
     isPrepaid:     customers.isPrepaid,
   }
 
-  // Sent / overdue / void (not yet paid)
-  const sent = await db
-    .select(invoiceSelect)
-    .from(invoices)
-    .innerJoin(services, eq(invoices.serviceId, services.id))
-    .innerJoin(customers, eq(services.customerId, customers.id))
-    .where(and(eq(services.status, 'complete'), inArray(invoices.status, ['sent', 'overdue', 'void'])))
-    .orderBy(desc(invoices.createdAt))
+  await syncStatusesPromise
 
-  // Paid
-  const paid = await db
-    .select(invoiceSelect)
-    .from(invoices)
-    .innerJoin(services, eq(invoices.serviceId, services.id))
-    .innerJoin(customers, eq(services.customerId, customers.id))
-    .where(and(eq(services.status, 'complete'), eq(invoices.status, 'paid')))
-    .orderBy(desc(invoices.paidAt))
+  const [pending, sent, paid] = await Promise.all([
+    db
+      .select(invoiceSelect)
+      .from(invoices)
+      .innerJoin(services, eq(invoices.serviceId, services.id))
+      .innerJoin(customers, eq(services.customerId, customers.id))
+      .where(and(eq(invoices.status, 'draft'), eq(services.status, 'complete')))
+      .orderBy(desc(invoices.createdAt)),
+    db
+      .select(invoiceSelect)
+      .from(invoices)
+      .innerJoin(services, eq(invoices.serviceId, services.id))
+      .innerJoin(customers, eq(services.customerId, customers.id))
+      .where(and(eq(services.status, 'complete'), inArray(invoices.status, ['sent', 'overdue', 'void'])))
+      .orderBy(desc(invoices.createdAt)),
+    db
+      .select(invoiceSelect)
+      .from(invoices)
+      .innerJoin(services, eq(invoices.serviceId, services.id))
+      .innerJoin(customers, eq(services.customerId, customers.id))
+      .where(and(eq(services.status, 'complete'), eq(invoices.status, 'paid')))
+      .orderBy(desc(invoices.paidAt)),
+  ])
 
   const allInvoices = [...pending, ...sent, ...paid]
   const serviceIds = Array.from(new Set(allInvoices.map((inv) => inv.serviceId)))
