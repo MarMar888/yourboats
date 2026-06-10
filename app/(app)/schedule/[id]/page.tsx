@@ -214,9 +214,9 @@ export default async function ServiceDetailPage({
   const showTimeTracker = canManage || isAssigned
 
   return (
-    <div className="max-w-4xl">
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6 items-start">
-    <div className="space-y-6">
+    <div className="max-w-4xl min-w-0">
+    <div className="grid min-w-0 grid-cols-1 gap-6 items-start lg:grid-cols-[minmax(0,1fr)_260px]">
+    <div className="min-w-0 space-y-6">
       {/* Header */}
       <div>
         <Link
@@ -225,14 +225,14 @@ export default async function ServiceDetailPage({
         >
           ← Schedule
         </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold">{svc.customerName}</h1>
             <p className="text-muted-foreground mt-0.5">
               {SERVICE_LABELS[svc.serviceType] ?? svc.serviceType} · {fmtDate(svc.serviceDate)}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex max-w-full flex-wrap items-center gap-2 sm:flex-shrink-0 sm:justify-end">
             <span className={cn(
               'text-xs px-2.5 py-1 rounded-full border font-medium',
               STATUS_STYLES[svc.status] ?? STATUS_STYLES.scheduled
@@ -280,22 +280,28 @@ export default async function ServiceDetailPage({
       </div>
 
       {(svc.approvedAt || svc.completedAt || svc.reminderSentAt) && (
-        <div className="flex flex-wrap gap-3 text-xs">
+        <div className="flex min-w-0 flex-wrap gap-3 text-xs">
           {svc.approvedAt && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
+              <span className="min-w-0 truncate">
               ✓ Approved {fmtDateTime(svc.approvedAt)}
               {svc.approvedBy && ` by ${userNames[svc.approvedBy] ?? svc.approvedBy}`}
+              </span>
             </span>
           )}
           {svc.completedAt && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-green-200 bg-green-50 text-green-700 px-3 py-1 font-medium">
+              <span className="min-w-0 truncate">
               ✓ Completed {fmtDateTime(svc.completedAt)}
               {svc.completedByUserId && ` by ${userNames[svc.completedByUserId] ?? svc.completedByUserId}`}
+              </span>
             </span>
           )}
           {svc.reminderSentAt && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 px-3 py-1 font-medium">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 px-3 py-1 font-medium">
+              <span className="min-w-0 truncate">
               ✉ Reminder sent {fmtDateTime(svc.reminderSentAt)}
+              </span>
             </span>
           )}
         </div>
@@ -330,15 +336,15 @@ export default async function ServiceDetailPage({
               const lineTotal = rate * qty
 
               return (
-                <div key={b.boatId} className="rounded-lg border bg-card px-4 py-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                <div key={b.boatId} className="min-w-0 rounded-lg border bg-card px-4 py-3 space-y-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                    <div className="min-w-0">
                       <span className="font-medium text-sm">{b.nickname}</span>
                       {b.makeModel && <span className="text-xs text-muted-foreground ml-2">{b.makeModel}</span>}
                       {b.lengthFt && <span className="text-xs text-muted-foreground ml-1">· {b.lengthFt} ft</span>}
                     </div>
                     {lineTotal > 0 && (
-                      <span className="text-sm font-semibold tabular-nums shrink-0">
+                      <span className="text-sm font-semibold tabular-nums sm:shrink-0">
                         ${lineTotal.toFixed(2)}
                         {b.rateType === 'per_ft' && b.lengthFt && (
                           <span className="text-xs font-normal text-muted-foreground ml-1">
@@ -399,8 +405,8 @@ export default async function ServiceDetailPage({
             Prepaid customer — no invoice required
           </div>
         ) : invoice ? (
-          <div className="rounded-lg border bg-card px-4 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
               <span className={cn(
                 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
                 invoice.status === 'paid'    ? 'border-green-200 bg-green-50 text-green-700' :
@@ -429,7 +435,7 @@ export default async function ServiceDetailPage({
                 href={qboInvoiceUrl(invoice.qboInvoiceId)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-mono text-primary hover:underline"
+                className="min-w-0 truncate text-xs font-mono text-primary hover:underline"
               >
                 #{invoice.qboInvoiceId}
               </a>

@@ -24,7 +24,7 @@ export function BoatAssignment({ serviceId, boatId, employees, assignedIds }: Pr
   }
 
   return (
-    <div className={cn('flex flex-wrap gap-1.5 transition-opacity', isPending && 'opacity-50')}>
+    <div className={cn('flex min-w-0 flex-wrap gap-1.5 transition-opacity', isPending && 'opacity-50')}>
       {employees.map((emp) => {
         const active = assignedIds.includes(emp.id)
         return (
@@ -34,7 +34,7 @@ export function BoatAssignment({ serviceId, boatId, employees, assignedIds }: Pr
             onClick={() => toggle(emp.id)}
             disabled={isPending}
             className={cn(
-              'px-2.5 py-0.5 rounded-full border text-xs font-medium transition-colors',
+              'min-w-0 max-w-full truncate px-2.5 py-0.5 rounded-full border text-xs font-medium transition-colors',
               active
                 ? 'bg-foreground text-background border-transparent shadow-sm'
                 : 'border-border text-muted-foreground hover:bg-muted'
