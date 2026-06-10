@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from 'react'
 import posthog from 'posthog-js'
+import { notifyErrorReported } from '@/lib/actions/report-error-notify'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export default function ReportErrorModal({
     const comment = data.get('comment') as string
     startTransition(async () => {
       posthog.capture('error_reported', { comment })
+      await notifyErrorReported(comment)
       setDone(true)
     })
   }

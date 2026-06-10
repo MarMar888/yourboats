@@ -8,8 +8,7 @@ import { invoices } from '@/lib/db/schema'
 import { isNotNull, eq } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { revalidatePath } from 'next/cache'
-
-const TEST_ADDRESS = '19523731631.19525295203.jtBf327Pgh@txt.voice.google.com'
+import { MARLEY_SMS, NATE_SMS } from '@/lib/constants/sms'
 
 export async function reconcileDocNumbers(): Promise<{ ok: boolean; updated: number; message?: string }> {
   const user = await getCurrentUser()
@@ -66,12 +65,32 @@ export async function sendInvoiceTest(): Promise<{ ok: boolean; message: string 
   try {
     await emailTransport.sendMail({
       from: `"Squeaky Clean Boats" <${process.env.GMAIL_USER}>`,
-      to: TEST_ADDRESS,
+      to: MARLEY_SMS,
       subject: 'Your invoice from Squeaky Clean Boats',
       text: 'Hi Dan Gladney, your invoice from Squeaky Clean Boats is ready: https://invoice.qbo.intuit.com/invoice/TEST_LINK',
     })
-    await log({ action: 'invoice_sms_test_sent', metadata: { to: TEST_ADDRESS } })
-    return { ok: true, message: `Sent to ${TEST_ADDRESS}` }
+    await log({ action: 'invoice_sms_test_sent', metadata: { to: MARLEY_SMS } })
+    return { ok: true, message: `Sent to ${MARLEY_SMS}` }
+  } catch (err) {
+    return { ok: false, message: `Failed: ${err instanceof Error ? err.message : String(err)}` }
+  }
+}
+
+export async function sendScheduleReminderTest(): Promise<{ ok: boolean; message: string }> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'owner') {
+    return { ok: false, message: 'Owner only.' }
+  }
+
+  try {
+    await emailTransport.sendMail({
+      from: `"yourboats" <${process.env.GMAIL_USER}>`,
+      to: NATE_SMS,
+      subject: 'Schedule approval reminder',
+      text: 'Reminder: Please approve this weeks schedule. (https://yourboats.vercel.app/schedule)',
+    })
+    await log({ action: 'schedule_reminder_test_sent', metadata: { to: NATE_SMS } })
+    return { ok: true, message: `Test sent to Nate` }
   } catch (err) {
     return { ok: false, message: `Failed: ${err instanceof Error ? err.message : String(err)}` }
   }
