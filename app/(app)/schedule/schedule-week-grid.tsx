@@ -65,12 +65,12 @@ function WeatherBadge({ weather }: { weather: WeatherDay }) {
   return (
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <span className={cn(
-        'text-[11px] font-medium rounded-full px-2 py-0.5 tabular-nums cursor-default select-none',
-        weather.precipPct >= 60 ? 'bg-blue-50 text-blue-700'
-          : weather.precipPct >= 30 ? 'bg-amber-50 text-amber-700'
-          : 'bg-muted text-muted-foreground'
+        'cursor-default select-none rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums',
+        weather.precipPct >= 60 ? 'border-sky-200 bg-sky-50 text-sky-700'
+          : weather.precipPct >= 30 ? 'border-amber-200 bg-amber-50 text-amber-700'
+          : 'border-border bg-card text-muted-foreground'
       )}>
-        {weather.precipPct >= 60 ? '🌧' : weather.precipPct >= 30 ? '🌦' : '☀️'}{' '}
+        {weather.precipPct >= 60 ? 'Rain' : weather.precipPct >= 30 ? 'Risk' : 'Clear'}{' '}
         {weather.tempMaxF}° · {weather.precipPct}% · {weather.windMph} mph
       </span>
 
@@ -80,7 +80,7 @@ function WeatherBadge({ weather }: { weather: WeatherDay }) {
           onMouseEnter={enter}
           onMouseLeave={leave}
         >
-          <div className="bg-white border border-border/80 rounded-xl shadow-xl p-4 w-[310px]">
+          <div className="w-[310px] rounded-lg border border-border/80 bg-card p-4 shadow-[0_18px_46px_hsl(var(--foreground)/0.16)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
               <span className="text-[12px] font-semibold text-foreground">Hourly rain chance</span>
@@ -105,20 +105,20 @@ function WeatherBadge({ weather }: { weather: WeatherDay }) {
                     onMouseLeave={() => setHoveredHour(null)}
                   >
                     {/* Rail */}
-                    <div className="absolute inset-0 rounded-sm bg-slate-100" />
+                    <div className="absolute inset-0 rounded-sm bg-muted" />
                     {/* Bar */}
                     <div
                       className={cn(
                         'relative rounded-sm transition-opacity duration-75',
                         isDimmed ? 'opacity-30' : 'opacity-100',
-                        pct >= 60 ? 'bg-blue-500' : pct >= 30 ? 'bg-amber-400' : 'bg-blue-300'
+                        pct >= 60 ? 'bg-sky-600' : pct >= 30 ? 'bg-amber-400' : 'bg-sky-300'
                       )}
                       style={{ height: `${barH}px` }}
                     />
                     {/* Hover label */}
                     {isHovered && (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-[10px] font-semibold rounded-md px-1.5 py-1 whitespace-nowrap z-10 pointer-events-none shadow-sm">
-                        <span className="text-gray-400 mr-0.5">{HOUR_LABELS[i]}</span> {pct}%
+                      <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-1.5 py-1 text-[10px] font-semibold text-background shadow-sm pointer-events-none">
+                        <span className="mr-0.5 text-background/60">{HOUR_LABELS[i]}</span> {pct}%
                       </div>
                     )}
                   </div>
@@ -268,7 +268,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
             onDrop={isManager ? (e) => handleDrop(e, day.dateStr) : undefined}
           >
             {/* Day header */}
-            <div className="flex items-center gap-3 mb-3">
+            <div className="mb-3 flex items-center gap-3">
               <div className="flex items-baseline gap-2">
                 <span className={cn(
                   'text-xs font-bold uppercase tracking-widest',
@@ -285,7 +285,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
               </div>
               {day.cards.length > 0 && (
                 <span className={cn(
-                  'text-[11px] font-medium rounded-full px-2 py-0.5',
+                  'rounded-full px-2 py-0.5 text-[11px] font-semibold',
                   day.isToday
                     ? 'bg-primary/10 text-primary'
                     : 'bg-muted text-muted-foreground'
@@ -300,10 +300,10 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
             {/* Cards grid */}
             {day.cards.length === 0 ? (
               <div className={cn(
-                'rounded-lg border border-dashed py-4 px-4 text-sm text-muted-foreground transition-colors',
+                'rounded-lg border border-dashed px-4 py-4 text-sm font-medium text-muted-foreground transition-colors',
                 canDrop
                   ? 'border-primary/50 bg-primary/5 text-primary'
-                  : 'bg-card/50'
+                  : 'bg-card/55'
               )}>
                 {canDrop && draggingCard
                   ? `Move "${draggingCard.customerName}" here`
@@ -311,7 +311,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
               </div>
             ) : (
               <div className={cn(
-                'grid gap-3 sm:grid-cols-2 items-start rounded-xl transition-colors p-1 -m-1',
+                'grid items-start gap-3 rounded-lg p-1 -m-1 transition-colors sm:grid-cols-2',
                 canDrop && 'bg-primary/5 ring-2 ring-primary/30 ring-inset'
               )}>
                 {day.cards.map((card) => {
@@ -353,7 +353,7 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
                 })}
                 {/* Drop indicator appended when target day already has cards */}
                 {canDrop && draggingCard && (
-                  <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 min-h-[80px] flex items-center justify-center text-sm text-primary/70 font-medium">
+                  <div className="flex min-h-[80px] items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 text-sm font-semibold text-primary/70">
                     Drop here
                   </div>
                 )}

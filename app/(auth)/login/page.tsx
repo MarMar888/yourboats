@@ -12,21 +12,22 @@ export default async function LoginPage({
   const { message } = await searchParams
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-8">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <Card className="w-full max-w-sm overflow-hidden">
+        <div className="h-1 bg-primary" />
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">yourboats</CardTitle>
-          <CardTitle>Squeaky Clean Boat Services</CardTitle>
+          <p className="text-sm font-medium text-muted-foreground">Squeaky Clean Boat Services</p>
         </CardHeader>
         <CardContent className="space-y-4">
           {message && (
-            <p className="text-sm text-destructive text-center">{message}</p>
+            <p className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive">{message}</p>
           )}
 
           <form className="space-y-3">
             <div className="space-y-1">
               <Label htmlFor="username">Name</Label>
-              <div className="flex items-center rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+              <div className="flex items-center rounded-md border border-input bg-card shadow-inner shadow-foreground/[0.03] ring-offset-background transition-colors focus-within:border-primary/55 focus-within:ring-2 focus-within:ring-ring/30 focus-within:ring-offset-1">
                 <Input
                   id="username"
                   name="username"

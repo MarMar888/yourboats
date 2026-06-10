@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { Camera, Check, Clock, Flag, Mail, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
@@ -83,12 +84,12 @@ function BoatChips({
             disabled={isPending}
             onClick={() => toggle(emp.id)}
             className={cn(
-              'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium transition-all duration-100 cursor-pointer select-none',
+              'inline-flex min-h-6 items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-all duration-150 cursor-pointer select-none',
               assigned
-                ? 'bg-foreground text-background'
+                ? 'border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/15'
                 : anyAssigned
-                  ? 'text-muted-foreground/40 bg-muted/40 hover:text-muted-foreground hover:bg-muted'
-                  : 'text-muted-foreground bg-muted hover:bg-muted/70',
+                  ? 'border-transparent bg-muted/50 text-muted-foreground/50 hover:border-border hover:bg-muted hover:text-muted-foreground'
+                  : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary',
               isPending && 'opacity-50 cursor-not-allowed'
             )}
           >
@@ -128,17 +129,17 @@ export default function ScheduleCard({
 
   return (
     <div className={cn(
-      'relative flex flex-col rounded-xl border bg-card overflow-hidden shadow-sm transition-shadow hover:shadow-md',
-      isComplete && 'border-emerald-200 bg-emerald-50/20',
-      isCancelled && 'border-red-200 opacity-70',
+      'group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-[0_1px_0_hsl(var(--foreground)/0.04),0_14px_34px_hsl(var(--foreground)/0.05)] transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.05),0_18px_42px_hsl(var(--foreground)/0.08)]',
+      isComplete && 'border-emerald-200 bg-emerald-50/30',
+      isCancelled && 'border-destructive/30 opacity-70',
     )}>
       {/* Status accent bar */}
       <div className={cn(
-        'h-0.5 w-full',
+        'h-1 w-full',
         isComplete  ? 'bg-emerald-400'
-        : isCancelled ? 'bg-red-300'
-        : reminderStatus !== 'none' ? 'bg-amber-300'
-        : 'bg-border'
+        : isCancelled ? 'bg-destructive/60'
+        : reminderStatus !== 'none' ? 'bg-amber-400'
+        : 'bg-primary/55'
       )} />
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -148,11 +149,11 @@ export default function ScheduleCard({
           <div className="min-w-0 flex-1">
             <Link
               href={`/schedule/${serviceId}`}
-              className="font-semibold text-[15px] leading-snug hover:underline after:absolute after:inset-0"
+              className="font-semibold text-[15px] leading-snug transition-colors hover:text-primary after:absolute after:inset-0"
             >
               {customerName}
             </Link>
-            <p className="text-[11px] text-muted-foreground mt-0.5 font-medium uppercase tracking-wide">
+            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {serviceType}
             </p>
           </div>
@@ -160,13 +161,14 @@ export default function ScheduleCard({
           {/* Actions + status */}
           <div className="relative z-10 flex items-center gap-1 shrink-0">
             {completionPhotoUrl && (
-              <span className="text-[10px] font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5">
-                📷
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200 bg-sky-50 text-sky-700" title="Completion photo attached">
+                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
             )}
             {approvedAt && (
-              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 rounded px-1.5 py-0.5">
-                ✓ Approved
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-1 text-[10px] font-semibold text-emerald-700">
+                <Check className="h-3 w-3" aria-hidden="true" />
+                Approved
               </span>
             )}
             {isManager && (
@@ -184,17 +186,19 @@ export default function ScheduleCard({
         {reminderStatus === 'sent' && (
           <div className="mt-1.5">
             <span
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5"
+              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
               title={reminderSentAt ? `Sent ${reminderSentAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : undefined}
             >
-              ✉ Reminder sent
+              <Mail className="h-3 w-3" aria-hidden="true" />
+              Reminder sent
             </span>
           </div>
         )}
         {reminderStatus === 'scheduled' && (
           <div className="mt-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-              ⏰ Reminder scheduled
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+              <Clock className="h-3 w-3" aria-hidden="true" />
+              Reminder scheduled
             </span>
           </div>
         )}
@@ -204,8 +208,8 @@ export default function ScheduleCard({
       <div className="relative z-10 px-4 pb-3 space-y-2.5 flex-1">
         {/* Customer-level notes */}
         {customerNotes && (
-          <div className="flex gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1.5">
-            <span className="text-amber-500 text-xs mt-px shrink-0">⚠</span>
+          <div className="flex gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
             <p className="text-[11px] text-amber-800 leading-snug">{customerNotes}</p>
           </div>
         )}
@@ -223,7 +227,7 @@ export default function ScheduleCard({
             {boats.map((boat, idx) => (
               <div key={boat.boatId} className={cn(boats.length > 1 && idx > 0 && 'pt-2 border-t border-border/50')}>
                 {/* Boat name header — always shown so users know which boat is which */}
-                <p className="text-[11px] font-semibold text-foreground/70 mb-1 uppercase tracking-wide">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
                   {boat.nickname}
                 </p>
 
@@ -271,16 +275,16 @@ export default function ScheduleCard({
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <div className="relative z-10 px-4 py-2 border-t bg-muted/10 flex items-center gap-2">
+      <div className="relative z-10 flex items-center gap-2 border-t bg-muted/20 px-4 py-2.5">
         {customerAddress && (
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5 min-w-0 truncate"
+            className="inline-flex min-w-0 items-center gap-1 truncate text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="shrink-0">📍</span>
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
             <span className="truncate">{customerAddress}</span>
           </a>
         )}
@@ -295,9 +299,10 @@ export default function ScheduleCard({
           <Button
             size="sm"
             variant="ghost"
-            className="text-[11px] h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            className="h-7 px-2 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             onClick={() => setComplaintOpen(true)}
           >
+            <Flag className="h-3 w-3" aria-hidden="true" />
             Flag
           </Button>
 

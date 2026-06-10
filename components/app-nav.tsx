@@ -69,10 +69,11 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
   return (
     <>
-      <header className="border-b bg-white sticky top-0 z-40 relative">
+      <header className="sticky top-0 z-40 border-b bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/78">
         <div className="flex h-14 w-full items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/dashboard" className="font-semibold text-primary shrink-0">
-            yourboats
+          <Link href="/dashboard" className="group flex shrink-0 items-center gap-2 font-semibold text-foreground">
+            <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)] transition-shadow group-hover:shadow-[0_0_0_6px_hsl(var(--primary)/0.16)]" />
+            <span className="tracking-tight">yourboats</span>
           </Link>
 
           {/* Desktop nav */}
@@ -81,9 +82,9 @@ export default function AppNav({ user }: { user: CurrentUser }) {
               <DropdownMenu.Root key={group.label}>
                 <DropdownMenu.Trigger
                   className={cn(
-                    'inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'inline-flex min-h-[40px] items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     group.items.some((item) => isActive(item.href))
-                      ? 'bg-muted font-medium text-foreground'
+                      ? 'bg-card text-foreground shadow-sm ring-1 ring-border/70'
                       : 'text-muted-foreground'
                   )}
                 >
@@ -94,16 +95,16 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                   <DropdownMenu.Content
                     align="start"
                     sideOffset={6}
-                    className="z-50 min-w-[190px] rounded-md border bg-white p-1 text-foreground shadow-md"
+                    className="z-50 min-w-[200px] rounded-lg border bg-card p-1.5 text-foreground shadow-[0_16px_40px_hsl(var(--foreground)/0.14)]"
                   >
                     {group.items.map((item) => (
                       <DropdownMenu.Item key={item.href} asChild>
                         <Link
                           href={item.href}
                           className={cn(
-                            'block rounded-sm px-3 py-2 text-sm outline-none transition-colors hover:bg-muted focus:bg-muted',
+                            'block rounded-md px-3 py-2 text-sm outline-none transition-colors hover:bg-muted focus:bg-muted',
                             isActive(item.href)
-                              ? 'bg-muted font-medium text-foreground'
+                              ? 'bg-primary/10 font-semibold text-primary'
                               : 'text-muted-foreground'
                           )}
                         >
@@ -123,7 +124,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
               onClick={() => { setMenuOpen(false); setReportOpen(true) }}
               aria-label="Report error"
               title="Report error"
-              className="inline-flex h-9 w-9 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              className="inline-flex h-9 w-9 bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -137,12 +138,12 @@ export default function AppNav({ user }: { user: CurrentUser }) {
               {process.env.NEXT_PUBLIC_DEV_AUTH === 'true' ? (
                 <Link
                   href="/pick-user"
-                  className="max-w-36 truncate whitespace-nowrap text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="max-w-40 truncate whitespace-nowrap rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   {user.displayName} ({user.role})
                 </Link>
               ) : (
-                <span className="max-w-36 truncate whitespace-nowrap text-sm text-muted-foreground">
+                <span className="max-w-40 truncate whitespace-nowrap text-sm text-muted-foreground">
                   {user.displayName}
                 </span>
               )}
@@ -157,7 +158,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
             {/* Hamburger for mobile */}
             <button
-              className="md:hidden flex items-center justify-center w-10 h-10 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+              className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
               onClick={() => setMenuOpen((prev) => !prev)}
               aria-label="Toggle menu"
             >
@@ -168,7 +169,11 @@ export default function AppNav({ user }: { user: CurrentUser }) {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden absolute top-14 left-0 right-0 border-b bg-white shadow-lg z-50 py-2">
+          <div className="absolute left-0 right-0 top-14 z-50 border-b bg-card shadow-[0_18px_40px_hsl(var(--foreground)/0.16)] md:hidden">
+            <div className="border-b bg-muted/35 px-4 py-3">
+              <p className="truncate text-sm font-semibold">{user.displayName}</p>
+              <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
+            </div>
             {visibleGroups.map((group) => (
               <div key={group.label} className="py-1">
                 <div className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -182,7 +187,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
                     className={cn(
                       'block px-4 py-2.5 text-sm transition-colors hover:bg-muted',
                       isActive(item.href)
-                        ? 'bg-muted font-medium text-foreground'
+                        ? 'border-l-2 border-primary bg-primary/10 font-semibold text-primary'
                         : 'text-muted-foreground'
                     )}
                   >
@@ -194,7 +199,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
             <div className="px-4 py-2 border-t mt-1">
               <button
                 onClick={() => { setMenuOpen(false); setReportOpen(true) }}
-                className="w-full text-left text-sm text-destructive font-medium"
+                className="w-full rounded-md px-2 py-2 text-left text-sm font-semibold text-destructive hover:bg-destructive/10"
               >
                 Report error
               </button>
@@ -203,7 +208,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
               <div className="px-4 py-2 border-t mt-1">
                 <button
                   onClick={() => { setMenuOpen(false); setCreateOpen(true) }}
-                  className="inline-flex w-full items-center gap-2 text-left text-sm font-medium text-primary"
+                  className="inline-flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/10"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   New service
