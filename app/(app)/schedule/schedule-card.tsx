@@ -129,7 +129,7 @@ export default function ScheduleCard({
 
   return (
     <div className={cn(
-      'group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-[0_1px_0_hsl(var(--foreground)/0.04),0_14px_34px_hsl(var(--foreground)/0.05)] transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.05),0_18px_42px_hsl(var(--foreground)/0.08)]',
+      'group relative flex min-w-0 max-w-full flex-col overflow-hidden rounded-lg border bg-card shadow-[0_1px_0_hsl(var(--foreground)/0.04),0_14px_34px_hsl(var(--foreground)/0.05)] transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.05),0_18px_42px_hsl(var(--foreground)/0.08)]',
       isComplete && 'border-emerald-200 bg-emerald-50/30',
       isCancelled && 'border-destructive/30 opacity-70',
     )}>
@@ -275,13 +275,13 @@ export default function ScheduleCard({
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <div className="relative z-10 flex items-center gap-2 border-t bg-muted/20 px-4 py-2.5">
+      <div className="relative z-10 flex min-w-0 flex-wrap items-center gap-2 border-t bg-muted/20 px-4 py-2.5 sm:flex-nowrap">
         {customerAddress && (
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-w-0 items-center gap-1 truncate text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="inline-flex min-w-0 max-w-full flex-[1_1_100%] items-center gap-1 truncate text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary sm:flex-1"
             onClick={(e) => e.stopPropagation()}
           >
             <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -289,7 +289,7 @@ export default function ScheduleCard({
           </a>
         )}
 
-        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+        <div className="ml-auto flex max-w-full shrink-0 items-center gap-1.5">
           {totalPrice && (
             <span className="text-sm font-bold tabular-nums text-foreground">
               ${parseFloat(totalPrice).toFixed(2)}
