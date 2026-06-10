@@ -238,7 +238,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   }
 
   // ── Weather forecast (Open-Meteo, free, no key required) ─────────────────
-  const weatherByDay: Record<string, { tempMaxF: number; precipPct: number; windMph: number }> = {}
+  const weatherByDay: Record<string, { tempMaxF: number; precipPct: number; windMph: number; hourlyRainPct: number[] }> = {}
   const weatherLat = process.env.WEATHER_LAT
   const weatherLng = process.env.WEATHER_LNG
   if (weatherLat && weatherLng) {
@@ -247,6 +247,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         `https://api.open-meteo.com/v1/forecast` +
         `?latitude=${weatherLat}&longitude=${weatherLng}` +
         `&daily=temperature_2m_max,precipitation_probability_max,windspeed_10m_max` +
+        `&hourly=precipitation_probability` +
         `&temperature_unit=fahrenheit` +
         `&wind_speed_unit=mph` +
         `&timezone=America%2FChicago` +
@@ -261,6 +262,23 @@ export default async function SchedulePage({ searchParams }: PageProps) {
             precipitation_probability_max: (number | null)[]
             windspeed_10m_max: (number | null)[]
           }
+          hourly: {
+            time: string[]
+            precipitation_probability: (number | null)[]
+          }
+        }
+        // Build hourly rain arrays (hours 7–19) indexed by date string
+        const hourlyByDay: Record<string, number[]> = {}
+        for (const dateStr of weatherData.daily.time) {
+          hourlyByDay[dateStr] = new Array(13).fill(0)
+        }
+        for (let i = 0; i < weatherData.hourly.time.length; i++) {
+          const ts = weatherData.hourly.time[i]            // "2024-06-09T07:00"
+          const datePart = ts.slice(0, 10)
+          const hourPart = parseInt(ts.slice(11, 13), 10)
+          if (hourPart >= 7 && hourPart <= 19 && hourlyByDay[datePart]) {
+            hourlyByDay[datePart][hourPart - 7] = weatherData.hourly.precipitation_probability[i] ?? 0
+          }
         }
         for (let i = 0; i < weatherData.daily.time.length; i++) {
           const tempMax = weatherData.daily.temperature_2m_max[i]
@@ -271,6 +289,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
               tempMaxF: Math.round(tempMax),
               precipPct: precip ?? 0,
               windMph: Math.round(wind ?? 0),
+              hourlyRainPct: hourlyByDay[weatherData.daily.time[i]] ?? [],
             }
           }
         }
