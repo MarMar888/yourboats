@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { pushCustomerToQbo } from './update-customer-action'
 
@@ -15,8 +16,10 @@ export function SyncToQboButton({ customerId }: { customerId: string }) {
       const result = await pushCustomerToQbo(customerId)
       if (!result.ok) {
         setError(result.error)
+        toast.error(result.error)
       } else {
         setDone(true)
+        toast.success('Customer synced to QBO')
       }
     })
   }

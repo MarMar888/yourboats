@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { createCustomer, createBoat, getCustomers } from '@/lib/actions/create-entities'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { actionResultError, toastActionResult } from '@/lib/action-toast'
 
 type Step = 'pick' | 'customer' | 'boat'
 
@@ -43,7 +44,8 @@ function CustomerForm({ onSuccess, onCancel }: {
     const data = new FormData(e.currentTarget)
     startTransition(async () => {
       const result = await createCustomer(data)
-      if (!result.ok) { setError(result.error); return }
+      const ok = toastActionResult(result, { success: 'Customer created' })
+      if (!ok) { setError(actionResultError(result) ?? 'Failed to create customer'); return }
       formRef.current?.reset()
       onSuccess()
     })
@@ -94,7 +96,8 @@ function BoatForm({ onSuccess, onCancel }: {
     const data = new FormData(e.currentTarget)
     startTransition(async () => {
       const result = await createBoat(data)
-      if (!result.ok) { setError(result.error); return }
+      const ok = toastActionResult(result, { success: 'Boat added' })
+      if (!ok) { setError(actionResultError(result) ?? 'Failed to add boat'); return }
       formRef.current?.reset()
       onSuccess()
     })

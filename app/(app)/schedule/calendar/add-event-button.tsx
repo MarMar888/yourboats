@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
+import { toast } from 'sonner'
 import { createCalendarEvent, deleteCalendarEvent } from './actions'
 
 const COLORS = [
@@ -26,8 +27,10 @@ export function AddEventButton({ defaultDate }: { defaultDate?: string }) {
       if (result.ok) {
         setOpen(false)
         formRef.current?.reset()
+        toast.success('Calendar event added')
       } else {
         setError(result.error)
+        toast.error(result.error)
       }
     })
   }
@@ -139,7 +142,14 @@ export function DeleteEventButton({ id }: { id: string }) {
   const [pending, startTransition] = useTransition()
   return (
     <button
-      onClick={() => startTransition(() => deleteCalendarEvent(id))}
+      onClick={() => startTransition(async () => {
+        try {
+          await deleteCalendarEvent(id)
+          toast.success('Calendar event deleted')
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to delete calendar event')
+        }
+      })}
       disabled={pending}
       className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-muted-foreground hover:text-destructive leading-none px-0.5"
       title="Delete event"

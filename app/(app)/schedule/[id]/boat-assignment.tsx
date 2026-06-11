@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { updateBoatAssignments } from './actions'
 
@@ -20,7 +21,14 @@ export function BoatAssignment({ serviceId, boatId, employees, assignedIds }: Pr
     const next = assignedIds.includes(uid)
       ? assignedIds.filter((id) => id !== uid)
       : [...assignedIds, uid]
-    startTransition(() => updateBoatAssignments(serviceId, boatId, next))
+    startTransition(async () => {
+      try {
+        await updateBoatAssignments(serviceId, boatId, next)
+        toast.success('Assignment updated')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update assignment')
+      }
+    })
   }
 
   return (

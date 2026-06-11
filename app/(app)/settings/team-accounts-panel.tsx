@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { createTeamAccount, setTeamMemberPassword, updateTeamMember } from './team-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,9 +75,11 @@ function CreateAccountForm({ onCreated }: { onCreated: () => void }) {
       })
       if (result.error) {
         setError(result.error)
+        toast.error(result.error)
       } else {
         setSuccess(true)
         setForm({ name: '', email: '', password: '', role: 'employee', tier: '' })
+        toast.success('Team account created')
         onCreated()
       }
     })
@@ -191,9 +194,11 @@ function SetPasswordForm({ userId, name }: { userId: string; name: string }) {
       const result = await setTeamMemberPassword(userId, password)
       if (result.error) {
         setError(result.error)
+        toast.error(result.error)
       } else {
         setSuccess(true)
         setPassword('')
+        toast.success(`Password updated for ${name}`)
       }
     })
   }
@@ -241,7 +246,10 @@ function RoleEditor({ member, onUpdate }: { member: TeamMember; onUpdate: () => 
       })
       if (!result.error) {
         setSaved(true)
+        toast.success(`${member.displayName} updated`)
         onUpdate()
+      } else {
+        toast.error(result.error)
       }
     })
   }

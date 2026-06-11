@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { updateInvoice } from './actions'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 type Props = {
   invoiceId: string
@@ -64,10 +65,11 @@ export function EditInvoiceForm({ invoiceId, initialNotes, initialStatus, initia
           rate: item.rate,
         })),
       })
-      if (result.ok) {
+      const ok = await runToastAction(async () => result, { success: 'Invoice updated', error: 'Failed to update invoice' })
+      if (ok) {
         onClose()
       } else {
-        setError(result.error)
+        setError(actionResultError(result) ?? 'Failed to update invoice')
       }
     })
   }

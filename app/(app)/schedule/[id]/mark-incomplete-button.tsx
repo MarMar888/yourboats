@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { markIncomplete } from '../actions'
 import { Button } from '@/components/ui/button'
+import { runToastAction } from '@/lib/action-toast'
 
 interface MarkIncompleteButtonProps {
   serviceId: string
@@ -12,7 +13,12 @@ export function MarkIncompleteButton({ serviceId }: MarkIncompleteButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
-    startTransition(async () => { await markIncomplete(serviceId) })
+    startTransition(async () => {
+      await runToastAction(
+        () => markIncomplete(serviceId),
+        { success: 'Service marked incomplete', error: 'Failed to mark service incomplete' }
+      )
+    })
   }
 
   return (

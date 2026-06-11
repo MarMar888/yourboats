@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { sendInvoiceTest } from './actions'
 
@@ -13,6 +14,8 @@ export default function InvoiceTestButton() {
     startTransition(async () => {
       const r = await sendInvoiceTest()
       setResult(r)
+      if (r.ok) toast.success(r.message)
+      else toast.error(r.message)
     })
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useTransition } from 'react'
+import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import ScheduleCard from './schedule-card'
@@ -238,8 +239,14 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
       }))
     )
     startTransition(async () => {
-      await markComplete(serviceId)
-      router.refresh()
+      const result = await markComplete(serviceId)
+      if (result.error) {
+        setDays(initialDays)
+        toast.error(result.error)
+      } else {
+        toast.success('Service marked complete')
+        router.refresh()
+      }
     })
   }
 
@@ -253,8 +260,14 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
       prev.map((day) => ({ ...day, cards: day.cards.filter((c) => c.id !== serviceId) }))
     )
     startTransition(async () => {
-      await deleteService(serviceId)
-      router.refresh()
+      try {
+        await deleteService(serviceId)
+        toast.success('Service deleted')
+        router.refresh()
+      } catch (err) {
+        setDays(initialDays)
+        toast.error(err instanceof Error ? err.message : 'Failed to delete service')
+      }
     })
   }
 
@@ -303,6 +316,9 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
       if (result?.error) {
         // Roll back on error
         setDays(initialDays)
+        toast.error(result.error)
+      } else {
+        toast.success('Service rescheduled')
       }
     })
   }

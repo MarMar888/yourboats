@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { runToastAction } from '@/lib/action-toast'
 
 interface InlineNotesEditorProps {
   notes: string | null
@@ -47,10 +48,31 @@ export function InlineNotesEditor({
 
   function handleSave() {
     const trimmed = value.trim()
+    const previous = optimistic
     setOptimistic(trimmed)
     setEditing(false)
     startTransition(async () => {
-      await onSave(trimmed)
+      const ok = await runToastAction(
+        () => onSave(trimmed),
+        {
+          success: `${label} saved`,
+          error: `Failed to save ${label.toLowerCase()}`,
+          undo: {
+            action: async () => {
+              setOptimistic(previous)
+              setValue(previous)
+              await onSave(previous)
+            },
+            success: `${label} restored`,
+            error: `Failed to restore ${label.toLowerCase()}`,
+          },
+        }
+      )
+
+      if (!ok) {
+        setOptimistic(previous)
+        setValue(previous)
+      }
     })
   }
 

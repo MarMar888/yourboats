@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { pushCustomerToQbo, bulkPushCustomersToQbo } from '@/app/(app)/customers/[id]/update-customer-action'
@@ -46,8 +47,10 @@ function CustomerSyncButton({ customerId }: { customerId: string }) {
             const result = await pushCustomerToQbo(customerId)
             if (!result.ok) {
               setError(result.error)
+              toast.error(result.error)
             } else {
               setDone(true)
+              toast.success('Customer synced to QBO')
             }
           })
         }}
@@ -83,8 +86,10 @@ function InvoiceSyncButton({ invoiceId }: { invoiceId: string }) {
             const result = await syncInvoiceToQbo(invoiceId)
             if (!result.ok) {
               setError(result.error)
+              toast.error(result.error)
             } else {
               setDone(true)
+              toast.success('Invoice synced to QBO')
             }
           })
         }}
@@ -118,6 +123,11 @@ export function QboSyncHealth({ unsyncedCustomers, staleInvoices }: QboSyncHealt
       setBulkProgress(null)
       setBulkErrors(result.errors)
       setBulkDone(true)
+      if (result.errors.length > 0) {
+        toast.error(`${result.errors.length} customer sync${result.errors.length === 1 ? '' : 's'} failed`)
+      } else {
+        toast.success('All customers synced to QBO')
+      }
     })
   }
 

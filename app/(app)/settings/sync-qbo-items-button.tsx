@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
 export default function SyncQboItemsButton() {
@@ -17,9 +18,12 @@ export default function SyncQboItemsButton() {
       if (!res.ok) throw new Error(data.error ?? 'Sync failed')
       setResult(data)
       setState('done')
+      toast.success(`${data.synced} QBO item${data.synced === 1 ? '' : 's'} synced`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
       setState('error')
+      toast.error(message)
     }
   }
 

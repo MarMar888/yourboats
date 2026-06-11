@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
+import { toast } from 'sonner'
 import ScheduleCard from '@/app/(app)/schedule/schedule-card'
 import type { ScheduleCardEmployee, ReminderStatus } from '@/app/(app)/schedule/schedule-card'
 import { markComplete, deleteService } from '@/app/(app)/schedule/actions'
@@ -38,15 +39,24 @@ export function DashboardScheduleCards({
 
   function handleComplete(serviceId: string) {
     startTransition(async () => {
-      await markComplete(serviceId)
-      router.refresh()
+      const result = await markComplete(serviceId)
+      if (result.error) toast.error(result.error)
+      else {
+        toast.success('Service marked complete')
+        router.refresh()
+      }
     })
   }
 
   function handleDelete(serviceId: string) {
     startTransition(async () => {
-      await deleteService(serviceId)
-      router.refresh()
+      try {
+        await deleteService(serviceId)
+        toast.success('Service deleted')
+        router.refresh()
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete service')
+      }
     })
   }
 

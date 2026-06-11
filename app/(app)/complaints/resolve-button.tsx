@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { resolveComplaint } from './actions'
 
@@ -9,7 +10,12 @@ export default function ResolveButton({ complaintId }: { complaintId: string }) 
 
   const handleResolve = () => {
     startTransition(async () => {
-      await resolveComplaint(complaintId)
+      try {
+        await resolveComplaint(complaintId)
+        toast.success('Complaint resolved')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to resolve complaint')
+      }
     })
   }
 

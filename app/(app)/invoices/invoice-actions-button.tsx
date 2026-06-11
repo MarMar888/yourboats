@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { createQboInvoice, sendQboInvoice } from './actions'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 type Props = {
   invoiceId: string
@@ -28,7 +29,11 @@ export function InvoiceActionsButton({ invoiceId, hasQboId, status, isPrepaid }:
       const result = !hasQboId
         ? await createQboInvoice(invoiceId)
         : await sendQboInvoice(invoiceId)
-      if (!result.ok) setError(result.error)
+      const ok = await runToastAction(async () => result, {
+        success: hasQboId ? 'Invoice sent' : 'Invoice created in QBO',
+        error: hasQboId ? 'Failed to send invoice' : 'Failed to create invoice in QBO',
+      })
+      if (!ok) setError(actionResultError(result) ?? 'Invoice action failed')
     })
   }
 

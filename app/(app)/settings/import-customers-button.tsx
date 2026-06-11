@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
 export default function ImportCustomersButton() {
@@ -17,9 +18,12 @@ export default function ImportCustomersButton() {
       if (!res.ok) throw new Error(data.error ?? 'Import failed')
       setResult(data)
       setState('done')
+      toast.success(`${data.imported} customer${data.imported === 1 ? '' : 's'} synced`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
       setState('error')
+      toast.error(message)
     }
   }
 

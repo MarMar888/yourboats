@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createCustomer, createBoat } from '@/lib/actions/create-entities'
 import type { Customer, Boat } from '@/lib/db/schema'
+import { actionResultError, toastActionResult } from '@/lib/action-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,8 @@ function CustomerForm({
     const data = new FormData(e.currentTarget)
     startTransition(async () => {
       const result = await createCustomer(data)
-      if (!result.ok) { setError(result.error); return }
+      const ok = toastActionResult(result, { success: 'Customer created' })
+      if (!ok || !result.ok) { setError(actionResultError(result) ?? 'Failed to create customer'); return }
       formRef.current?.reset()
       onSuccess(result.customer)
     })
@@ -130,7 +132,8 @@ function BoatForm({
     data.set('customerId', customerId)
     startTransition(async () => {
       const result = await createBoat(data)
-      if (!result.ok) { setError(result.error); return }
+      const ok = toastActionResult(result, { success: 'Boat added' })
+      if (!ok || !result.ok) { setError(actionResultError(result) ?? 'Failed to add boat'); return }
       formRef.current?.reset()
       onSuccess(result.boat)
     })

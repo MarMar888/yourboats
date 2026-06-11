@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { updateRecurringSchedule, regenerateRecurringServices } from './recurring-schedule-actions'
 import type { UpdateScheduleInput, RegenBoatRow } from './recurring-schedule-actions'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -180,8 +181,9 @@ function EditScheduleModal({
     }
     startSave(async () => {
       const result = await updateRecurringSchedule(input)
-      if (result.error) {
-        setError(result.error)
+      const ok = await runToastAction(async () => result, { success: 'Recurring schedule saved', error: 'Failed to save recurring schedule' })
+      if (!ok) {
+        setError(actionResultError(result) ?? 'Failed to save recurring schedule')
       } else {
         onOpenChange(false)
       }
@@ -207,10 +209,15 @@ function EditScheduleModal({
     }))
     startRegen(async () => {
       const saveResult = await updateRecurringSchedule(input)
-      if (saveResult.error) { setError(saveResult.error); return }
+      const saveOk = await runToastAction(async () => saveResult, { success: 'Recurring schedule saved', error: 'Failed to save recurring schedule' })
+      if (!saveOk) { setError(actionResultError(saveResult) ?? 'Failed to save recurring schedule'); return }
       const regenResult = await regenerateRecurringServices(schedule.id, boats)
-      if (regenResult.error) {
-        setError(regenResult.error)
+      const regenOk = await runToastAction(async () => regenResult, {
+        success: `${regenResult.created ?? 0} future service${regenResult.created === 1 ? '' : 's'} recreated`,
+        error: 'Failed to regenerate services',
+      })
+      if (!regenOk) {
+        setError(actionResultError(regenResult) ?? 'Failed to regenerate services')
       } else {
         setRegenMsg(`Done — ${regenResult.created} future services recreated.`)
         setTimeout(() => onOpenChange(false), 1500)
@@ -329,7 +336,7 @@ function EditScheduleModal({
           {schedule.futureCount > 0 && (
             <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
               <strong>{schedule.futureCount}</strong> future service{schedule.futureCount !== 1 ? 's are' : ' is'} scheduled from this rule.
-              Saving only updates the record — use <strong>"Save & regenerate"</strong> to delete
+              Saving only updates the record — use <strong>Save & regenerate</strong> to delete
               those services and recreate them with the new settings and boats.
             </div>
           )}

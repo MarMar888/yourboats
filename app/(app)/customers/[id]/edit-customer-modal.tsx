@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { updateCustomer } from './update-customer-action'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 interface EditCustomerModalProps {
   customerId: string
@@ -46,6 +48,7 @@ export function EditCustomerModal({ customerId, initialValues }: EditCustomerMod
   function handleSave() {
     if (!name.trim()) {
       setError('Name is required.')
+      toast.error('Name is required.')
       return
     }
     setError(null)
@@ -56,8 +59,9 @@ export function EditCustomerModal({ customerId, initialValues }: EditCustomerMod
         email: email.trim() || null,
         address: address.trim() || null,
       })
-      if (result?.error) {
-        setError(result.error)
+      const ok = await runToastAction(async () => result, { success: 'Customer updated', error: 'Failed to update customer' })
+      if (!ok) {
+        setError(actionResultError(result) ?? 'Failed to update customer')
       } else {
         setOpen(false)
       }

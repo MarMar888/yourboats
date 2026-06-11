@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,10 +20,12 @@ export default function ChangePasswordForm() {
 
     if (newPassword !== confirm) {
       setMessage({ text: 'New passwords do not match', error: true })
+      toast.error('New passwords do not match')
       return
     }
     if (newPassword.length < 8) {
       setMessage({ text: 'Password must be at least 8 characters', error: true })
+      toast.error('Password must be at least 8 characters')
       return
     }
 
@@ -31,9 +34,11 @@ export default function ChangePasswordForm() {
       const { error } = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: false })
       if (error) {
         setMessage({ text: error.message ?? 'Failed to update password', error: true })
+        toast.error(error.message ?? 'Failed to update password')
       } else {
         setMessage({ text: 'Password updated', error: false })
         form.reset()
+        toast.success('Password updated')
       }
     })
   }

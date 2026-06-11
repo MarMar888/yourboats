@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,12 +44,23 @@ export default function ReminderTestPanel() {
       const res = await fetch(`/api/cron/reminders?${params}`)
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ?? `HTTP ${res.status}`)
+        const message = data.error ?? `HTTP ${res.status}`
+        setError(message)
+        toast.error(message)
       } else {
         setResult(data)
+        if (dryRun) {
+          toast.info(`Dry run found ${data.preview?.length ?? 0} recipient${(data.preview?.length ?? 0) === 1 ? '' : 's'}`)
+        } else if (data.errors?.length > 0) {
+          toast.error(`${data.errors.length} reminder${data.errors.length === 1 ? '' : 's'} failed`)
+        } else {
+          toast.success(`${data.sent} reminder${data.sent === 1 ? '' : 's'} sent`)
+        }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error')
+      const message = e instanceof Error ? e.message : 'Network error'
+      setError(message)
+      toast.error(message)
     } finally {
       setPending(false)
     }

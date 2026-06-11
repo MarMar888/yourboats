@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { updateService } from './actions'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 const SERVICE_TYPES = [
   { value: 'recurring', label: 'Standard Clean' },
@@ -286,10 +287,11 @@ export function EditServiceForm({
     const formData = new FormData(form)
     startTransition(async () => {
       const result = await updateService(serviceId, formData)
-      if (result.ok) {
+      const ok = await runToastAction(async () => result, { success: 'Service updated', error: 'Failed to update service' })
+      if (ok) {
         onClose()
       } else {
-        setError(result.error)
+        setError(actionResultError(result) ?? 'Failed to update service')
       }
     })
   }

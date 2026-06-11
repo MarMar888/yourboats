@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { generateInvoiceFromService } from './actions'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 export function GenerateInvoiceButton({ serviceId }: { serviceId: string }) {
   const [error, setError] = useState('')
@@ -12,7 +13,8 @@ export function GenerateInvoiceButton({ serviceId }: { serviceId: string }) {
     setError('')
     startTransition(async () => {
       const result = await generateInvoiceFromService(serviceId)
-      if (!result.ok) setError(result.error)
+      const ok = await runToastAction(async () => result, { success: 'Invoice generated', error: 'Failed to generate invoice' })
+      if (!ok) setError(actionResultError(result) ?? 'Failed to generate invoice')
     })
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { sendScheduleReminderTest } from './actions'
 
@@ -13,6 +14,8 @@ export default function ScheduleReminderTestButton() {
     startTransition(async () => {
       const r = await sendScheduleReminderTest()
       setResult(r)
+      if (r.ok) toast.success(r.message)
+      else toast.error(r.message)
     })
   }
 

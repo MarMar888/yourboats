@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { approveWeek, unapproveWeek, sendRemindersNow } from './actions'
 import {
   Dialog,
@@ -79,18 +80,40 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
 
   function handleConfirm() {
     startTransition(async () => {
-      await approveWeek(startDate, endDate)
+      try {
+        await approveWeek(startDate, endDate)
 
-      // Immediately send reminders for past-due services marked "send"
-      const toSendNow = pastDueServices
-        .filter((svc) => svc.reminderEmails.length > 0 && getDecision(svc.id) === 'send')
-        .map((svc) => svc.id)
+        // Immediately send reminders for past-due services marked "send"
+        const toSendNow = pastDueServices
+          .filter((svc) => svc.reminderEmails.length > 0 && getDecision(svc.id) === 'send')
+          .map((svc) => svc.id)
 
-      if (toSendNow.length > 0) {
-        await sendRemindersNow(toSendNow)
+        if (toSendNow.length > 0) {
+          const reminderResult = await sendRemindersNow(toSendNow)
+          if (reminderResult.errors.length > 0) {
+            toast.error(`${reminderResult.errors.length} reminder${reminderResult.errors.length === 1 ? '' : 's'} failed`)
+          }
+        }
+
+        setOpen(false)
+        toast.success('Week approved', {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              startTransition(async () => {
+                try {
+                  await unapproveWeek(startDate, endDate)
+                  toast.success('Week unapproved')
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to unapprove week')
+                }
+              })
+            },
+          },
+        })
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to approve week')
       }
-
-      setOpen(false)
     })
   }
 
@@ -280,7 +303,26 @@ export function UnapproveWeekButton({ startDate, endDate }: UnapproveWeekButtonP
 
   function handleUnapprove() {
     startTransition(async () => {
-      await unapproveWeek(startDate, endDate)
+      try {
+        await unapproveWeek(startDate, endDate)
+        toast.success('Week unapproved', {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              startTransition(async () => {
+                try {
+                  await approveWeek(startDate, endDate)
+                  toast.success('Week approved')
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to approve week')
+                }
+              })
+            },
+          },
+        })
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to unapprove week')
+      }
     })
   }
 

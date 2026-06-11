@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import { toast } from 'sonner'
 import { setReminderSuppressed } from './actions'
 import { Button } from '@/components/ui/button'
 
@@ -13,7 +14,14 @@ export function SuppressButton({ serviceId, suppressed }: SuppressButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
-    startTransition(() => setReminderSuppressed(serviceId, !suppressed))
+    startTransition(async () => {
+      try {
+        await setReminderSuppressed(serviceId, !suppressed)
+        toast.success(suppressed ? 'Reminder unsuppressed' : 'Reminder suppressed')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update reminder')
+      }
+    })
   }
 
   if (suppressed) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createUser } from './actions'
@@ -36,8 +37,10 @@ export function CreateUserForm() {
       const result = await createUser({ ...form, email: fullEmail })
       if (result.error) {
         setError(result.error)
+        toast.error(result.error)
       } else {
         setSuccess(`${form.displayName} has been added to the team.`)
+        toast.success(`${form.displayName} added to the team`)
         setForm({ displayName: '', emailUser: '', password: '', role: 'employee' })
         setTimeout(() => setOpen(false), 1500)
       }

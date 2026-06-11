@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { updateBoat, deleteBoat } from './boat-actions'
+import { actionResultError, runToastAction } from '@/lib/action-toast'
 
 type BoatData = {
   id: string
@@ -52,7 +53,8 @@ export function EditBoatModal({
         lengthFt: lengthFt !== null && !isNaN(lengthFt) ? lengthFt : null,
         notes: (data.get('notes') as string).trim() || null,
       })
-      if (!result.ok) { setError(result.error); return }
+      const ok = await runToastAction(async () => result, { success: 'Boat updated', error: 'Failed to update boat' })
+      if (!ok) { setError(actionResultError(result) ?? 'Failed to update boat'); return }
       setOpen(false)
       router.refresh()
     })
@@ -61,7 +63,8 @@ export function EditBoatModal({
   function handleDelete() {
     startDelete(async () => {
       const result = await deleteBoat(boat.id, customerId)
-      if (!result.ok) { setError(result.error); return }
+      const ok = await runToastAction(async () => result, { success: 'Boat deleted', error: 'Failed to delete boat' })
+      if (!ok) { setError(actionResultError(result) ?? 'Failed to delete boat'); return }
       setOpen(false)
       router.refresh()
     })

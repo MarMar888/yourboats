@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { addReminderContact, deleteReminderContact } from './reminder-contacts-actions'
 import type { CustomerReminderContact } from '@/lib/db/schema'
@@ -22,19 +23,30 @@ export default function ReminderContacts({ customerId, contacts }: Props) {
     if (!trimmed) return
     if (!trimmed.includes('@')) {
       setError('Enter a valid email address.')
+      toast.error('Enter a valid email address.')
       return
     }
     setError(null)
     startTransition(async () => {
-      await addReminderContact(customerId, trimmed, label.trim() || null)
-      setEmail('')
-      setLabel('')
+      try {
+        await addReminderContact(customerId, trimmed, label.trim() || null)
+        setEmail('')
+        setLabel('')
+        toast.success('Reminder contact added')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to add reminder contact')
+      }
     })
   }
 
   function handleDelete(contactId: string) {
     startTransition(async () => {
-      await deleteReminderContact(contactId, customerId)
+      try {
+        await deleteReminderContact(contactId, customerId)
+        toast.success('Reminder contact removed')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to remove reminder contact')
+      }
     })
   }
 

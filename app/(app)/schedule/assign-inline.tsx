@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { updateBoatAssignments } from '@/app/(app)/schedule/[id]/actions'
 
@@ -38,7 +39,13 @@ export default function AssignInline({ serviceId, boats, employees }: AssignInli
     setAssignments((prev) => ({ ...prev, [boatId]: next }))
 
     startTransition(async () => {
-      await updateBoatAssignments(serviceId, boatId, next)
+      try {
+        await updateBoatAssignments(serviceId, boatId, next)
+        toast.success('Assignment updated')
+      } catch (err) {
+        setAssignments((prev) => ({ ...prev, [boatId]: current }))
+        toast.error(err instanceof Error ? err.message : 'Failed to update assignment')
+      }
     })
   }
 

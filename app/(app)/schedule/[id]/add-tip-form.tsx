@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { addTip } from './add-tip-action'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ export function AddTipForm({ serviceId }: { serviceId: string }) {
     const parsed = parseFloat(amount)
     if (isNaN(parsed) || parsed < 0) {
       setError('Enter a valid tip amount')
+      toast.error('Enter a valid tip amount')
       return
     }
     setError(null)
@@ -22,8 +24,11 @@ export function AddTipForm({ serviceId }: { serviceId: string }) {
       try {
         await addTip(serviceId, parsed)
         setAmount('')
-      } catch {
-        setError('Failed to save tip')
+        toast.success('Tip saved')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to save tip'
+        setError(message)
+        toast.error(message)
       }
     })
   }

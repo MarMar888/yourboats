@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { reconcileDocNumbers } from './actions'
 
@@ -13,6 +14,8 @@ export function ReconcileDocNumbersButton() {
     startTransition(async () => {
       const r = await reconcileDocNumbers()
       setResult(r)
+      if (r.ok) toast.success(`Updated ${r.updated} invoice${r.updated !== 1 ? 's' : ''}`)
+      else toast.error(r.message ?? 'Failed to reconcile invoice numbers')
     })
   }
 

@@ -1,6 +1,7 @@
 import './globals.css'
 import { PostHogPageView } from '@/components/posthog-pageview'
 import { StaleDeploymentBanner } from '@/components/stale-deployment-banner'
+import { AppToaster } from '@/components/app-toaster'
 
 export const metadata = {
   metadataBase: new URL('https://yourboats.vercel.app'),
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StaleDeploymentBanner />
         <PostHogPageView />
         {children}
+        <AppToaster />
       </body>
     </html>
   )

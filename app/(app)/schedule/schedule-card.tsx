@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import { Camera, Check, Clock, Flag, Mail, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -69,7 +70,13 @@ function BoatChips({
       : [...assignedIds, userId]
     setAssignedIds(next)
     startTransition(async () => {
-      await updateBoatAssignments(serviceId, boat.boatId, next)
+      try {
+        await updateBoatAssignments(serviceId, boat.boatId, next)
+        toast.success('Assignment updated')
+      } catch (err) {
+        setAssignedIds(assignedIds)
+        toast.error(err instanceof Error ? err.message : 'Failed to update assignment')
+      }
     })
   }
 

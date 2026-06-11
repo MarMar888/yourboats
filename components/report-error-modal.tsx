@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from 'react'
 import posthog from 'posthog-js'
+import { toast } from 'sonner'
 import { notifyErrorReported } from '@/lib/actions/report-error-notify'
 import {
   Dialog,
@@ -36,9 +37,14 @@ export default function ReportErrorModal({
     const data = new FormData(e.currentTarget)
     const comment = data.get('comment') as string
     startTransition(async () => {
-      posthog.capture('error_reported', { comment })
-      await notifyErrorReported(comment)
-      setDone(true)
+      try {
+        posthog.capture('error_reported', { comment })
+        await notifyErrorReported(comment)
+        setDone(true)
+        toast.success('Error report sent')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to send error report')
+      }
     })
   }
 
@@ -53,7 +59,7 @@ export default function ReportErrorModal({
           <>
             <DialogBody>
               <p className="text-sm text-muted-foreground">
-                Thanks — your report has been sent. We'll look into it.
+                Thanks — your report has been sent. We will look into it.
               </p>
             </DialogBody>
             <DialogFooter>

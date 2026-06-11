@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -47,9 +48,11 @@ export default function LogComplaintModal({
       const result = await logComplaint(data)
       if (!result.ok) {
         setError(result.error)
+        toast.error(result.error)
         return
       }
       close()
+      toast.success('Complaint logged')
     })
   }
 

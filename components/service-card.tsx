@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import LogComplaintModal from '@/components/log-complaint-modal'
 import AssignInline from '@/app/(app)/schedule/assign-inline'
-import { markComplete } from '@/app/(app)/schedule/actions'
+import { markComplete, markIncomplete } from '@/app/(app)/schedule/actions'
+import { runToastAction } from '@/lib/action-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,18 @@ export default function ServiceCard({
 
   function handleMarkComplete() {
     startTransition(async () => {
-      await markComplete(serviceId)
+      await runToastAction(
+        () => markComplete(serviceId),
+        {
+          success: 'Service marked complete',
+          error: 'Failed to complete service',
+          undo: canManage ? {
+            action: () => markIncomplete(serviceId),
+            success: 'Service marked scheduled',
+            error: 'Failed to mark service scheduled',
+          } : undefined,
+        },
+      )
     })
   }
 
@@ -127,6 +139,7 @@ export default function ServiceCard({
                 description={`Delete the service for ${customerName}? The invoice will also be deleted.`}
                 triggerLabel="×"
                 size="sm"
+                successMessage="Service deleted"
               />
             )}
           </div>

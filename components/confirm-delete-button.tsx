@@ -6,6 +6,7 @@ import {
   DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { actionResultError, errorMessage, runToastAction } from '@/lib/action-toast'
 
 type ActionResult = { ok: boolean; error?: string }
 
@@ -16,6 +17,7 @@ type Props = {
   triggerLabel?: string
   confirmLabel?: string
   pendingLabel?: string
+  successMessage?: string
   size?: 'sm' | 'default'
 }
 
@@ -26,6 +28,7 @@ export function ConfirmDeleteButton({
   triggerLabel = 'Delete',
   confirmLabel = 'Delete',
   pendingLabel = 'Deleting…',
+  successMessage = 'Deleted',
   size = 'sm',
 }: Props) {
   const [open, setOpen] = useState(false)
@@ -35,16 +38,15 @@ export function ConfirmDeleteButton({
   const handleConfirm = () => {
     setError(null)
     startTransition(async () => {
-      try {
+      let actionError: string | null = null
+      const ok = await runToastAction(async () => {
         const result = await action()
-        if (result && !result.ok) {
-          setError(result.error ?? 'Something went wrong.')
-        } else {
-          setOpen(false)
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong.')
-      }
+        actionError = actionResultError(result)
+        return result
+      }, { success: successMessage, error: 'Something went wrong.' })
+
+      if (ok) setOpen(false)
+      else setError(actionError ?? errorMessage(actionError, 'Something went wrong.'))
     })
   }
 
