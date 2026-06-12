@@ -16,8 +16,8 @@ export async function notifyErrorReported(comment: string): Promise<void> {
     : comment
 
   try {
-    const userLabel = user.name
-      ? `${user.name} (${user.email})`
+    const userLabel = user.displayName
+      ? `${user.displayName} (${user.email})`
       : user.email
 
     await emailTransport.sendMail({
