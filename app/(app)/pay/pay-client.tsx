@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
-import { saveTip, updateTierConfig, getLaborEntriesForPeriod, updatePayrollServiceType } from './actions'
-import type { LaborTimeEntry } from './actions'
+import { saveTip, updateTierConfig, getLaborEntriesForPeriod, updatePayrollServiceType, getUnclockedBoatsForPeriod } from './actions'
+import type { LaborTimeEntry, UnclockedBoat } from './actions'
 import {
   savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod,
   deleteServicePayroll, deletePayrollEntry,
@@ -1277,16 +1277,18 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
   const [boatStats, setBoatStats] = useState<BoatLaborStat[]>([])
   const [totalHours, setTotalHours] = useState(0)
   const [totalPay, setTotalPay] = useState(0)
+  const [unclockedBoats, setUnclockedBoats] = useState<UnclockedBoat[]>([])
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       try {
-        const [laborEntries, periodRes, payrollRows] = await Promise.all([
+        const [laborEntries, periodRes, payrollRows, unclocked] = await Promise.all([
           getLaborEntriesForPeriod(period.startStr, period.endStr),
           fetch(`/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`),
           getPayrollForPeriod(period.startStr, period.endStr),
+          getUnclockedBoatsForPeriod(period.startStr, period.endStr),
         ])
         if (cancelled) return
 
@@ -1392,6 +1394,7 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
           setBoatStats(stats)
           setTotalHours(tHours)
           setTotalPay(tPay)
+          setUnclockedBoats(unclocked)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -1411,7 +1414,7 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
     )
   }
 
-  if (detailRows.length === 0) {
+  if (detailRows.length === 0 && unclockedBoats.length === 0) {
     return (
       <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
         No clocked time found for this pay period.
@@ -1421,6 +1424,8 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
 
   return (
     <div className="space-y-4">
+      {detailRows.length > 0 && (
+      <>
       {/* Period summary */}
       <div className="rounded-lg border bg-card grid grid-cols-3 divide-x">
         <div className="px-5 py-4">
@@ -1501,6 +1506,51 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
           </table>
         </div>
       </div>
+
+      </>
+      )}
+
+      {/* Boats paid but no clock-ins */}
+      {unclockedBoats.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-200">
+            <h2 className="text-sm font-semibold text-amber-900">Boats paid — no clock-ins</h2>
+            <p className="text-xs text-amber-700 mt-0.5">
+              These boats appear on a paid service but nobody clocked in for them.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-amber-200 bg-amber-100/60 text-xs">
+                  <th className="px-3 py-2 text-left font-medium text-amber-800 whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2 text-left font-medium text-amber-800">Boat</th>
+                  <th className="px-3 py-2 text-left font-medium text-amber-800">Client</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100">
+                {unclockedBoats.map((b, i) => (
+                  <tr key={`${b.serviceId}-${b.boatId}`} className={`hover:bg-amber-100/50 transition-colors ${i % 2 === 1 ? 'bg-amber-50/40' : ''}`}>
+                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-xs text-amber-700">
+                      {fmtDate(b.serviceDate)}
+                    </td>
+                    <td className="px-3 py-2.5 font-medium text-amber-900">{b.boatNickname}</td>
+                    <td className="px-3 py-2.5 text-amber-800">{b.customerName}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-amber-200 bg-amber-100/60 text-xs text-amber-700">
+                  <td className="px-3 py-2" colSpan={3}>
+                    {unclockedBoats.length} boat{unclockedBoats.length !== 1 ? 's' : ''} across{' '}
+                    {new Set(unclockedBoats.map((b) => b.serviceId)).size} service{new Set(unclockedBoats.map((b) => b.serviceId)).size !== 1 ? 's' : ''}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Per-boat summary */}
       <div className="rounded-lg border bg-card overflow-hidden">

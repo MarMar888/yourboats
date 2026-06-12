@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { tierConfig, users, services, timeEntries, boats, serviceTypeShares, invoices, qboItems } from '@/lib/db/schema'
+import { tierConfig, users, services, timeEntries, boats, serviceTypeShares, invoices, qboItems, customers, serviceBoats } from '@/lib/db/schema'
 import { and, eq, gte, lte, inArray, isNotNull } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
@@ -150,6 +150,96 @@ export async function getLaborEntriesForPeriod(
     boatNickname: e.boatNickname ?? 'Unknown boat',
     displayName:  e.displayName,
   }))
+}
+
+// ─── Unclocked boats ──────────────────────────────────────────────────────────
+
+export type UnclockedBoat = {
+  serviceId: string
+  serviceDate: string
+  customerName: string
+  boatId: string
+  boatNickname: string
+}
+
+/**
+ * Return boats that appear on a completed service (and were paid for) but have
+ * no clocked-out time entry for that service during the period.
+ */
+export async function getUnclockedBoatsForPeriod(
+  startDate: string,
+  endDate: string
+): Promise<UnclockedBoat[]> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return []
+
+  const svcRows = await db
+    .select({
+      id:          services.id,
+      serviceDate: services.serviceDate,
+      customerName: customers.name,
+    })
+    .from(services)
+    .innerJoin(customers, eq(services.customerId, customers.id))
+    .where(and(
+      gte(services.serviceDate, startDate),
+      lte(services.serviceDate, endDate),
+      eq(services.status, 'complete'),
+    ))
+
+  if (svcRows.length === 0) return []
+  const svcIds = svcRows.map((s) => s.id)
+
+  const [allServiceBoats, clockedEntries] = await Promise.all([
+    db
+      .select({
+        serviceId:    serviceBoats.serviceId,
+        boatId:       serviceBoats.boatId,
+        boatNickname: boats.nickname,
+      })
+      .from(serviceBoats)
+      .innerJoin(boats, eq(serviceBoats.boatId, boats.id))
+      .where(inArray(serviceBoats.serviceId, svcIds)),
+    db
+      .select({
+        serviceId: timeEntries.serviceId,
+        boatId:    timeEntries.boatId,
+      })
+      .from(timeEntries)
+      .where(and(
+        inArray(timeEntries.serviceId, svcIds),
+        isNotNull(timeEntries.clockOut),
+        isNotNull(timeEntries.boatId),
+      )),
+  ])
+
+  const clockedSet = new Set<string>()
+  for (const e of clockedEntries) {
+    if (e.boatId) clockedSet.add(`${e.serviceId}:${e.boatId}`)
+  }
+
+  const svcMap = Object.fromEntries(svcRows.map((s) => [s.id, s]))
+  const result: UnclockedBoat[] = []
+  for (const b of allServiceBoats) {
+    if (!clockedSet.has(`${b.serviceId}:${b.boatId}`)) {
+      const svc = svcMap[b.serviceId]
+      if (svc) {
+        result.push({
+          serviceId:    b.serviceId,
+          serviceDate:  svc.serviceDate,
+          customerName: svc.customerName,
+          boatId:       b.boatId,
+          boatNickname: b.boatNickname,
+        })
+      }
+    }
+  }
+
+  result.sort((a, b) =>
+    a.serviceDate.localeCompare(b.serviceDate) ||
+    a.boatNickname.localeCompare(b.boatNickname)
+  )
+  return result
 }
 
 export async function updateEmployeeTier(
