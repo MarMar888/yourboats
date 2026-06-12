@@ -95,12 +95,11 @@ export function CompletionPhotoModal({ serviceId, customerName, onPhotoSaved, on
           </div>
         )}
 
-        {/* Hidden file input — accepts camera on mobile */}
+        {/* Hidden file input — lets iOS show "Take Photo / Photo Library" sheet */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={handleFileChange}
         />

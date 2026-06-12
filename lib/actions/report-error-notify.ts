@@ -16,11 +16,15 @@ export async function notifyErrorReported(comment: string): Promise<void> {
     : comment
 
   try {
+    const userLabel = user.name
+      ? `${user.name} (${user.email})`
+      : user.email
+
     await emailTransport.sendMail({
       from: `"yourboats" <${process.env.GMAIL_USER}>`,
       to: MARLEY_SMS,
-      subject: 'Error reported in yourboats',
-      text: `Error reported: ${truncated} — View in PostHog: ${posthogHost}/activity/explore`,
+      subject: `Error reported by ${userLabel}`,
+      text: `Reported by: ${userLabel}\n\nError reported: ${truncated} — View in PostHog: ${posthogHost}/activity/explore`,
     })
   } catch (err) {
     console.error('[report-error] Failed to send notification:', err)

@@ -123,19 +123,27 @@ function ManualEntryForm({
   const [pending, startTransition] = useTransition()
   const now = new Date()
   const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000)
-  const today = now.toISOString().slice(0, 16)            // datetime-local: clock-in default
-  const todayPlusOne = oneHourLater.toISOString().slice(0, 16) // datetime-local: clock-out default
+  // Use local time so the datetime-local inputs default to the user's clock, not UTC
+  function toLocalInput(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  const today = toLocalInput(now)
+  const todayPlusOne = toLocalInput(oneHourLater)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
+    // datetime-local values are local time strings; convert to UTC ISO so the
+    // server (which runs in UTC) stores the correct absolute timestamp
+    const toUTC = (localStr: string) => new Date(localStr).toISOString()
     startTransition(async () => {
       const r = await addManualEntry({
         serviceId,
         boatId: (fd.get('boatId') as string) || null,
         userId: fd.get('userId') as string,
-        clockIn: fd.get('clockIn') as string,
-        clockOut: fd.get('clockOut') as string,
+        clockIn: toUTC(fd.get('clockIn') as string),
+        clockOut: toUTC(fd.get('clockOut') as string),
         notes: fd.get('notes') as string,
       })
       if (!r.ok) toast.error(r.error)
