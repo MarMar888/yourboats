@@ -12,12 +12,14 @@ function formatElapsed(ms: number) {
   return `${s}s`
 }
 
-export function ElapsedTimer({ clockIn }: { clockIn: Date }) {
-  const [elapsed, setElapsed] = useState(() => Date.now() - clockIn.getTime())
+export function ElapsedTimer({ clockIn }: { clockIn: Date | string }) {
+  const ms = () => Date.now() - new Date(clockIn).getTime()
+  const [elapsed, setElapsed] = useState(ms)
 
   useEffect(() => {
-    const id = setInterval(() => setElapsed(Date.now() - clockIn.getTime()), 1000)
+    const id = setInterval(() => setElapsed(ms()), 1000)
     return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clockIn])
 
   return <span>{formatElapsed(elapsed)}</span>
