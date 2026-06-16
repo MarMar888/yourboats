@@ -237,3 +237,45 @@ export async function denySalariedLine(
   revalidatePath('/pay')
   return { ok: true }
 }
+
+/**
+ * Revert an approved or denied salaried line back to pending — owner only.
+ */
+export async function revertSalariedLine(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'Not authenticated' }
+  if (user.role !== 'owner') return { ok: false, error: 'Only the owner can revert' }
+
+  const [existing] = await db
+    .select()
+    .from(salariedPayroll)
+    .where(eq(salariedPayroll.id, id))
+
+  if (!existing) return { ok: false, error: 'Row not found' }
+  if (existing.status !== 'approved' && existing.status !== 'denied') {
+    return { ok: false, error: `Cannot revert a line with status '${existing.status}'` }
+  }
+
+  await db
+    .update(salariedPayroll)
+    .set({
+      status: 'pending',
+      approvedByUserId: null,
+      approvedByName: null,
+      approvedAt: null,
+      notes: null,
+    })
+    .where(eq(salariedPayroll.id, id))
+
+  await log({
+    action: 'revert_salaried_line',
+    entityType: 'salaried_payroll',
+    entityId: id,
+    metadata: { userId: existing.userId, type: existing.type, previousStatus: existing.status },
+  })
+
+  revalidatePath('/pay')
+  return { ok: true }
+}
