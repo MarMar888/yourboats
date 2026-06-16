@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
+import { toast } from 'sonner'
 import { saveTip, updateTierConfig, getLaborEntriesForPeriod, updatePayrollServiceType, getUnclockedBoatsForPeriod } from './actions'
 import type { LaborTimeEntry, UnclockedBoat } from './actions'
 import {
   savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod,
   deleteServicePayroll, deletePayrollEntry,
-  getManualLinesForPeriod, createManualPayrollLine, deleteManualPayrollLine, approveManualPayrollLine,
+  getManualLinesForPeriod, createManualPayrollLine, updateManualPayrollLine, deleteManualPayrollLine, approveManualPayrollLine,
 } from './payroll-actions'
 import type { SavedPayrollRow, ManualLineRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
@@ -62,18 +63,30 @@ function fmtDate(ymd: string) {
 
 // ─── Salaried Section ─────────────────────────────────────────────────────────
 
-function SalariedSection({ lines }: { lines: SalariedLine[] }) {
+function SalariedSection({ lines: propLines }: { lines: SalariedLine[] }) {
+  const [lines, setLines] = useState(propLines)
   const [pending, startTransition] = useTransition()
   const [actionLineId, setActionLineId] = useState<string | null>(null)
 
+  useEffect(() => { setLines(propLines) }, [propLines])
+
+  function optimistic(id: string, patch: Partial<SalariedLine>) {
+    setLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l))
+  }
+
   async function handleApprove(id: string) {
     setActionLineId(id)
+    optimistic(id, { status: 'approved' })
     startTransition(async () => {
       try {
         const mod = await import('./salaried-actions')
-        await mod.approveSalariedLine(id)
+        const result = await mod.approveSalariedLine(id)
+        if (!result.ok) {
+          toast.error(result.error ?? 'Failed to approve')
+          setLines(propLines)
+        }
       } catch {
-        // salaried-actions not yet available — no-op
+        setLines(propLines)
       }
       setActionLineId(null)
     })
@@ -81,12 +94,35 @@ function SalariedSection({ lines }: { lines: SalariedLine[] }) {
 
   async function handleDeny(id: string) {
     setActionLineId(id)
+    optimistic(id, { status: 'denied' })
     startTransition(async () => {
       try {
         const mod = await import('./salaried-actions')
-        await mod.denySalariedLine(id)
+        const result = await mod.denySalariedLine(id)
+        if (!result.ok) {
+          toast.error(result.error ?? 'Failed to deny')
+          setLines(propLines)
+        }
       } catch {
-        // salaried-actions not yet available — no-op
+        setLines(propLines)
+      }
+      setActionLineId(null)
+    })
+  }
+
+  async function handleRevert(id: string) {
+    setActionLineId(id)
+    optimistic(id, { status: 'pending', approvedByName: null, approvedAt: null })
+    startTransition(async () => {
+      try {
+        const mod = await import('./salaried-actions')
+        const result = await mod.revertSalariedLine(id)
+        if (!result.ok) {
+          toast.error(result.error ?? 'Failed to revert')
+          setLines(propLines)
+        }
+      } catch {
+        setLines(propLines)
       }
       setActionLineId(null)
     })
@@ -166,6 +202,15 @@ function SalariedSection({ lines }: { lines: SalariedLine[] }) {
                     </Button>
                   </>
                 )}
+                {(line.status === 'approved' || line.status === 'denied') && (
+                  <button
+                    onClick={() => handleRevert(line.id)}
+                    disabled={pending && actionLineId === line.id}
+                    className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors disabled:opacity-50"
+                  >
+                    {pending && actionLineId === line.id ? 'Reverting…' : 'Revert'}
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -208,6 +253,8 @@ function PeriodReview({
   const [showAddManual, setShowAddManual] = useState(false)
   const [manualForm, setManualForm] = useState({ userId: '', description: '', amount: '' })
   const [manualPending, startManualTransition] = useTransition()
+  const [editingLineId, setEditingLineId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ description: '', amount: '' })
   const [deletingService, setDeletingService] = useState<string | null>(null)
   const [savingServiceType, setSavingServiceType] = useState<Record<string, boolean>>({})
   const [serviceTypeErrors, setServiceTypeErrors] = useState<Record<string, string>>({})
@@ -966,7 +1013,6 @@ function PeriodReview({
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">$</span>
                   <input
                     type="number"
-                    min="0"
                     step="0.01"
                     placeholder="0.00"
                     value={manualForm.amount}
@@ -1020,53 +1066,121 @@ function PeriodReview({
           ) : manualLines.length > 0 ? (
             <div className="divide-y">
               {manualLines.map((line) => (
-                <div key={line.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{line.displayName}</span>
-                      <span className="text-xs text-muted-foreground truncate">{line.description}</span>
+                <div key={line.id}>
+                  {editingLineId === line.id ? (
+                    <div className="px-4 py-3 flex flex-wrap items-end gap-3 bg-muted/20">
+                      <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                        <label className="text-xs font-medium text-muted-foreground">Description</label>
+                        <input
+                          type="text"
+                          value={editForm.description}
+                          onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))}
+                          className="h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-muted-foreground">Amount</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editForm.amount}
+                            onChange={(e) => setEditForm((p) => ({ ...p, amount: e.target.value }))}
+                            className="h-8 w-28 rounded-md border border-input bg-background pl-6 pr-2 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={manualPending || !editForm.description.trim() || !editForm.amount}
+                          onClick={() => {
+                            startManualTransition(async () => {
+                              const result = await updateManualPayrollLine(line.id, {
+                                description: editForm.description,
+                                amount: parseFloat(editForm.amount) || 0,
+                              })
+                              if (!result.error) {
+                                const lines = await getManualLinesForPeriod(period.startStr, period.endStr)
+                                setManualLines(lines)
+                                setEditingLineId(null)
+                              } else {
+                                toast.error(result.error)
+                              }
+                            })
+                          }}
+                        >
+                          {manualPending ? 'Saving…' : 'Save'}
+                        </Button>
+                        <button
+                          onClick={() => setEditingLineId(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-sm font-semibold tabular-nums mt-0.5">{fmt(parseFloat(line.amount))}</div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {line.approvedAt ? (
-                      <span className="text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
-                        ✓ Approved
-                      </span>
-                    ) : (
-                      <>
-                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-                          Draft
-                        </span>
+                  ) : (
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{line.displayName}</span>
+                          <span className="text-xs text-muted-foreground truncate">{line.description}</span>
+                        </div>
+                        <div className="text-sm font-semibold tabular-nums mt-0.5">{fmt(parseFloat(line.amount))}</div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {line.approvedAt ? (
+                          <span className="text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
+                            ✓ Approved
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                              Draft
+                            </span>
+                            <button
+                              onClick={() => {
+                                setEditForm({ description: line.description, amount: line.amount })
+                                setEditingLineId(line.id)
+                              }}
+                              disabled={manualPending}
+                              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors disabled:opacity-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                startManualTransition(async () => {
+                                  await approveManualPayrollLine(line.id)
+                                  const lines = await getManualLinesForPeriod(period.startStr, period.endStr)
+                                  setManualLines(lines)
+                                })
+                              }}
+                              disabled={manualPending}
+                              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => {
                             startManualTransition(async () => {
-                              await approveManualPayrollLine(line.id)
-                              const lines = await getManualLinesForPeriod(period.startStr, period.endStr)
-                              setManualLines(lines)
+                              await deleteManualPayrollLine(line.id)
+                              setManualLines((prev) => prev.filter((l) => l.id !== line.id))
                             })
                           }}
                           disabled={manualPending}
-                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors disabled:opacity-50"
+                          title="Delete line"
+                          className="text-muted-foreground/40 hover:text-destructive transition-colors text-xs disabled:opacity-40"
                         >
-                          Approve
+                          🗑
                         </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => {
-                        startManualTransition(async () => {
-                          await deleteManualPayrollLine(line.id)
-                          setManualLines((prev) => prev.filter((l) => l.id !== line.id))
-                        })
-                      }}
-                      disabled={manualPending}
-                      title="Delete line"
-                      className="text-muted-foreground/40 hover:text-destructive transition-colors text-xs disabled:opacity-40"
-                    >
-                      🗑
-                    </button>
-                  </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

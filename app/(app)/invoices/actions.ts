@@ -14,6 +14,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { getPostHogClient } from '@/lib/posthog-server'
 import { emailTransport } from '@/lib/email/client'
+import { MARLEY_SMS } from '@/lib/constants/sms'
 
 export { syncInvoiceToQbo }
 
@@ -168,6 +169,8 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
     qboItemName = bestItem.name
   }
 
+  const createUser = await getCurrentUser()
+
   try {
     const qbo = await getQboClient()
     const dueDate = new Date(service.serviceDate + 'T00:00:00')
@@ -221,7 +224,6 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
 
     await log({ action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id, hasPaymentLink: !!paymentLink } })
 
-    const createUser = await getCurrentUser()
     if (createUser) {
       const posthog = getPostHogClient()
       posthog.capture({ distinctId: createUser.id, event: 'invoice_created_in_qbo', properties: { invoice_id: invoiceId, qbo_invoice_id: created.Id, amount: inv.amount } })
@@ -236,8 +238,24 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
       console.error('[QBO] createInvoice fault', JSON.stringify(fault))
       return { ok: false, error: `QBO error: ${detail}` }
     }
+
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const isOAuthError = errMsg.includes('OAuth') || errMsg.includes('reconnect') || errMsg.includes('not connected')
+    if (isOAuthError && createUser && createUser.email !== 'marley@squeakycleanboats.com') {
+      try {
+        await emailTransport.sendMail({
+          from: `"yourboats" <${process.env.GMAIL_USER}>`,
+          to: MARLEY_SMS,
+          subject: `QBO auth error — ${createUser.displayName ?? createUser.email} tried to create an invoice`,
+          text: `${createUser.displayName ?? createUser.email} (${createUser.email}) tried to create an invoice but QuickBooks isn't connected. Reconnect in Settings.`,
+        })
+      } catch {
+        // don't let notification failure mask the original error
+      }
+    }
+
     console.error('[QBO] createInvoice error', err)
-    return { ok: false, error: `Failed to create in QuickBooks: ${err instanceof Error ? err.message : String(err)}` }
+    return { ok: false, error: `Failed to create in QuickBooks: ${errMsg}` }
   }
 
   revalidatePath('/invoices')

@@ -23,7 +23,7 @@ export async function notifyErrorReported(comment: string): Promise<void> {
     await emailTransport.sendMail({
       from: `"yourboats" <${process.env.GMAIL_USER}>`,
       to: MARLEY_SMS,
-      subject: `Error reported by ${userLabel}`,
+      subject: `Error from ${userLabel}: ${truncated}`,
       text: `Reported by: ${userLabel}\n\nError reported: ${truncated} — View in PostHog: ${posthogHost}/activity/explore`,
     })
   } catch (err) {

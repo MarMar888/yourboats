@@ -277,7 +277,7 @@ export async function createManualPayrollLine(
     return { error: 'Not authorized' }
   }
   if (!data.description.trim()) return { error: 'Description is required' }
-  if (isNaN(data.amount) || data.amount <= 0) return { error: 'Amount must be a positive number' }
+  if (isNaN(data.amount) || data.amount === 0) return { error: 'Amount must be a non-zero number' }
 
   const [row] = await db
     .insert(manualPayrollLines)
@@ -300,6 +300,40 @@ export async function createManualPayrollLine(
   })
   revalidatePath('/pay')
   return { id: row.id }
+}
+
+export async function updateManualPayrollLine(
+  id: string,
+  data: { description: string; amount: number }
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  if (!data.description.trim()) return { error: 'Description is required' }
+  if (isNaN(data.amount) || data.amount === 0) return { error: 'Amount must be a non-zero number' }
+
+  const [existing] = await db
+    .select({ approvedAt: manualPayrollLines.approvedAt })
+    .from(manualPayrollLines)
+    .where(eq(manualPayrollLines.id, id))
+
+  if (!existing) return { error: 'Line not found' }
+  if (existing.approvedAt) return { error: 'Cannot edit an approved line' }
+
+  await db
+    .update(manualPayrollLines)
+    .set({ description: data.description.trim(), amount: String(data.amount) })
+    .where(eq(manualPayrollLines.id, id))
+
+  await log({
+    action: 'update_manual_payroll_line',
+    entityType: 'manual_payroll_line',
+    entityId: id,
+    metadata: { description: data.description, amount: data.amount },
+  })
+  revalidatePath('/pay')
+  return {}
 }
 
 export async function deleteManualPayrollLine(
