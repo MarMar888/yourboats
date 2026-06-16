@@ -148,14 +148,20 @@ export async function approveSalariedLine(
   }
 
   const [existing] = await db
-    .select()
+    .select({ payroll: salariedPayroll, approvalRole: salariedRules.approvalRole })
     .from(salariedPayroll)
+    .innerJoin(salariedRules, eq(salariedPayroll.ruleId, salariedRules.id))
     .where(eq(salariedPayroll.id, id))
 
   if (!existing) return { ok: false, error: 'Row not found' }
-  if (existing.status !== 'pending') {
-    return { ok: false, error: `Cannot approve a line with status '${existing.status}'` }
+  if (existing.payroll.status !== 'pending') {
+    return { ok: false, error: `Cannot approve a line with status '${existing.payroll.status}'` }
   }
+  if (existing.approvalRole === 'owner' && user.role !== 'owner') {
+    return { ok: false, error: 'Only the owner can approve this line' }
+  }
+
+  const row = existing.payroll
 
   await db
     .update(salariedPayroll)
@@ -172,12 +178,12 @@ export async function approveSalariedLine(
     entityType: 'salaried_payroll',
     entityId: id,
     metadata: {
-      userId: existing.userId,
-      displayName: existing.displayName,
-      type: existing.type,
-      amount: existing.amount,
-      periodStart: existing.periodStart,
-      periodEnd: existing.periodEnd,
+      userId: row.userId,
+      displayName: row.displayName,
+      type: row.type,
+      amount: row.amount,
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
     },
   })
 
@@ -198,15 +204,21 @@ export async function denySalariedLine(
     return { ok: false, error: 'Unauthorized' }
   }
 
-  const [existing] = await db
-    .select()
+  const [existingDeny] = await db
+    .select({ payroll: salariedPayroll, approvalRole: salariedRules.approvalRole })
     .from(salariedPayroll)
+    .innerJoin(salariedRules, eq(salariedPayroll.ruleId, salariedRules.id))
     .where(eq(salariedPayroll.id, id))
 
-  if (!existing) return { ok: false, error: 'Row not found' }
-  if (existing.status !== 'pending') {
-    return { ok: false, error: `Cannot deny a line with status '${existing.status}'` }
+  if (!existingDeny) return { ok: false, error: 'Row not found' }
+  if (existingDeny.payroll.status !== 'pending') {
+    return { ok: false, error: `Cannot deny a line with status '${existingDeny.payroll.status}'` }
   }
+  if (existingDeny.approvalRole === 'owner' && user.role !== 'owner') {
+    return { ok: false, error: 'Only the owner can deny this line' }
+  }
+
+  const denyRow = existingDeny.payroll
 
   await db
     .update(salariedPayroll)
@@ -224,12 +236,12 @@ export async function denySalariedLine(
     entityType: 'salaried_payroll',
     entityId: id,
     metadata: {
-      userId: existing.userId,
-      displayName: existing.displayName,
-      type: existing.type,
-      amount: existing.amount,
-      periodStart: existing.periodStart,
-      periodEnd: existing.periodEnd,
+      userId: denyRow.userId,
+      displayName: denyRow.displayName,
+      type: denyRow.type,
+      amount: denyRow.amount,
+      periodStart: denyRow.periodStart,
+      periodEnd: denyRow.periodEnd,
       reason: reason ?? null,
     },
   })

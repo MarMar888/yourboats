@@ -393,6 +393,7 @@ export const salariedRules = pgTable('salaried_rules', {
   effectiveFrom: date('effective_from').notNull(),
   effectiveTo:   date('effective_to').notNull(),
   requiresApproval: boolean('requires_approval').notNull().default(false),
+  approvalRole: text('approval_role').notNull().default('owner_or_manager'), // 'owner' | 'owner_or_manager'
   active: boolean('active').notNull().default(true),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
