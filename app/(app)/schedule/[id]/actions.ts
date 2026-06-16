@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { complaints, serviceBoatAssignments, services, serviceBoats, invoices, boats } from '@/lib/db/schema'
+import { complaints, customers, serviceBoatAssignments, services, serviceBoats, invoices, boats } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
@@ -178,12 +178,14 @@ export async function generateInvoiceFromService(
   if (existing.length > 0) return { ok: false, error: 'Invoice already exists for this service.' }
 
   const [svc] = await db
-    .select({ totalPrice: services.totalPrice, status: services.status })
+    .select({ totalPrice: services.totalPrice, status: services.status, isPrepaid: customers.isPrepaid })
     .from(services)
+    .innerJoin(customers, eq(services.customerId, customers.id))
     .where(eq(services.id, serviceId))
     .limit(1)
   if (!svc) return { ok: false, error: 'Service not found.' }
   if (svc.status !== 'complete') return { ok: false, error: 'Service is not complete.' }
+  if (svc.isPrepaid) return { ok: false, error: 'Prepaid customer — no invoice required.' }
 
   const amount = svc.totalPrice ?? '0'
 
