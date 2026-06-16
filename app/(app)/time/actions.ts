@@ -1,14 +1,43 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { timeEntries } from '@/lib/db/schema'
-import { eq, and, isNull } from 'drizzle-orm'
+import { timeEntries, users, services, customers, boats } from '@/lib/db/schema'
+import { eq, and, isNull, asc } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
+
+export type ActiveClockIn = {
+  id: string
+  employeeName: string | null
+  customerName: string | null
+  boatName: string | null
+  clockIn: Date
+}
+
+export async function getActiveClockins(): Promise<ActiveClockIn[]> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) return []
+
+  return db
+    .select({
+      id: timeEntries.id,
+      employeeName: users.displayName,
+      customerName: customers.name,
+      boatName: boats.nickname,
+      clockIn: timeEntries.clockIn,
+    })
+    .from(timeEntries)
+    .innerJoin(users, eq(timeEntries.userId, users.id))
+    .leftJoin(services, eq(timeEntries.serviceId, services.id))
+    .leftJoin(customers, eq(services.customerId, customers.id))
+    .leftJoin(boats, eq(timeEntries.boatId, boats.id))
+    .where(isNull(timeEntries.clockOut))
+    .orderBy(asc(timeEntries.clockIn))
+}
 
 function requireUser() {
   return getCurrentUser().then((u) => {

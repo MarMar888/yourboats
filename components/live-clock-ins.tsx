@@ -1,16 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { ElapsedTimer } from '@/components/elapsed-timer'
-
-type ActiveClockIn = {
-  id: string
-  employeeName: string | null
-  customerName: string | null
-  boatName: string | null
-  clockIn: Date
-}
+import { getActiveClockins } from '@/app/(app)/time/actions'
+import type { ActiveClockIn } from '@/app/(app)/time/actions'
 
 function ClockInCard({ entry }: { entry: ActiveClockIn }) {
   return (
@@ -30,7 +24,24 @@ function ClockInCard({ entry }: { entry: ActiveClockIn }) {
   )
 }
 
-export function LiveClockInsPanel({ entries }: { entries: ActiveClockIn[] }) {
+function usePolledEntries(initial: ActiveClockIn[]) {
+  const [entries, setEntries] = useState(initial)
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const fresh = await getActiveClockins()
+        setEntries(fresh)
+      } catch {}
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  return entries
+}
+
+export function LiveClockInsPanel({ entries: initial }: { entries: ActiveClockIn[] }) {
+  const entries = usePolledEntries(initial)
   if (entries.length === 0) return null
   return (
     <aside className="hidden 2xl:flex w-52 shrink-0 flex-col gap-2 border-l px-3 py-5 sticky top-0 self-start max-h-svh overflow-y-auto">
@@ -47,7 +58,8 @@ export function LiveClockInsPanel({ entries }: { entries: ActiveClockIn[] }) {
   )
 }
 
-export function LiveClockInsWidget({ entries }: { entries: ActiveClockIn[] }) {
+export function LiveClockInsWidget({ entries: initial }: { entries: ActiveClockIn[] }) {
+  const entries = usePolledEntries(initial)
   const [open, setOpen] = useState(false)
   if (entries.length === 0) return null
   return (

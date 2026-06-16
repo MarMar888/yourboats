@@ -63,7 +63,7 @@ function fmtDate(ymd: string) {
 
 // ─── Salaried Section ─────────────────────────────────────────────────────────
 
-function SalariedSection({ lines: propLines }: { lines: SalariedLine[] }) {
+function SalariedSection({ lines: propLines, isOwner }: { lines: SalariedLine[]; isOwner: boolean }) {
   const [lines, setLines] = useState(propLines)
   const [pending, startTransition] = useTransition()
   const [actionLineId, setActionLineId] = useState<string | null>(null)
@@ -202,7 +202,7 @@ function SalariedSection({ lines: propLines }: { lines: SalariedLine[] }) {
                     </Button>
                   </>
                 )}
-                {(line.status === 'approved' || line.status === 'denied') && (
+                {isOwner && (line.status === 'approved' || line.status === 'denied') && (
                   <button
                     onClick={() => handleRevert(line.id)}
                     disabled={pending && actionLineId === line.id}
@@ -1822,7 +1822,7 @@ export function PayClient({
       {activeTab === 'pay-review' && (
         <>
           {/* Salaried automations */}
-          <SalariedSection lines={salariedLines} />
+          <SalariedSection lines={salariedLines} isOwner={isOwner} />
 
           {/* Pay review */}
           <PeriodReview
