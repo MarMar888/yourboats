@@ -213,7 +213,7 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => setCreateOpen(true)} tooltip="New service">
                   <Plus />
-                  <span>New service</span>
+                  <span>New</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
