@@ -1,35 +1,71 @@
 'use client'
 
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { ElapsedTimer } from '@/components/elapsed-timer'
 import { getActiveClockins } from '@/app/(app)/time/actions'
 import type { ActiveClockIn } from '@/app/(app)/time/actions'
 
-const ClockInsContext = createContext<ActiveClockIn[]>([])
+// ─── Module-level store (one copy per browser tab) ───────────────────────────
 
-export function LiveClockInsProvider({
-  entries: initial,
-  children,
-}: {
-  entries: ActiveClockIn[]
-  children: React.ReactNode
-}) {
-  const [entries, setEntries] = useState(initial)
+let _entries: ActiveClockIn[] = []
+let _generation = 0
+const _listeners = new Set<() => void>()
 
-  // Sync when the server layout re-renders with fresh initial data (e.g. on navigation)
-  useEffect(() => { setEntries(initial) }, [initial])
+function _emit() { _listeners.forEach(l => l()) }
 
-  // Single polling interval shared by all consumers
-  useEffect(() => {
-    const id = setInterval(async () => {
-      try { setEntries(await getActiveClockins()) } catch {}
-    }, 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  return <ClockInsContext.Provider value={entries}>{children}</ClockInsContext.Provider>
+const clockInsStore = {
+  subscribe: (listener: () => void) => {
+    _listeners.add(listener)
+    return () => { _listeners.delete(listener) }
+  },
+  getSnapshot: (): ActiveClockIn[] => _entries,
+  getServerSnapshot: (): ActiveClockIn[] => [],
+  update(next: ActiveClockIn[], gen: number) {
+    if (gen < _generation) return  // discard poll responses that raced with navigation
+    _entries = next
+    _generation = gen
+    _emit()
+  },
 }
+
+// ─── Initializer ─────────────────────────────────────────────────────────────
+
+/**
+ * Renders null — placed once in the app layout as a sibling (not a wrapper)
+ * so polling state never re-renders unrelated layout subtrees.
+ */
+export function LiveClockInsInitializer({ entries: initial }: { entries: ActiveClockIn[] }) {
+  const ver = useRef(0)
+
+  useEffect(() => {
+    const v = ++ver.current
+    clockInsStore.update(initial, v)
+
+    const id = setInterval(async () => {
+      try {
+        const fresh = await getActiveClockins()
+        clockInsStore.update(fresh, v)
+      } catch {}
+    }, 30_000)
+
+    return () => clearInterval(id)
+  }, [initial])
+
+  return null
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+function useClockIns() {
+  return useSyncExternalStore(
+    clockInsStore.subscribe,
+    clockInsStore.getSnapshot,
+    clockInsStore.getServerSnapshot,
+  )
+}
+
+// ─── UI components ───────────────────────────────────────────────────────────
 
 function ClockInCard({ entry }: { entry: ActiveClockIn }) {
   return (
@@ -50,7 +86,7 @@ function ClockInCard({ entry }: { entry: ActiveClockIn }) {
 }
 
 export function LiveClockInsPanel() {
-  const entries = useContext(ClockInsContext)
+  const entries = useClockIns()
   if (entries.length === 0) return null
   return (
     <aside className="hidden 2xl:flex w-52 shrink-0 flex-col gap-2 border-l px-3 py-5 sticky top-0 self-start max-h-svh overflow-y-auto">
@@ -68,7 +104,7 @@ export function LiveClockInsPanel() {
 }
 
 export function LiveClockInsWidget() {
-  const entries = useContext(ClockInsContext)
+  const entries = useClockIns()
   const [open, setOpen] = useState(false)
   if (entries.length === 0) return null
   return (
