@@ -9,27 +9,7 @@ import { Toaster } from 'sonner'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import Link from 'next/link'
 import { LiveClockInsPanel, LiveClockInsWidget } from '@/components/live-clock-ins'
-import { db } from '@/lib/db'
-import { timeEntries, users, services, customers, boats } from '@/lib/db/schema'
-import { isNull, eq, asc } from 'drizzle-orm'
-
-async function getActiveClockins() {
-  return db
-    .select({
-      id: timeEntries.id,
-      employeeName: users.displayName,
-      customerName: customers.name,
-      boatName: boats.nickname,
-      clockIn: timeEntries.clockIn,
-    })
-    .from(timeEntries)
-    .innerJoin(users, eq(timeEntries.userId, users.id))
-    .leftJoin(services, eq(timeEntries.serviceId, services.id))
-    .leftJoin(customers, eq(services.customerId, customers.id))
-    .leftJoin(boats, eq(timeEntries.boatId, boats.id))
-    .where(isNull(timeEntries.clockOut))
-    .orderBy(asc(timeEntries.clockIn))
-}
+import { getActiveClockins } from '@/app/(app)/time/actions'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
