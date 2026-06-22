@@ -3,7 +3,7 @@
 // app/(app)/schedule/actions.ts but without Next.js cache/redirect calls.
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 import { db } from '../db'
 import {
   services,
@@ -31,7 +31,7 @@ async function boatsByService(serviceIds: string[]): Promise<Record<string, stri
     .select({ serviceId: serviceBoats.serviceId, nickname: boats.nickname })
     .from(serviceBoats)
     .innerJoin(boats, eq(serviceBoats.boatId, boats.id))
-    .where(sql`${serviceBoats.serviceId} = ANY(${serviceIds})`)
+    .where(inArray(serviceBoats.serviceId, serviceIds))
   const out: Record<string, string[]> = {}
   for (const r of rows) (out[r.serviceId] ??= []).push(r.nickname)
   return out
