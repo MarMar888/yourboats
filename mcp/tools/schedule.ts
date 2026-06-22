@@ -295,4 +295,77 @@ export function registerScheduleTools(server: McpServer): void {
       return { ok: true, approvedCount: updated.length, startDate, endDate }
     }
   )
+
+  tool(
+    server,
+    'update_service',
+    'Update an existing service\'s editable fields: service-level notes, service type, total price, and per-boat description/notes. To change the date use reschedule_service; to change status use mark_complete/mark_incomplete/cancel_service.',
+    {
+      serviceId: z.string().uuid().describe('Service UUID'),
+      notes: z.string().nullable().optional().describe('Service-level notes (null to clear)'),
+      serviceType: z.string().optional().describe('New service type (should match a QBO item name)'),
+      totalPrice: z.number().nonnegative().optional().describe('Override total price; also updates the linked draft invoice amount'),
+      boatNotes: z
+        .array(
+          z.object({
+            boatId: z.string().uuid().describe('Boat UUID (must already be on this service)'),
+            description: z.string().nullable().optional().describe('Line description, e.g. "Interior, Exterior" (null to clear)'),
+            notes: z.string().nullable().optional().describe('Per-boat operational notes (null to clear)'),
+          })
+        )
+        .optional()
+        .describe('Per-boat description/notes updates for boats already on this service'),
+    },
+    async ({ serviceId, notes, serviceType, totalPrice, boatNotes }) => {
+      const ownerId = await getOwnerId()
+      const [svc] = await db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).limit(1)
+      if (!svc) return { ok: false, error: 'Service not found.' }
+
+      if (notes === undefined && serviceType === undefined && totalPrice === undefined && !boatNotes?.length) {
+        return { ok: false, error: 'No fields to update.' }
+      }
+
+      const patch: Record<string, unknown> = {}
+      if (notes !== undefined) patch.notes = notes
+      if (serviceType !== undefined) patch.serviceType = serviceType
+      if (totalPrice !== undefined) patch.totalPrice = String(totalPrice)
+      if (Object.keys(patch).length > 0) await db.update(services).set(patch).where(eq(services.id, serviceId))
+
+      // Keep the linked invoice in step with a manual price override.
+      if (totalPrice !== undefined) {
+        await db.update(invoices).set({ amount: String(totalPrice), qboNeedsSync: true }).where(eq(invoices.serviceId, serviceId))
+      }
+
+      // Update per-boat description/notes for boats already on the service.
+      const updatedBoats: string[] = []
+      const missingBoats: string[] = []
+      for (const b of boatNotes ?? []) {
+        const bp: Record<string, unknown> = {}
+        if (b.description !== undefined) bp.description = b.description
+        if (b.notes !== undefined) bp.notes = b.notes
+        if (Object.keys(bp).length === 0) continue
+        const res = await db
+          .update(serviceBoats)
+          .set(bp)
+          .where(and(eq(serviceBoats.serviceId, serviceId), eq(serviceBoats.boatId, b.boatId)))
+          .returning({ boatId: serviceBoats.boatId })
+        if (res.length > 0) updatedBoats.push(b.boatId)
+        else missingBoats.push(b.boatId)
+      }
+
+      // Service type or price change affects pay math — refresh unapproved payroll.
+      if (serviceType !== undefined || totalPrice !== undefined) {
+        await refreshServicePayroll(serviceId, 'service_updated')
+      }
+
+      await mcpLog({ userId: ownerId, action: 'update_service', entityType: 'service', entityId: serviceId, metadata: { fields: Object.keys(patch), boatNotes: updatedBoats.length } })
+      return {
+        ok: true,
+        serviceId,
+        updatedFields: Object.keys(patch),
+        ...(updatedBoats.length ? { updatedBoats } : {}),
+        ...(missingBoats.length ? { boatsNotOnService: missingBoats } : {}),
+      }
+    }
+  )
 }
