@@ -9,6 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "mcp": "tsx --env-file=.env.local mcp/server.ts",
+    "mcp:dev": "tsx watch --env-file=.env.local mcp/server.ts",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "test-invoice": "tsx --env-file=.env.local scripts/test-invoice.ts",
     "db:push": "drizzle-kit push",
@@ -17,6 +19,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@neondatabase/auth": "0.4.1-beta",
     "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -55,7 +58,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "3.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.0",

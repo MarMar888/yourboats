@@ -3,6 +3,12 @@
     "neon": {
       "type": "http",
       "url": "https://mcp.neon.tech/mcp"
+    },
+    "florence": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": ["mcp"],
+      "cwd": "/Users/marleybarrett/conductor/workspaces/yourboats/florence"
     }
   }
 }
