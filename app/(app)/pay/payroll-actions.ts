@@ -119,7 +119,7 @@ export async function savePayrollEntries(
     const existing = activeByService.get(e.serviceId) ?? []
     activeByService.set(e.serviceId, [...existing, e.userId])
   }
-  for (const [serviceId, activeUserIds] of activeByService) {
+  for (const [serviceId, activeUserIds] of Array.from(activeByService.entries())) {
     await db.delete(payroll).where(
       and(
         eq(payroll.serviceId, serviceId),
