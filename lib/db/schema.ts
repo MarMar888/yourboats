@@ -448,6 +448,19 @@ export const manualPayrollLines = pgTable('manual_payroll_lines', {
   approvedByName: text('approved_by_name'),
 })
 
+// ─── Pay period notes ─────────────────────────────────────────────────────────
+
+// One row per pay period — freeform notes visible to all employees for that period.
+export const payrollPeriodNotes = pgTable('payroll_period_notes', {
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  notes: text('notes').notNull().default(''),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedByUserId: text('updated_by_user_id'),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.periodStart, t.periodEnd] }),
+}))
+
 // ─── Calendar events ──────────────────────────────────────────────────────────
 
 // Custom events added to the calendar (not tied to services/customers).

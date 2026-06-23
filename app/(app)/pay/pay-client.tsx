@@ -8,6 +8,7 @@ import {
   savePayrollEntries, getPayrollForPeriod, approvePayrollForPeriod, unapprovePayrollForPeriod,
   deleteServicePayroll, deletePayrollEntry,
   getManualLinesForPeriod, createManualPayrollLine, updateManualPayrollLine, deleteManualPayrollLine, approveManualPayrollLine,
+  getPeriodNotes, savePeriodNotes,
 } from './payroll-actions'
 import type { SavedPayrollRow, ManualLineRow } from './payroll-actions'
 import { Button } from '@/components/ui/button'
@@ -259,6 +260,10 @@ function PeriodReview({
   const [savingServiceType, setSavingServiceType] = useState<Record<string, boolean>>({})
   const [serviceTypeErrors, setServiceTypeErrors] = useState<Record<string, string>>({})
 
+  // Period notes
+  const [periodNotes, setPeriodNotes] = useState('')
+  const [notesSaving, setNotesSaving] = useState(false)
+
   // Approval state
   const [approval, setApproval] = useState<{ at: Date; byName: string } | null>(null)
   const [approvePending, startApprove] = useTransition()
@@ -275,12 +280,14 @@ function PeriodReview({
     setIsDirty(false)
     setShowAddManual(false)
     try {
-      const [res, payrollRows, manualRows] = await Promise.all([
+      const [res, payrollRows, manualRows, notes] = await Promise.all([
         fetch(`/api/pay/period?startDate=${period.startStr}&endDate=${period.endStr}`),
         getPayrollForPeriod(period.startStr, period.endStr).catch(() => [] as SavedPayrollRow[]),
         getManualLinesForPeriod(period.startStr, period.endStr).catch(() => [] as ManualLineRow[]),
+        getPeriodNotes(period.startStr, period.endStr).catch(() => ''),
       ])
       setManualLines(manualRows)
+      setPeriodNotes(notes)
       if (!res.ok) throw new Error('Failed')
       const data = await res.json()
       setRows(data.services)
@@ -617,9 +624,15 @@ function PeriodReview({
       .filter((l) => l.status === 'approved')
       .reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
 
-    const totalPay = svcs.reduce((s, x) => s + x.totalPay, 0) + salariedTotal
+    // Include manual adjustments belonging to this employee
+    const empManual = manualLines.filter((l) => l.userId === userId)
+    const manualTotal = empManual
+      .filter((l) => l.approvedAt !== null)
+      .reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
+
+    const totalPay = svcs.reduce((s, x) => s + x.totalPay, 0) + salariedTotal + manualTotal
     const totalTips = svcs.reduce((s, x) => s + x.tipShare, 0)
-    return { services: svcs, salariedItems: empSalaried, summary: { totalPay, totalTips, salariedTotal } }
+    return { services: svcs, salariedItems: empSalaried, manualItems: empManual, summary: { totalPay, totalTips, salariedTotal, manualTotal } }
   }
 
   if (loading) {
@@ -961,6 +974,30 @@ function PeriodReview({
         </table>
       </div>
 
+      {/* Period notes */}
+      {isOwnerOrManager && (
+        <div className="rounded-lg border bg-card">
+          <div className="px-4 py-3 border-b">
+            <h2 className="text-sm font-semibold">Period notes</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Visible to all employees on their pay view</p>
+          </div>
+          <div className="px-4 py-3">
+            <textarea
+              className="w-full min-h-[80px] text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              placeholder="Add a note for the team about this pay period…"
+              value={periodNotes}
+              onChange={(e) => setPeriodNotes(e.target.value)}
+              onBlur={async () => {
+                setNotesSaving(true)
+                await savePeriodNotes(period.startStr, period.endStr, periodNotes).catch(() => {})
+                setNotesSaving(false)
+              }}
+            />
+            {notesSaving && <p className="text-xs text-muted-foreground mt-1">Saving…</p>}
+          </div>
+        </div>
+      )}
+
       {/* Manual adjustment lines */}
       {isOwnerOrManager && (
         <div className="rounded-lg border bg-card">
@@ -1259,9 +1296,9 @@ function PeriodReview({
                 <p className="text-xs text-muted-foreground mb-3">
                   {selectedEmployee?.displayName} · {formatPeriodLabel(period)} · Payday {formatShortDate(period.payday)}
                 </p>
-                {perEmpData.services.length === 0 && perEmpData.salariedItems.length === 0 ? (
+                {perEmpData.services.length === 0 && perEmpData.salariedItems.length === 0 && perEmpData.manualItems.length === 0 ? (
                   <div className="rounded-lg border bg-muted/20 p-6 text-center text-muted-foreground text-sm">
-                    No completed services or salaried lines for this employee in this period.
+                    No completed services, salaried lines, or manual adjustments for this employee in this period.
                   </div>
                 ) : (
                   <div className="rounded-lg border overflow-x-auto">
@@ -1332,6 +1369,33 @@ function PeriodReview({
                             </tr>
                           )
                         })}
+                        {/* Manual adjustment lines */}
+                        {perEmpData.manualItems.map((l) => {
+                          const amount = parseFloat(l.amount) || 0
+                          const isApproved = l.approvedAt !== null
+                          const isNegative = amount < 0
+                          return (
+                            <tr key={l.id} className="bg-amber-50/60 hover:bg-amber-50 transition-colors">
+                              <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">—</td>
+                              <td className="px-3 py-2">
+                                <div className="text-sm font-medium">Manual Adjustment</div>
+                                <div className="text-xs text-muted-foreground">{l.description}</div>
+                                <div className="text-xs text-muted-foreground capitalize">{isApproved ? 'approved' : 'pending'}</div>
+                              </td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-muted-foreground">fixed</td>
+                              <td className={`px-3 py-2 text-right tabular-nums font-medium text-sm ${isNegative ? 'text-red-600' : ''}`}>
+                                {isApproved ? fmt(amount) : <span className="text-muted-foreground text-xs">pending</span>}
+                              </td>
+                              <td className="px-3 py-2 text-right text-muted-foreground text-xs">—</td>
+                              <td className={`px-3 py-2 text-right tabular-nums font-semibold text-sm ${isNegative ? 'text-red-600' : ''}`}>
+                                {isApproved ? fmt(amount) : <span className="text-muted-foreground text-xs">—</span>}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                       <tfoot>
                         <tr className="border-t bg-muted/40 font-semibold text-sm">
@@ -1345,6 +1409,12 @@ function PeriodReview({
                         {perEmpData.summary.salariedTotal > 0 && (
                           <tr className="border-t bg-blue-50/40 text-xs text-muted-foreground">
                             <td className="px-3 py-1.5" colSpan={8}>Includes {fmt(perEmpData.summary.salariedTotal)} in approved salaried lines</td>
+                            <td />
+                          </tr>
+                        )}
+                        {perEmpData.summary.manualTotal !== 0 && (
+                          <tr className="border-t bg-amber-50/40 text-xs text-muted-foreground">
+                            <td className="px-3 py-1.5" colSpan={8}>Includes {fmt(perEmpData.summary.manualTotal)} in approved manual adjustments</td>
                             <td />
                           </tr>
                         )}
