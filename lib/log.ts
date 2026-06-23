@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { logs } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { getPostHogClient } from '@/lib/posthog-server'
 import pkg from '../package.json'
 
 type LogEntry = {
@@ -27,6 +28,21 @@ export async function log(entry: LogEntry): Promise<void> {
       metadata: JSON.stringify(meta),
       error: entry.error ?? null,
     })
+    if (entry.error) {
+      const posthog = getPostHogClient()
+      posthog.capture({
+        distinctId: user?.id ?? 'server',
+        event: '$exception',
+        properties: {
+          $exception_message: entry.error,
+          $exception_type: entry.action,
+          action: entry.action,
+          entityType: entry.entityType,
+          entityId: entry.entityId,
+        },
+      })
+      await posthog.shutdown()
+    }
   } catch {
     // Logging must never crash the caller
   }
@@ -44,6 +60,21 @@ export async function logSystem(entry: LogEntry): Promise<void> {
       metadata: JSON.stringify(meta),
       error: entry.error ?? null,
     })
+    if (entry.error) {
+      const posthog = getPostHogClient()
+      posthog.capture({
+        distinctId: 'server',
+        event: '$exception',
+        properties: {
+          $exception_message: entry.error,
+          $exception_type: entry.action,
+          action: entry.action,
+          entityType: entry.entityType,
+          entityId: entry.entityId,
+        },
+      })
+      await posthog.shutdown()
+    }
   } catch {
     // Logging must never crash the caller
   }
