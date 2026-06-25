@@ -321,10 +321,6 @@ export function ScheduleWeekGrid({ days: initialDays, employees, isManager }: Pr
             setPhotoModalFor(null)
             finishComplete(photoModalFor.id)
           }}
-          onSkip={() => {
-            setPhotoModalFor(null)
-            finishComplete(photoModalFor.id)
-          }}
           onClose={() => setPhotoModalFor(null)}
         />
       )}
