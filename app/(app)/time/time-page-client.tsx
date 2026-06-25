@@ -42,11 +42,11 @@ function fmtDate(ymd: string) {
 }
 
 function fmtTime(d: Date): string {
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
 }
 
 function fmtDateTime(d: Date): string {
-  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
   return `${date} ${fmtTime(d)}`
 }
 
