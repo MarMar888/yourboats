@@ -343,34 +343,32 @@ export async function updateInvoice(
   }, 0)
 
   try {
-    await db.transaction(async (tx) => {
-      for (const item of lineItems) {
-        await tx
-          .update(serviceBoats)
-          .set({
-            description: item.description.trim() || null,
-            rateType: item.rateType,
-            rate: String(Number(item.rate)),
-          })
-          .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, item.boatId)))
-      }
-
-      await tx
-        .update(services)
-        .set({ totalPrice: String(amount) })
-        .where(eq(services.id, invoice.serviceId))
-
-      await tx
-        .update(invoices)
+    for (const item of lineItems) {
+      await db
+        .update(serviceBoats)
         .set({
-          amount: String(amount),
-          notes: notes || null,
-          status: status as never,
-          qboNeedsSync: true,
-          ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
+          description: item.description.trim() || null,
+          rateType: item.rateType,
+          rate: String(Number(item.rate)),
         })
-        .where(eq(invoices.id, invoiceId))
-    })
+        .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, item.boatId)))
+    }
+
+    await db
+      .update(services)
+      .set({ totalPrice: String(amount) })
+      .where(eq(services.id, invoice.serviceId))
+
+    await db
+      .update(invoices)
+      .set({
+        amount: String(amount),
+        notes: notes || null,
+        status: status as never,
+        qboNeedsSync: true,
+        ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
+      })
+      .where(eq(invoices.id, invoiceId))
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, error: message })

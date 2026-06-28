@@ -177,7 +177,7 @@ export function InvoiceRow({
           </DialogHeader>
 
           {editing ? (
-            <div className="px-6 py-4">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               <EditInvoiceForm
                 invoiceId={inv.invoiceId}
                 initialNotes={inv.notes}
@@ -188,7 +188,7 @@ export function InvoiceRow({
               />
             </div>
           ) : (
-            <div className="space-y-4 px-6 py-4">
+            <div className="flex-1 overflow-y-auto space-y-4 px-6 py-4">
               {/* Status + Amount */}
               <div className="flex items-center gap-4 mb-1">
                 <span className={cn(
