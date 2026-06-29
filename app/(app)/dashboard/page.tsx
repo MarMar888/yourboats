@@ -12,27 +12,10 @@ import {
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import type { ReminderStatus } from '@/app/(app)/schedule/schedule-card'
 import { DashboardScheduleCards } from './dashboard-schedule-cards'
+import { DashboardEmptyState } from './dashboard-empty-state'
 import { todayET } from '@/lib/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function toYMD(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function thisWeekBounds(): { start: string; end: string } {
-  const [y, m, d] = todayET().split('-').map(Number)
-  const now = new Date(y, m - 1, d)
-  const day = now.getDay()
-  const sunday = new Date(now)
-  sunday.setDate(now.getDate() - day)
-  const saturday = new Date(sunday)
-  saturday.setDate(sunday.getDate() + 6)
-  return { start: toYMD(sunday), end: toYMD(saturday) }
-}
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
   recurring:          'Recurring Clean',
@@ -133,7 +116,6 @@ export default async function DashboardPage() {
   if (!user) redirect('/login')
 
   const today = todayET()
-  const { start: weekStart, end: weekEnd } = thisWeekBounds()
 
   const employeeListPromise = db
     .select({ id: users.id, displayName: users.displayName })
@@ -142,14 +124,6 @@ export default async function DashboardPage() {
     .orderBy(asc(users.displayName))
 
   const todayServices = await fetchServiceData({ start: today, end: today })
-  let displayServices = todayServices
-  let showingThisWeek = false
-
-  if (todayServices.length === 0) {
-    const weekServices = await fetchServiceData({ start: weekStart, end: weekEnd })
-    displayServices = weekServices.filter((s) => s.serviceDate > today)
-    showingThisWeek = true
-  }
 
   const employeeList = await employeeListPromise
 
@@ -158,24 +132,18 @@ export default async function DashboardPage() {
   const heading = new Date(today + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Chicago',
   })
-  const subheading = showingThisWeek
-    ? "No jobs today — showing this week's upcoming services"
-    : user.role === 'employee'
-    ? 'Your jobs for today'
-    : 'All jobs today'
+  const subheading = user.role === 'employee' ? 'Your jobs for today' : 'All jobs today'
 
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-1">{heading}</h1>
       <p className="text-muted-foreground mb-6">{subheading}</p>
 
-      {displayServices.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          {showingThisWeek ? 'No services scheduled this week.' : 'No jobs scheduled for today.'}
-        </div>
+      {todayServices.length === 0 ? (
+        <DashboardEmptyState />
       ) : (
         <DashboardScheduleCards
-          cards={displayServices.map((svc) => ({
+          cards={todayServices.map((svc) => ({
             ...svc,
             serviceType: SERVICE_TYPE_LABELS[svc.serviceType] ?? svc.serviceType,
             reminderStatus: (svc.reminderSentAt
