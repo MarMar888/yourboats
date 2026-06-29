@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { services, customers, serviceBoats, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { services, customers, serviceBoats, serviceBoatAssignments, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 import { getQboClient, fetchQboInvoiceLink } from '@/lib/qbo/client'
 import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { voidInvoiceById } from '@/lib/invoices/void-invoice'
@@ -335,6 +335,7 @@ export async function updateInvoice(
 
   const submittedBoatIds = new Set(lineItems.map((i) => i.boatId))
   const boatsToRemove = serviceLines.filter((l) => !submittedBoatIds.has(l.boatId))
+  const removedBoatIds = boatsToRemove.map((b) => b.boatId)
   const amount = lineItems.reduce((sum, item) => {
     const existing = serviceLineMap.get(item.boatId)
     const rate = Number(item.rate || 0)
@@ -343,37 +344,50 @@ export async function updateInvoice(
   }, 0)
 
   try {
-    for (const boat of boatsToRemove) {
-      await db.delete(serviceBoats)
-        .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, boat.boatId)))
-    }
-
-    for (const item of lineItems) {
-      await db
-        .update(serviceBoats)
+    // Run all writes atomically. The Neon HTTP driver has no interactive
+    // db.transaction(), but db.batch() sends them as a single transaction, so a
+    // mid-way failure can't leave boats removed while totals stay stale.
+    const writes = [
+      // Drop removed boats AND their crew assignments together — otherwise
+      // payroll keeps crew tied to a boat that's no longer on the service.
+      ...(removedBoatIds.length > 0
+        ? [
+            db
+              .delete(serviceBoats)
+              .where(and(eq(serviceBoats.serviceId, invoice.serviceId), inArray(serviceBoats.boatId, removedBoatIds))),
+            db
+              .delete(serviceBoatAssignments)
+              .where(and(eq(serviceBoatAssignments.serviceId, invoice.serviceId), inArray(serviceBoatAssignments.boatId, removedBoatIds))),
+          ]
+        : []),
+      // Update each remaining line item
+      ...lineItems.map((item) =>
+        db
+          .update(serviceBoats)
+          .set({
+            description: item.description.trim() || null,
+            rateType: item.rateType,
+            rate: String(Number(item.rate)),
+          })
+          .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, item.boatId)))
+      ),
+      db
+        .update(services)
+        .set({ totalPrice: String(amount) })
+        .where(eq(services.id, invoice.serviceId)),
+      db
+        .update(invoices)
         .set({
-          description: item.description.trim() || null,
-          rateType: item.rateType,
-          rate: String(Number(item.rate)),
+          amount: String(amount),
+          notes: notes || null,
+          status: status as never,
+          qboNeedsSync: true,
+          ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
         })
-        .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, item.boatId)))
-    }
+        .where(eq(invoices.id, invoiceId)),
+    ]
 
-    await db
-      .update(services)
-      .set({ totalPrice: String(amount) })
-      .where(eq(services.id, invoice.serviceId))
-
-    await db
-      .update(invoices)
-      .set({
-        amount: String(amount),
-        notes: notes || null,
-        status: status as never,
-        qboNeedsSync: true,
-        ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
-      })
-      .where(eq(invoices.id, invoiceId))
+    await db.batch(writes as unknown as Parameters<typeof db.batch>[0])
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, error: message })

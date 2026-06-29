@@ -5,19 +5,12 @@
 // On success it returns an AuthInfo whose `extra.actor` carries the resolved
 // user — the tool() wrapper opens an AsyncLocalStorage scope from it so every
 // write is attributed to the real user with their current role.
-import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { db } from '@/lib/db'
 import { mcpTokens, users } from '@/lib/db/schema'
+import { hashToken } from '@/lib/mcp/hash-token'
 import type { Actor } from '@/mcp/actor'
-
-// SHA-256 is correct here (full-entropy random secret, not a password); an
-// optional pepper adds defense-in-depth without breaking the indexed lookup.
-function hashToken(raw: string): string {
-  const pepper = process.env.MCP_TOKEN_PEPPER ?? ''
-  return createHash('sha256').update(pepper + raw).digest('hex')
-}
 
 export async function verifyMcpToken(
   _req: Request,
