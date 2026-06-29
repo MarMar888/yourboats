@@ -333,16 +333,21 @@ export async function updateInvoice(
   const missingLine = boatIds.find((boatId) => !serviceLineMap.has(boatId))
   if (missingLine) return { ok: false, error: 'Invoice line item no longer exists on this service.' }
 
-  const editedByBoatId = new Map(lineItems.map((item) => [item.boatId, item]))
-  const amount = serviceLines.reduce((sum, line) => {
-    const edited = editedByBoatId.get(line.boatId)
-    const rateType = edited?.rateType ?? line.rateType ?? 'per_ft'
-    const rate = Number(edited?.rate ?? line.rate ?? 0)
-    const qty = rateType === 'per_ft' ? (line.lengthFt ?? 0) : 1
+  const submittedBoatIds = new Set(lineItems.map((i) => i.boatId))
+  const boatsToRemove = serviceLines.filter((l) => !submittedBoatIds.has(l.boatId))
+  const amount = lineItems.reduce((sum, item) => {
+    const existing = serviceLineMap.get(item.boatId)
+    const rate = Number(item.rate || 0)
+    const qty = item.rateType === 'per_ft' ? (existing?.lengthFt ?? 0) : 1
     return sum + rate * qty
   }, 0)
 
   try {
+    for (const boat of boatsToRemove) {
+      await db.delete(serviceBoats)
+        .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, boat.boatId)))
+    }
+
     for (const item of lineItems) {
       await db
         .update(serviceBoats)
