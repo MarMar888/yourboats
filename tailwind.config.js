@@ -88,11 +88,21 @@ module.exports = {
   				to: {
   					height: '0'
   				}
+  			},
+  			bob: {
+  				'0%, 100%': { transform: 'translateY(0) rotate(-3deg)' },
+  				'50%': { transform: 'translateY(-6px) rotate(3deg)' }
+  			},
+  			wave: {
+  				'0%, 100%': { transform: 'translateX(-2px)', opacity: '0.35' },
+  				'50%': { transform: 'translateX(2px)', opacity: '0.7' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			bob: 'bob 3s ease-in-out infinite',
+  			wave: 'wave 2.5s ease-in-out infinite'
   		}
   	}
   },
