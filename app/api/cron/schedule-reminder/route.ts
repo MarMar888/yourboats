@@ -11,12 +11,15 @@ const SCHEDULE_URL = process.env.NEXT_PUBLIC_APP_URL
   : 'https://yourboats.vercel.app/schedule'
 
 export async function GET(req: NextRequest) {
+  // Fail closed: without a configured secret this endpoint must never run.
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    console.error('[cron/schedule-reminder] CRON_SECRET not set — refusing to run')
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const weekStart = getWeekStart(todayETDate())

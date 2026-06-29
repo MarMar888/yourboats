@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { customers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
+import { requireManager } from '@/lib/auth/require-role'
 
 interface UpdateCustomerInput {
   name: string
@@ -19,6 +20,7 @@ export async function updateCustomer(
   customerId: string,
   input: UpdateCustomerInput
 ): Promise<void> {
+  await requireManager()
   // 1. Update locally first
   await db
     .update(customers)
