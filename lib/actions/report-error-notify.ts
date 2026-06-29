@@ -16,6 +16,10 @@ export async function notifyErrorReported(comment: string): Promise<void> {
     ? comment.slice(0, MAX_COMMENT_LENGTH) + '…'
     : comment
 
+  // Record the report first so it always lands on the Logs page, even if the
+  // email notification below fails.
+  await log({ action: 'error_reported', metadata: { comment: truncated } })
+
   try {
     const userLabel = user.displayName
       ? `${user.displayName} (${user.email})`
@@ -34,7 +38,6 @@ export async function notifyErrorReported(comment: string): Promise<void> {
       subject: 'Error report',
       text: truncated,
     })
-    await log({ action: 'error_reported', metadata: { comment: truncated } })
   } catch (err) {
     console.error('[report-error] Failed to send notification:', err)
   }
