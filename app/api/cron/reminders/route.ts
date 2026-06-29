@@ -8,6 +8,7 @@ import {
   formatServiceType,
 } from '@/lib/email/templates/service-reminder'
 import { logSystem } from '@/lib/log'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 // Row returned by the tomorrow-services query
 interface TomorrowServiceRow {
@@ -33,16 +34,22 @@ interface CustomerReminder {
 
 export async function GET(req: NextRequest) {
   // ── Auth ───────────────────────────────────────────────────────────────────
-  // Fail closed: without a configured secret this endpoint (which sends customer
-  // emails and can expose customer PII via dryRun) must never run.
+  // Accept either Vercel cron's CRON_SECRET bearer, OR an authenticated
+  // owner/manager — the in-app reminder test panel calls this from the browser
+  // (with no secret) to preview/send. Anonymous callers are always rejected,
+  // so this still fails closed even if CRON_SECRET is unset.
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    console.error('[cron/reminders] CRON_SECRET not set — refusing to run')
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
-  }
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const hasCronSecret = !!cronSecret && authHeader === `Bearer ${cronSecret}`
+
+  if (!hasCronSecret) {
+    if (!cronSecret) {
+      console.warn('[cron/reminders] CRON_SECRET not set — only authenticated managers can trigger this route')
+    }
+    const user = await getCurrentUser()
+    if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
   }
 
   const { searchParams } = new URL(req.url)

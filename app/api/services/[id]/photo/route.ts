@@ -15,6 +15,11 @@ const IMAGE_SIGNATURES: { ext: string; bytes: number[] }[] = [
   // WEBP: "RIFF" .... "WEBP" — checked specially below.
 ]
 
+// HEIC/HEIF brands found at bytes 8-11 of an ISO-BMFF "ftyp" box (iPhone default).
+const HEIF_BRANDS = new Set([
+  'heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1', 'heif',
+])
+
 function detectImageExt(buf: Uint8Array): string | null {
   for (const sig of IMAGE_SIGNATURES) {
     if (sig.bytes.every((b, i) => buf[i] === b)) return sig.ext
@@ -25,6 +30,11 @@ function detectImageExt(buf: Uint8Array): string | null {
     buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
   ) {
     return 'webp'
+  }
+  // HEIC/HEIF: bytes 4-7 "ftyp", brand at bytes 8-11
+  if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
+    const brand = String.fromCharCode(buf[8], buf[9], buf[10], buf[11])
+    if (HEIF_BRANDS.has(brand)) return 'heic'
   }
   return null
 }
@@ -57,15 +67,16 @@ export async function POST(
   const bytes = new Uint8Array(await file.arrayBuffer())
   const ext = detectImageExt(bytes)
   if (!ext) {
-    return NextResponse.json({ error: 'File must be a JPEG, PNG, GIF, or WEBP image' }, { status: 400 })
+    return NextResponse.json({ error: 'File must be a JPEG, PNG, GIF, WEBP, or HEIC image' }, { status: 400 })
   }
 
   // Random suffix avoids deterministic overwrite of an existing photo.
   const pathname = `completion-photos/${serviceId}.${ext}`
+  const contentType = ext === 'jpg' ? 'image/jpeg' : ext === 'heic' ? 'image/heic' : `image/${ext}`
   const blob = await put(pathname, file, {
     access: 'public',
     addRandomSuffix: true,
-    contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+    contentType,
   })
 
   // Persist URL to the service record
