@@ -1,9 +1,9 @@
 import { put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { db } from '@/lib/db'
-import { services, serviceBoatAssignments } from '@/lib/db/schema'
+import { services } from '@/lib/db/schema'
 
 // Raster image magic-byte signatures. We sniff the real bytes instead of
 // trusting the client-supplied Content-Type / filename, which prevents
@@ -38,27 +38,11 @@ export async function POST(
 
   const { id: serviceId } = await params
 
-  // Confirm service exists
+  // Confirm service exists. Any logged-in user may upload a completion photo for
+  // any service (field crews complete each other's jobs), so there is no
+  // per-service ownership check here — only the authentication gate above.
   const [svc] = await db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).limit(1)
   if (!svc) return NextResponse.json({ error: 'Service not found' }, { status: 404 })
-
-  // Authorization: owner/manager can upload for any service; an employee may
-  // only upload for a service they are assigned to (prevents cross-service IDOR).
-  if (user.role !== 'owner' && user.role !== 'manager') {
-    const [assignment] = await db
-      .select({ userId: serviceBoatAssignments.userId })
-      .from(serviceBoatAssignments)
-      .where(
-        and(
-          eq(serviceBoatAssignments.serviceId, serviceId),
-          eq(serviceBoatAssignments.userId, user.id)
-        )
-      )
-      .limit(1)
-    if (!assignment) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-  }
 
   const formData = await req.formData()
   const file = formData.get('photo') as File | null
