@@ -33,12 +33,16 @@ interface CustomerReminder {
 
 export async function GET(req: NextRequest) {
   // ── Auth ───────────────────────────────────────────────────────────────────
+  // Fail closed: without a configured secret this endpoint (which sends customer
+  // emails and can expose customer PII via dryRun) must never run.
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    console.error('[cron/reminders] CRON_SECRET not set — refusing to run')
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { searchParams } = new URL(req.url)

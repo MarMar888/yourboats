@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-
-const DEV_AUTH = process.env.NEXT_PUBLIC_DEV_AUTH === 'true'
+import { isDevAuthEnabled } from '@/lib/auth/dev-auth'
 
 // Public paths that never require auth
 const PUBLIC_PATHS = ['/login', '/pick-user', '/api/auth', '/api/mcp', '/ingest']
@@ -25,7 +24,7 @@ function devAuthMiddleware(request: NextRequest): NextResponse {
 
 // ── Unified export ───────────────────────────────────────────────────────────
 export function middleware(request: NextRequest) {
-  if (DEV_AUTH) {
+  if (isDevAuthEnabled()) {
     return devAuthMiddleware(request)
   }
   return NextResponse.next()

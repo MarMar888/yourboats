@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { DEV_USERS, DEV_USER_COOKIE } from '@/lib/dev-users'
+import { isDevAuthEnabled } from '@/lib/auth/dev-auth'
 import type { User } from '@/lib/db/schema'
 
 export type CurrentUser = Pick<User, 'id' | 'displayName' | 'role' | 'email'>
@@ -12,8 +13,9 @@ export type CurrentUser = Pick<User, 'id' | 'displayName' | 'role' | 'email'>
  * Returns the current authenticated user.
  *
  * Resolution order:
- *  1. If NEXT_PUBLIC_DEV_AUTH === 'true' → read the dev_user cookie and return
- *     the matching DEV_USERS entry (no DB lookup needed).
+ *  1. If dev auth is enabled (NEXT_PUBLIC_DEV_AUTH === 'true' and not a prod
+ *     deploy) → read the dev_user cookie and return the matching DEV_USERS
+ *     entry (no DB lookup needed).
  *  2. Otherwise → read the Neon Auth session and return the corresponding
  *     row from the `users` DB table (synced on login).
  *
@@ -21,7 +23,7 @@ export type CurrentUser = Pick<User, 'id' | 'displayName' | 'role' | 'email'>
  */
 async function resolveCurrentUser(): Promise<CurrentUser | null> {
   // ── Dev-auth shortcut ────────────────────────────────────────────────────
-  if (process.env.NEXT_PUBLIC_DEV_AUTH === 'true') {
+  if (isDevAuthEnabled()) {
     const cookieStore = await cookies()
     const devUserId = cookieStore.get(DEV_USER_COOKIE)?.value
     const devUser = DEV_USERS.find((u) => u.id === devUserId)
