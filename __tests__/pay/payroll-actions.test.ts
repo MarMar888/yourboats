@@ -21,6 +21,7 @@ vi.mock('@/lib/db', () => ({
     select: vi.fn(),
     update: vi.fn(),
     insert: vi.fn(),
+    delete: vi.fn(),
   },
 }))
 
@@ -86,6 +87,9 @@ beforeEach(() => {
     displayName: 'Owner One',
     role: 'owner',
     email: 'owner@example.com',
+  })
+  ;(db.delete as ReturnType<typeof vi.fn>).mockReturnValue({
+    where: vi.fn().mockResolvedValue(undefined),
   })
 })
 
