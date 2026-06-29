@@ -1,19 +1,14 @@
 'use server'
 
-import { randomBytes, createHash } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { and, desc, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { mcpTokens } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { hashToken } from '@/lib/mcp/hash-token'
 
 const PREFIX = 'fl_mcp_'
-
-// Must match lib/mcp/verify-token.ts hashing exactly.
-function hashToken(raw: string): string {
-  const pepper = process.env.MCP_TOKEN_PEPPER ?? ''
-  return createHash('sha256').update(pepper + raw).digest('hex')
-}
 
 export type McpTokenRow = {
   id: string
