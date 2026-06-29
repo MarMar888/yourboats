@@ -20,7 +20,7 @@ function fmtDate(ymd: string) {
 
 function fmtDateTime(d: Date | string) {
   const date = typeof d === 'string' ? new Date(d) : d
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })
 }
 
 type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'void'
