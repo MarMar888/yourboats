@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,6 +50,10 @@ export function EditInvoiceForm({ invoiceId, initialNotes, initialStatus, initia
     setItems((prev) => prev.map((item) => item.boatId === boatId ? { ...item, ...next } : item))
   }
 
+  const removeItem = (boatId: string) => {
+    setItems((prev) => prev.filter((item) => item.boatId !== boatId))
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -90,7 +95,17 @@ export function EditInvoiceForm({ invoiceId, initialNotes, initialStatus, initia
                       <div className="text-xs text-muted-foreground">{item.lengthFt} ft</div>
                     )}
                   </div>
-                  <div className="text-right text-sm font-semibold tabular-nums">${amount.toFixed(2)}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right text-sm font-semibold tabular-nums">${amount.toFixed(2)}</div>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.boatId)}
+                      disabled={items.length === 1}
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

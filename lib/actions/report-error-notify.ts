@@ -3,6 +3,7 @@
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { emailTransport } from '@/lib/email/client'
 import { MARLEY_SMS } from '@/lib/constants/sms'
+import { log } from '@/lib/log'
 
 const MAX_COMMENT_LENGTH = 500
 
@@ -23,9 +24,17 @@ export async function notifyErrorReported(comment: string): Promise<void> {
     await emailTransport.sendMail({
       from: `"yourboats" <${process.env.GMAIL_USER}>`,
       to: MARLEY_SMS,
-      subject: `Error from ${userLabel}: ${truncated}`,
-      text: `Reported by: ${userLabel}\n\nError reported: ${truncated} — View in PostHog: ${posthogHost}/activity/explore`,
+      subject: 'Error report',
+      text: `Error reported by: ${userLabel}`,
     })
+
+    await emailTransport.sendMail({
+      from: `"yourboats" <${process.env.GMAIL_USER}>`,
+      to: MARLEY_SMS,
+      subject: 'Error report',
+      text: truncated,
+    })
+    await log({ action: 'error_reported', metadata: { comment: truncated } })
   } catch (err) {
     console.error('[report-error] Failed to send notification:', err)
   }
