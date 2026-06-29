@@ -292,6 +292,7 @@ export function EmployeePayView({
   const [periodOffset, setPeriodOffset] = useState(0)
   const [tab, setTab] = useState<'services' | 'how-it-works'>('services')
   const [rows, setRows] = useState<MyServiceRow[] | null>(null)
+  const [periodNotes, setPeriodNotes] = useState('')
   const [loading, startTransition] = useTransition()
   const [error, setError] = useState('')
 
@@ -311,8 +312,9 @@ export function EmployeePayView({
 
         const res = await fetch(`/api/pay/my-period?${params.toString()}`)
         if (!res.ok) throw new Error('Failed to load pay data')
-        const data = await res.json() as { services: MyServiceRow[] }
+        const data = await res.json() as { services: MyServiceRow[]; notes: string }
         setRows(data.services)
+        setPeriodNotes(data.notes ?? '')
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error loading pay')
       }
@@ -351,6 +353,14 @@ export function EmployeePayView({
             {viewedEmployeeName ? `${viewedEmployeeName}'s earnings this period` : 'My earnings this period'}
           </span>
           <span className="text-lg font-bold tabular-nums">{fmt(totalEarnings)}</span>
+        </div>
+      )}
+
+      {/* Period notes from manager */}
+      {periodNotes && (
+        <div className="rounded-xl border bg-amber-50 border-amber-200 px-4 py-3 text-sm text-amber-900 whitespace-pre-wrap">
+          <p className="text-xs font-semibold text-amber-700 mb-1">Note from manager</p>
+          {periodNotes}
         </div>
       )}
 

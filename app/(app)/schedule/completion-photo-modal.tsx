@@ -7,11 +7,10 @@ interface Props {
   serviceId: string
   customerName: string
   onPhotoSaved: (photoUrl: string) => void
-  onSkip: () => void
   onClose: () => void
 }
 
-export function CompletionPhotoModal({ serviceId, customerName, onPhotoSaved, onSkip, onClose }: Props) {
+export function CompletionPhotoModal({ serviceId, customerName, onPhotoSaved, onClose }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -124,10 +123,10 @@ export function CompletionPhotoModal({ serviceId, customerName, onPhotoSaved, on
           </button>
           <button
             disabled={uploading}
-            onClick={onSkip}
+            onClick={onClose}
             className="w-full inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-40"
           >
-            Complete without photo
+            Cancel
           </button>
         </div>
       </div>

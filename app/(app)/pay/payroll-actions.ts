@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { payroll, services, manualPayrollLines, invoices } from '@/lib/db/schema'
-import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { payroll, services, manualPayrollLines, invoices, payrollPeriodNotes } from '@/lib/db/schema'
+import { and, eq, gte, inArray, lte, notInArray, sql } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { revalidatePath } from 'next/cache'
@@ -111,6 +111,22 @@ export async function savePayrollEntries(
         staleReason:   sql`excluded.stale_reason`,
       },
     })
+
+  // Delete stale rows: users that were previously saved for these services
+  // but are no longer in the active assignment set (excluded or removed).
+  const activeByService = new Map<string, string[]>()
+  for (const e of entries) {
+    const existing = activeByService.get(e.serviceId) ?? []
+    activeByService.set(e.serviceId, [...existing, e.userId])
+  }
+  for (const [serviceId, activeUserIds] of Array.from(activeByService.entries())) {
+    await db.delete(payroll).where(
+      and(
+        eq(payroll.serviceId, serviceId),
+        notInArray(payroll.userId, activeUserIds)
+      )
+    )
+  }
 
   await log({
     action: 'save_payroll',
@@ -464,5 +480,35 @@ export async function unapprovePayrollForPeriod(
   }
 
   revalidatePath('/pay')
+  return {}
+}
+
+// ─── Pay period notes ─────────────────────────────────────────────────────────
+
+export async function getPeriodNotes(periodStart: string, periodEnd: string): Promise<string> {
+  const [row] = await db
+    .select({ notes: payrollPeriodNotes.notes })
+    .from(payrollPeriodNotes)
+    .where(and(eq(payrollPeriodNotes.periodStart, periodStart), eq(payrollPeriodNotes.periodEnd, periodEnd)))
+    .limit(1)
+  return row?.notes ?? ''
+}
+
+export async function savePeriodNotes(
+  periodStart: string,
+  periodEnd: string,
+  notes: string
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { error: 'Not authorized' }
+  }
+  await db
+    .insert(payrollPeriodNotes)
+    .values({ periodStart, periodEnd, notes, updatedByUserId: user.id })
+    .onConflictDoUpdate({
+      target: [payrollPeriodNotes.periodStart, payrollPeriodNotes.periodEnd],
+      set: { notes, updatedAt: new Date(), updatedByUserId: user.id },
+    })
   return {}
 }

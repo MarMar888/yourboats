@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Camera, Check, Clock, Flag, Mail, MapPin } from 'lucide-react'
+import { Check, Clock, Flag, Mail, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
 import LogComplaintModal from '@/components/log-complaint-modal'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { updateBoatAssignments } from './[id]/actions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -161,9 +162,26 @@ export default function ScheduleCard({
           {/* Actions + status */}
           <div className="relative z-10 flex items-center gap-1 shrink-0">
             {completionPhotoUrl && (
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200 bg-sky-50 text-sky-700" title="Completion photo attached">
-                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-              </span>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={completionPhotoUrl}
+                      alt="Completion photo"
+                      className="h-7 w-7 rounded object-cover border border-sky-200 cursor-pointer"
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side="left" sideOffset={8} className="p-0 overflow-hidden border shadow-lg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={completionPhotoUrl}
+                      alt="Completion photo"
+                      className="w-56 max-h-72 object-cover"
+                    />
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {approvedAt && (
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-1 text-[10px] font-semibold text-emerald-700">

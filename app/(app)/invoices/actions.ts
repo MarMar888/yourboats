@@ -306,62 +306,60 @@ export async function updateInvoice(
     }
   }
 
-  const result = await db.transaction(async (tx) => {
-    const [invoice] = await tx
-      .select({ serviceId: invoices.serviceId, status: invoices.status })
-      .from(invoices)
-      .where(eq(invoices.id, invoiceId))
-      .limit(1)
+  const [invoice] = await db
+    .select({ serviceId: invoices.serviceId, status: invoices.status })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1)
 
-    if (!invoice) return { ok: false as const, error: 'Invoice not found.' }
-    if (invoice.status === 'paid' || invoice.status === 'void') {
-      return { ok: false as const, error: 'Paid or void invoices cannot be edited.' }
-    }
+  if (!invoice) return { ok: false, error: 'Invoice not found.' }
+  if (invoice.status === 'paid' || invoice.status === 'void') {
+    return { ok: false, error: 'Paid or void invoices cannot be edited.' }
+  }
 
-    const serviceLines = await tx
-      .select({
-        boatId: serviceBoats.boatId,
-        rateType: serviceBoats.rateType,
-        rate: serviceBoats.rate,
-        lengthFt: boats.lengthFt,
-      })
-      .from(serviceBoats)
-      .leftJoin(boats, eq(boats.id, serviceBoats.boatId))
-      .where(eq(serviceBoats.serviceId, invoice.serviceId))
+  const serviceLines = await db
+    .select({
+      boatId: serviceBoats.boatId,
+      rateType: serviceBoats.rateType,
+      rate: serviceBoats.rate,
+      lengthFt: boats.lengthFt,
+    })
+    .from(serviceBoats)
+    .leftJoin(boats, eq(boats.id, serviceBoats.boatId))
+    .where(eq(serviceBoats.serviceId, invoice.serviceId))
 
-    const serviceLineMap = new Map(serviceLines.map((line) => [line.boatId, line]))
-    const boatIds = lineItems.map((item) => item.boatId)
-    const missingLine = boatIds.find((boatId) => !serviceLineMap.has(boatId))
-    if (missingLine) return { ok: false as const, error: 'Invoice line item no longer exists on this service.' }
+  const serviceLineMap = new Map(serviceLines.map((line) => [line.boatId, line]))
+  const boatIds = lineItems.map((item) => item.boatId)
+  const missingLine = boatIds.find((boatId) => !serviceLineMap.has(boatId))
+  if (missingLine) return { ok: false, error: 'Invoice line item no longer exists on this service.' }
 
-    const editedByBoatId = new Map(lineItems.map((item) => [item.boatId, item]))
+  const editedByBoatId = new Map(lineItems.map((item) => [item.boatId, item]))
+  const amount = serviceLines.reduce((sum, line) => {
+    const edited = editedByBoatId.get(line.boatId)
+    const rateType = edited?.rateType ?? line.rateType ?? 'per_ft'
+    const rate = Number(edited?.rate ?? line.rate ?? 0)
+    const qty = rateType === 'per_ft' ? (line.lengthFt ?? 0) : 1
+    return sum + rate * qty
+  }, 0)
+
+  try {
     for (const item of lineItems) {
-      const rate = Number(item.rate)
-
-      await tx
+      await db
         .update(serviceBoats)
         .set({
           description: item.description.trim() || null,
           rateType: item.rateType,
-          rate: String(rate),
+          rate: String(Number(item.rate)),
         })
         .where(and(eq(serviceBoats.serviceId, invoice.serviceId), eq(serviceBoats.boatId, item.boatId)))
     }
 
-    const amount = serviceLines.reduce((sum, line) => {
-      const edited = editedByBoatId.get(line.boatId)
-      const rateType = edited?.rateType ?? line.rateType ?? 'per_ft'
-      const rate = Number(edited?.rate ?? line.rate ?? 0)
-      const qty = rateType === 'per_ft' ? (line.lengthFt ?? 0) : 1
-      return sum + rate * qty
-    }, 0)
-
-    await tx
+    await db
       .update(services)
       .set({ totalPrice: String(amount) })
       .where(eq(services.id, invoice.serviceId))
 
-    await tx
+    await db
       .update(invoices)
       .set({
         amount: String(amount),
@@ -371,14 +369,14 @@ export async function updateInvoice(
         ...(parsedDocNumber !== undefined ? { docNumber: parsedDocNumber } : {}),
       })
       .where(eq(invoices.id, invoiceId))
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, error: message })
+    return { ok: false, error: `Failed to save invoice: ${message}` }
+  }
 
-    return { ok: true as const, amount, serviceId: invoice.serviceId }
-  })
-
-  if (!result.ok) return result
-  await refreshServicePayroll(result.serviceId, 'invoice_lines_updated')
-
-  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount: result.amount, status, docNumber: parsedDocNumber } })
+  await refreshServicePayroll(invoice.serviceId, 'invoice_lines_updated').catch(() => {})
+  await log({ action: 'update_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { amount, status, docNumber: parsedDocNumber } })
   revalidatePath('/invoices')
   revalidatePath('/schedule')
   revalidatePath('/pay')

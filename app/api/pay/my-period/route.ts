@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { payroll, serviceBoats, boats } from '@/lib/db/schema'
+import { payroll, serviceBoats, boats, payrollPeriodNotes } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export type MyServiceRow = {
@@ -67,8 +67,15 @@ export async function GET(req: NextRequest) {
     )
     .orderBy(payroll.serviceDate)
 
+  const [notesRow] = await db
+    .select({ notes: payrollPeriodNotes.notes })
+    .from(payrollPeriodNotes)
+    .where(and(eq(payrollPeriodNotes.periodStart, startDate), eq(payrollPeriodNotes.periodEnd, endDate)))
+    .limit(1)
+  const periodNotes = notesRow?.notes ?? ''
+
   if (rows.length === 0) {
-    return NextResponse.json({ services: [] })
+    return NextResponse.json({ services: [], notes: periodNotes })
   }
 
   // Fetch boat names for each service
@@ -101,5 +108,5 @@ export async function GET(req: NextRequest) {
     approved:     r.approvedAt != null,
   }))
 
-  return NextResponse.json({ services: result })
+  return NextResponse.json({ services: result, notes: periodNotes })
 }
