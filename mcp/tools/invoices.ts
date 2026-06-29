@@ -10,7 +10,7 @@ import { getQboClient, fetchQboInvoiceLink } from '../../lib/qbo/client'
 import { findBestQboItem, getCachedQboItems } from '../../lib/qbo/items'
 import { voidInvoiceById } from '../../lib/invoices/void-invoice'
 import { emailTransport } from '../../lib/email/client'
-import { getOwnerId } from '../owner'
+import { getActorId } from '../actor'
 import { mcpLog } from '../log'
 import { tool, YMD } from './_util'
 
@@ -57,7 +57,7 @@ async function resolveItem(serviceType: string, storedItemId: string | null, ove
 // Push an invoice to QBO — updates the existing QBO invoice if one is linked,
 // otherwise creates it and writes back the QBO id, doc number, and payment link.
 async function pushInvoiceToQbo(invoiceId: string, overrideItemId?: string): Promise<Result> {
-  const ownerId = await getOwnerId()
+  const actorId = getActorId()
   if (!(await qboConnected())) return { ok: false, error: 'QuickBooks not connected.' }
 
   const [inv] = await db
@@ -102,7 +102,7 @@ async function pushInvoiceToQbo(invoiceId: string, overrideItemId?: string): Pro
       )
       const paymentLink = await fetchQboInvoiceLink(inv.qboInvoiceId).catch(() => null)
       await db.update(invoices).set({ qboNeedsSync: false, lastSyncedAt: new Date(), ...(paymentLink ? { qboPaymentLink: paymentLink } : {}) }).where(eq(invoices.id, invoiceId))
-      await mcpLog({ userId: ownerId, action: 'sync_invoice_to_qbo', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: inv.qboInvoiceId } })
+      await mcpLog({ userId: actorId, action: 'sync_invoice_to_qbo', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: inv.qboInvoiceId } })
       return { ok: true, qboInvoiceId: inv.qboInvoiceId, paymentLink: paymentLink ?? null, mode: 'updated' }
     }
 
@@ -115,7 +115,7 @@ async function pushInvoiceToQbo(invoiceId: string, overrideItemId?: string): Pro
     )
     const paymentLink = await fetchQboInvoiceLink(created.Id).catch(() => null)
     await db.update(invoices).set({ qboInvoiceId: created.Id, docNumber: created.DocNumber ? parseInt(created.DocNumber, 10) : null, qboNeedsSync: false, lastSyncedAt: new Date(), ...(paymentLink ? { qboPaymentLink: paymentLink } : {}) }).where(eq(invoices.id, invoiceId))
-    await mcpLog({ userId: ownerId, action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id } })
+    await mcpLog({ userId: actorId, action: 'create_qbo_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { qboInvoiceId: created.Id } })
     return { ok: true, qboInvoiceId: created.Id, docNumber: created.DocNumber ?? null, paymentLink: paymentLink ?? null, mode: 'created' }
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -197,7 +197,7 @@ export function registerInvoiceTools(server: McpServer): void {
       invoiceId: z.string().uuid().describe('Local invoice UUID (must already be created in QBO)'),
     },
     async ({ invoiceId }): Promise<Result> => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [inv] = await db
         .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId, qboPaymentLink: invoices.qboPaymentLink, status: invoices.status, serviceId: invoices.serviceId })
         .from(invoices)
@@ -233,7 +233,7 @@ export function registerInvoiceTools(server: McpServer): void {
           html: `<p>Hi ${svc.customerName}, your invoice from Squeaky Clean Boats is ready: <a href="${url}">${url}</a></p>`,
         })
         await db.update(invoices).set({ status: 'sent', sentAt: new Date() }).where(eq(invoices.id, invoiceId))
-        await mcpLog({ userId: ownerId, action: 'send_invoice_via_reminder_contacts', entityType: 'invoice', entityId: invoiceId, metadata: { to } })
+        await mcpLog({ userId: actorId, action: 'send_invoice_via_reminder_contacts', entityType: 'invoice', entityId: invoiceId, metadata: { to } })
         return { ok: true, sentVia: 'reminder_contacts', to }
       }
 
@@ -243,7 +243,7 @@ export function registerInvoiceTools(server: McpServer): void {
         qbo.sendInvoicePdf(inv.qboInvoiceId!, svc.email!, (err: unknown, _r: any) => (err ? reject(err) : resolve()))
       )
       await db.update(invoices).set({ status: 'sent', sentAt: new Date(), lastSyncedAt: new Date() }).where(eq(invoices.id, invoiceId))
-      await mcpLog({ userId: ownerId, action: 'send_qbo_invoice', entityType: 'invoice', entityId: invoiceId })
+      await mcpLog({ userId: actorId, action: 'send_qbo_invoice', entityType: 'invoice', entityId: invoiceId })
       return { ok: true, sentVia: 'qbo_email', to: svc.email }
     }
   )
@@ -256,10 +256,10 @@ export function registerInvoiceTools(server: McpServer): void {
       invoiceId: z.string().uuid().describe('Local invoice UUID'),
     },
     async ({ invoiceId }): Promise<Result> => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const result = await voidInvoiceById(invoiceId)
       if (!result.ok) return { ok: false, error: result.error }
-      await mcpLog({ userId: ownerId, action: 'void_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { serviceId: result.serviceId } })
+      await mcpLog({ userId: actorId, action: 'void_invoice', entityType: 'invoice', entityId: invoiceId, metadata: { serviceId: result.serviceId } })
       return { ok: true, invoiceId, serviceId: result.serviceId }
     }
   )

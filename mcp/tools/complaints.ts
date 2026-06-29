@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { complaints, customers, services } from '../../lib/db/schema'
-import { getOwnerId } from '../owner'
+import { getActorId } from '../actor'
 import { mcpLog } from '../log'
 import { tool } from './_util'
 
@@ -52,15 +52,15 @@ export function registerComplaintTools(server: McpServer): void {
       severity: z.enum(['minor', 'major']).describe('Complaint severity'),
     },
     async ({ serviceId, description, severity }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [svc] = await db.select({ customerId: services.customerId }).from(services).where(eq(services.id, serviceId)).limit(1)
       if (!svc) return { ok: false, error: 'Service not found.' }
 
       const [complaint] = await db
         .insert(complaints)
-        .values({ serviceId, customerId: svc.customerId, description: description.trim(), severity, resolved: false, createdByUserId: ownerId })
+        .values({ serviceId, customerId: svc.customerId, description: description.trim(), severity, resolved: false, createdByUserId: actorId })
         .returning()
-      await mcpLog({ userId: ownerId, action: 'flag_complaint', entityType: 'service', entityId: serviceId, metadata: { complaintId: complaint.id, severity } })
+      await mcpLog({ userId: actorId, action: 'flag_complaint', entityType: 'service', entityId: serviceId, metadata: { complaintId: complaint.id, severity } })
       return { ok: true, complaintId: complaint.id }
     }
   )
@@ -73,13 +73,13 @@ export function registerComplaintTools(server: McpServer): void {
       complaintId: z.string().uuid().describe('Complaint UUID'),
     },
     async ({ complaintId }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [existing] = await db.select({ id: complaints.id, resolved: complaints.resolved }).from(complaints).where(eq(complaints.id, complaintId)).limit(1)
       if (!existing) return { ok: false, error: 'Complaint not found.' }
       if (existing.resolved) return { ok: true, complaintId, alreadyResolved: true }
 
       await db.update(complaints).set({ resolved: true, resolvedAt: new Date() }).where(eq(complaints.id, complaintId))
-      await mcpLog({ userId: ownerId, action: 'resolve_complaint', entityType: 'complaint', entityId: complaintId })
+      await mcpLog({ userId: actorId, action: 'resolve_complaint', entityType: 'complaint', entityId: complaintId })
       return { ok: true, complaintId }
     }
   )

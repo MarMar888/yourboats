@@ -14,7 +14,7 @@ import {
   customers,
 } from '../../lib/db/schema'
 import { refreshServicePayroll } from '../../lib/pay/payroll-projection'
-import { getOwnerId } from '../owner'
+import { getActorId } from '../actor'
 import { mcpLog } from '../log'
 import { tool, YMD } from './_util'
 
@@ -89,7 +89,7 @@ export function registerServiceTools(server: McpServer): void {
       notes: z.string().optional().describe('Optional service notes'),
     },
     async ({ customerId, serviceDate, serviceType, boats: boatLines, qboItemId, notes }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [customer] = await db
         .select({ id: customers.id, isPrepaid: customers.isPrepaid })
         .from(customers)
@@ -117,13 +117,13 @@ export function registerServiceTools(server: McpServer): void {
       if (!customer.isPrepaid) {
         const [invoice] = await db
           .insert(invoices)
-          .values({ serviceId: service.id, amount: String(total), status: 'draft', createdByUserId: ownerId })
+          .values({ serviceId: service.id, amount: String(total), status: 'draft', createdByUserId: actorId })
           .returning()
         await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, service.id))
         invoiceId = invoice.id
       }
 
-      await mcpLog({ userId: ownerId, action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'onetime' } })
+      await mcpLog({ userId: actorId, action: 'create_service', entityType: 'service', entityId: service.id, metadata: { customerId, serviceDate, serviceType, mode: 'onetime' } })
       return { ok: true, serviceId: service.id, total, invoiceId, isPrepaid: customer.isPrepaid }
     }
   )
@@ -144,7 +144,7 @@ export function registerServiceTools(server: McpServer): void {
       prepaid: z.boolean().default(false).describe('Mark the schedule prepaid (skips invoicing on completion)'),
     },
     async ({ customerId, serviceType, startDate, endDate, dayOfWeek, frequencyWeeks, boats: boatLines, qboItemId, prepaid }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [customer] = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, customerId)).limit(1)
       if (!customer) return { ok: false, error: 'Customer not found.' }
 
@@ -185,7 +185,7 @@ export function registerServiceTools(server: McpServer): void {
 
       for (const svc of inserted) await insertServiceBoats(svc.id, boatLines)
 
-      await mcpLog({ userId: ownerId, action: 'create_recurring_schedule', entityType: 'recurring_schedule', entityId: schedule.id, metadata: { customerId, serviceType, frequencyWeeks, dayOfWeek, occurrenceCount: inserted.length } })
+      await mcpLog({ userId: actorId, action: 'create_recurring_schedule', entityType: 'recurring_schedule', entityId: schedule.id, metadata: { customerId, serviceType, frequencyWeeks, dayOfWeek, occurrenceCount: inserted.length } })
       return { ok: true, scheduleId: schedule.id, occurrenceCount: inserted.length, total, serviceIds: inserted.map((s) => s.id) }
     }
   )
@@ -199,13 +199,13 @@ export function registerServiceTools(server: McpServer): void {
       tipAmount: z.number().nonnegative().describe('Tip amount in dollars'),
     },
     async ({ serviceId, tipAmount }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [service] = await db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).limit(1)
       if (!service) return { ok: false, error: 'Service not found.' }
 
       await db.update(services).set({ tipAmount: String(tipAmount) }).where(eq(services.id, serviceId))
       await refreshServicePayroll(serviceId, 'tip_updated')
-      await mcpLog({ userId: ownerId, action: 'add_tip', entityType: 'service', entityId: serviceId, metadata: { tipAmount } })
+      await mcpLog({ userId: actorId, action: 'add_tip', entityType: 'service', entityId: serviceId, metadata: { tipAmount } })
       return { ok: true, serviceId, tipAmount }
     }
   )

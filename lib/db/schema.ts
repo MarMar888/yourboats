@@ -274,6 +274,24 @@ export const qboItems = pgTable('qbo_items', {
   syncedAt: timestamp('synced_at').defaultNow().notNull(),
 })
 
+// Personal Access Tokens for the remote HTTP MCP server. Each token is bound to a
+// user; the raw bearer is shown once and only its SHA-256 hash is stored.
+export const mcpTokens = pgTable('mcp_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  tokenPrefix: text('token_prefix').notNull(), // first chars, for display only
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+  expiresAt: timestamp('expires_at'),          // null = no expiry
+  revokedAt: timestamp('revoked_at'),
+})
+
+export type McpToken = typeof mcpTokens.$inferSelect
+export type NewMcpToken = typeof mcpTokens.$inferInsert
+
 export type QboTokens = typeof qboTokens.$inferSelect
 
 // ─── Relations ────────────────────────────────────────────────────────────────

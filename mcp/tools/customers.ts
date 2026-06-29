@@ -7,7 +7,7 @@ import { desc, eq, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { customers, boats, services, complaints, invoices } from '../../lib/db/schema'
 import { getQboClient } from '../../lib/qbo/client'
-import { getOwnerId } from '../owner'
+import { getActorId } from '../actor'
 import { mcpLog } from '../log'
 import { tool } from './_util'
 
@@ -99,12 +99,12 @@ export function registerCustomerTools(server: McpServer): void {
       isPrepaid: z.boolean().default(false).describe('Prepaid customers are never invoiced'),
     },
     async ({ name, email, phone, address, notes, isPrepaid }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [customer] = await db
         .insert(customers)
         .values({ name, email: email ?? null, phone: phone ?? null, address: address ?? null, notes: notes ?? null, isPrepaid })
         .returning()
-      await mcpLog({ userId: ownerId, action: 'create_customer', entityType: 'customer', entityId: customer.id, metadata: { name } })
+      await mcpLog({ userId: actorId, action: 'create_customer', entityType: 'customer', entityId: customer.id, metadata: { name } })
       return { ok: true, customerId: customer.id, customer }
     }
   )
@@ -123,7 +123,7 @@ export function registerCustomerTools(server: McpServer): void {
       isPrepaid: z.boolean().optional().describe('Update prepaid flag'),
     },
     async ({ customerId, name, email, phone, address, notes, isPrepaid }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [existing] = await db.select({ qboCustomerId: customers.qboCustomerId, name: customers.name }).from(customers).where(eq(customers.id, customerId)).limit(1)
       if (!existing) return { ok: false, error: 'Customer not found.' }
 
@@ -159,7 +159,7 @@ export function registerCustomerTools(server: McpServer): void {
         }
       }
 
-      await mcpLog({ userId: ownerId, action: 'update_customer', entityType: 'customer', entityId: customerId, metadata: { qboSynced } })
+      await mcpLog({ userId: actorId, action: 'update_customer', entityType: 'customer', entityId: customerId, metadata: { qboSynced } })
       return { ok: true, customerId, qboSynced, ...(qboError ? { qboError } : {}) }
     }
   )
@@ -176,14 +176,14 @@ export function registerCustomerTools(server: McpServer): void {
       notes: z.string().optional().describe('Notes about the boat'),
     },
     async ({ customerId, nickname, makeModel, lengthFt, notes }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [customer] = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, customerId)).limit(1)
       if (!customer) return { ok: false, error: 'Customer not found.' }
       const [boat] = await db
         .insert(boats)
         .values({ customerId, nickname, makeModel: makeModel ?? null, lengthFt: lengthFt ?? null, notes: notes ?? null })
         .returning()
-      await mcpLog({ userId: ownerId, action: 'create_boat', entityType: 'boat', entityId: boat.id, metadata: { customerId, nickname } })
+      await mcpLog({ userId: actorId, action: 'create_boat', entityType: 'boat', entityId: boat.id, metadata: { customerId, nickname } })
       return { ok: true, boatId: boat.id, boat }
     }
   )
@@ -200,7 +200,7 @@ export function registerCustomerTools(server: McpServer): void {
       notes: z.string().nullable().optional().describe('New notes (null to clear)'),
     },
     async ({ boatId, nickname, makeModel, lengthFt, notes }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [existing] = await db.select({ id: boats.id }).from(boats).where(eq(boats.id, boatId)).limit(1)
       if (!existing) return { ok: false, error: 'Boat not found.' }
 
@@ -212,7 +212,7 @@ export function registerCustomerTools(server: McpServer): void {
       if (Object.keys(patch).length === 0) return { ok: false, error: 'No fields to update.' }
 
       await db.update(boats).set(patch).where(eq(boats.id, boatId))
-      await mcpLog({ userId: ownerId, action: 'update_boat', entityType: 'boat', entityId: boatId })
+      await mcpLog({ userId: actorId, action: 'update_boat', entityType: 'boat', entityId: boatId })
       return { ok: true, boatId }
     }
   )

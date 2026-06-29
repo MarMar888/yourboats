@@ -15,6 +15,8 @@ import { QboSyncHealth } from './qbo-sync-health'
 import { ReconcileDocNumbersButton } from './reconcile-doc-numbers-button'
 import { TeamAccountsPanel } from './team-accounts-panel'
 import { listTeamMembers } from './team-actions'
+import { McpTokensPanel } from './mcp-tokens-panel'
+import { listMcpTokens } from './mcp-token-actions'
 
 export default async function SettingsPage({
   searchParams,
@@ -25,6 +27,9 @@ export default async function SettingsPage({
   if (!user) redirect('/login')
 
   const isManager = user.role === 'owner' || user.role === 'manager'
+
+  // Personal MCP access tokens — self for employees/managers, all for owner.
+  const mcpTokenRows = await listMcpTokens()
 
   // Employees only see the password card — skip all the business data fetching
   if (!isManager) {
@@ -39,6 +44,19 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent>
               <ChangePasswordForm />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>AI access tokens (MCP)</CardTitle>
+              <CardDescription>
+                Generate a personal token to drive yourboats from an AI client (e.g. Claude Code)
+                as yourself. Tokens act with your role and can be revoked anytime.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <McpTokensPanel tokens={mcpTokenRows} />
             </CardContent>
           </Card>
         </div>
@@ -89,6 +107,19 @@ export default async function SettingsPage({
           </CardHeader>
           <CardContent>
             <ChangePasswordForm />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>AI access tokens (MCP)</CardTitle>
+            <CardDescription>
+              Generate a personal token to drive yourboats from an AI client (e.g. Claude Code)
+              as yourself. Tokens act with your role and can be revoked anytime.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <McpTokensPanel tokens={mcpTokenRows} />
           </CardContent>
         </Card>
 

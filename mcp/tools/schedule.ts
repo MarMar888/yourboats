@@ -12,10 +12,11 @@ import {
   serviceBoats,
   boats,
   complaints,
+  recurringSchedules,
 } from '../../lib/db/schema'
 import { refreshServicePayroll } from '../../lib/pay/payroll-projection'
 import { voidInvoiceForService } from '../../lib/invoices/void-invoice'
-import { getOwnerId } from '../owner'
+import { getActorId } from '../actor'
 import { mcpLog } from '../log'
 import { tool, YMD } from './_util'
 
@@ -158,7 +159,7 @@ export function registerScheduleTools(server: McpServer): void {
       serviceId: z.string().uuid().describe('Service UUID to mark complete'),
     },
     async ({ serviceId }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [service] = await db
         .select({
           id: services.id,
@@ -166,9 +167,11 @@ export function registerScheduleTools(server: McpServer): void {
           invoiceId: services.invoiceId,
           totalPrice: services.totalPrice,
           isPrepaid: customers.isPrepaid,
+          schedulePrepaid: recurringSchedules.prepaid,
         })
         .from(services)
         .innerJoin(customers, eq(services.customerId, customers.id))
+        .leftJoin(recurringSchedules, eq(services.recurringScheduleId, recurringSchedules.id))
         .where(eq(services.id, serviceId))
         .limit(1)
       if (!service) return { ok: false, error: 'Service not found.' }
@@ -176,22 +179,24 @@ export function registerScheduleTools(server: McpServer): void {
 
       await db
         .update(services)
-        .set({ status: 'complete', completedAt: new Date(), completedByUserId: uuidOrNull(ownerId) })
+        .set({ status: 'complete', completedAt: new Date(), completedByUserId: uuidOrNull(actorId) })
         .where(eq(services.id, serviceId))
 
+      // Skip invoicing when the customer OR the originating recurring schedule is prepaid.
+      const isPrepaid = service.isPrepaid || service.schedulePrepaid === true
       let invoiceId = service.invoiceId
-      if (!service.invoiceId && !service.isPrepaid) {
+      if (!service.invoiceId && !isPrepaid) {
         const total = Number(service.totalPrice ?? 0)
         const [invoice] = await db
           .insert(invoices)
-          .values({ serviceId: service.id, amount: String(total), status: 'draft', createdByUserId: ownerId })
+          .values({ serviceId: service.id, amount: String(total), status: 'draft', createdByUserId: actorId })
           .returning()
         await db.update(services).set({ invoiceId: invoice.id }).where(eq(services.id, serviceId))
         invoiceId = invoice.id
       }
 
       await refreshServicePayroll(serviceId, 'service_completed')
-      await mcpLog({ userId: ownerId, action: 'mark_complete', entityType: 'service', entityId: serviceId })
+      await mcpLog({ userId: actorId, action: 'mark_complete', entityType: 'service', entityId: serviceId })
       return { ok: true, serviceId, invoiceId, invoiceCreated: invoiceId !== service.invoiceId }
     }
   )
@@ -204,7 +209,7 @@ export function registerScheduleTools(server: McpServer): void {
       serviceId: z.string().uuid().describe('Service UUID to revert to scheduled'),
     },
     async ({ serviceId }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [service] = await db
         .select({ id: services.id, status: services.status })
         .from(services)
@@ -218,7 +223,7 @@ export function registerScheduleTools(server: McpServer): void {
         .set({ status: 'scheduled', completedAt: null, completedByUserId: null })
         .where(eq(services.id, serviceId))
       await refreshServicePayroll(serviceId, 'service_marked_incomplete')
-      await mcpLog({ userId: ownerId, action: 'mark_incomplete', entityType: 'service', entityId: serviceId })
+      await mcpLog({ userId: actorId, action: 'mark_incomplete', entityType: 'service', entityId: serviceId })
       return { ok: true, serviceId }
     }
   )
@@ -232,7 +237,7 @@ export function registerScheduleTools(server: McpServer): void {
       newDate: z.string().regex(YMD).describe('New service date (YYYY-MM-DD)'),
     },
     async ({ serviceId, newDate }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [service] = await db
         .select({ id: services.id, status: services.status })
         .from(services)
@@ -244,7 +249,7 @@ export function registerScheduleTools(server: McpServer): void {
       await db.update(services).set({ serviceDate: newDate }).where(eq(services.id, serviceId))
       await db.update(invoices).set({ qboNeedsSync: true }).where(eq(invoices.serviceId, serviceId))
       await refreshServicePayroll(serviceId, 'service_rescheduled')
-      await mcpLog({ userId: ownerId, action: 'reschedule_service', entityType: 'service', entityId: serviceId, metadata: { newDate } })
+      await mcpLog({ userId: actorId, action: 'reschedule_service', entityType: 'service', entityId: serviceId, metadata: { newDate } })
       return { ok: true, serviceId, newDate }
     }
   )
@@ -257,7 +262,7 @@ export function registerScheduleTools(server: McpServer): void {
       serviceId: z.string().uuid().describe('Service UUID to cancel'),
     },
     async ({ serviceId }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [service] = await db
         .select({ id: services.id, status: services.status })
         .from(services)
@@ -271,7 +276,7 @@ export function registerScheduleTools(server: McpServer): void {
 
       await db.update(services).set({ status: 'cancelled' }).where(eq(services.id, serviceId))
       await refreshServicePayroll(serviceId, 'service_cancelled')
-      await mcpLog({ userId: ownerId, action: 'cancel_service', entityType: 'service', entityId: serviceId })
+      await mcpLog({ userId: actorId, action: 'cancel_service', entityType: 'service', entityId: serviceId })
       return { ok: true, serviceId }
     }
   )
@@ -285,13 +290,13 @@ export function registerScheduleTools(server: McpServer): void {
       endDate: z.string().regex(YMD).describe('Range end (YYYY-MM-DD), inclusive'),
     },
     async ({ startDate, endDate }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const updated = await db
         .update(services)
-        .set({ approvedAt: new Date(), approvedByUserId: ownerId })
+        .set({ approvedAt: new Date(), approvedByUserId: actorId })
         .where(and(gte(services.serviceDate, startDate), lte(services.serviceDate, endDate), eq(services.status, 'scheduled')))
         .returning({ id: services.id })
-      await mcpLog({ userId: ownerId, action: 'approve_week', entityType: 'week', entityId: startDate, metadata: { startDate, endDate, count: updated.length } })
+      await mcpLog({ userId: actorId, action: 'approve_week', entityType: 'week', entityId: startDate, metadata: { startDate, endDate, count: updated.length } })
       return { ok: true, approvedCount: updated.length, startDate, endDate }
     }
   )
@@ -317,7 +322,7 @@ export function registerScheduleTools(server: McpServer): void {
         .describe('Per-boat description/notes updates for boats already on this service'),
     },
     async ({ serviceId, notes, serviceType, totalPrice, boatNotes }) => {
-      const ownerId = await getOwnerId()
+      const actorId = getActorId()
       const [svc] = await db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).limit(1)
       if (!svc) return { ok: false, error: 'Service not found.' }
 
@@ -358,7 +363,7 @@ export function registerScheduleTools(server: McpServer): void {
         await refreshServicePayroll(serviceId, 'service_updated')
       }
 
-      await mcpLog({ userId: ownerId, action: 'update_service', entityType: 'service', entityId: serviceId, metadata: { fields: Object.keys(patch), boatNotes: updatedBoats.length } })
+      await mcpLog({ userId: actorId, action: 'update_service', entityType: 'service', entityId: serviceId, metadata: { fields: Object.keys(patch), boatNotes: updatedBoats.length } })
       return {
         ok: true,
         serviceId,
