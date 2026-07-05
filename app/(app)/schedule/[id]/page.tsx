@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import {
   services, customers, serviceBoats, boats,
-  serviceBoatAssignments, invoices, complaints, users, timeEntries,
+  serviceBoatAssignments, invoices, complaints, users, timeEntries, completionPhotos,
 } from '@/lib/db/schema'
 import { eq, and, asc } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
@@ -17,6 +17,7 @@ import { AddTipForm } from './add-tip-form'
 import { SyncTipButton } from './sync-tip-button'
 import { MarkIncompleteButton } from './mark-incomplete-button'
 import { EditServicePanel } from './edit-service-panel'
+import { CompletionPhotoGallery } from './completion-photo-gallery'
 import { GenerateInvoiceButton } from './generate-invoice-button'
 import { ServiceNotesEditor } from './service-notes-editor'
 import { TimeTracker } from './time-tracker'
@@ -82,10 +83,9 @@ export default async function ServiceDetailPage({
       tipAmount:    services.tipAmount,
       approvedAt:           services.approvedAt,
       approvedBy:           services.approvedByUserId,
-      completedAt:          services.completedAt,
-      completedByUserId:    services.completedByUserId,
-      reminderSentAt:       services.reminderSentAt,
-      completionPhotoUrl:   services.completionPhotoUrl,
+      completedAt:       services.completedAt,
+      completedByUserId: services.completedByUserId,
+      reminderSentAt:    services.reminderSentAt,
       customerName: customers.name,
       customerId:   customers.id,
       isPrepaid:    customers.isPrepaid,
@@ -205,6 +205,12 @@ export default async function ServiceDetailPage({
     .leftJoin(boats, eq(timeEntries.boatId, boats.id))
     .where(eq(timeEntries.serviceId, id))
     .orderBy(timeEntries.clockIn)
+
+  const servicePhotos = await db
+    .select({ id: completionPhotos.id })
+    .from(completionPhotos)
+    .where(eq(completionPhotos.serviceId, id))
+    .orderBy(asc(completionPhotos.createdAt))
 
   // Check if current user is assigned to this service (to show clock-in)
   const isAssigned = currentUser
@@ -604,23 +610,13 @@ export default async function ServiceDetailPage({
       </div>
     </div>{/* end space-y-6 */}
 
-    {/* Right column: completion photo */}
-    {svc.completionPhotoUrl && (
-      <div className="lg:sticky lg:top-6">
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <div className="px-3 py-2 border-b">
-            <p className="text-xs font-medium text-muted-foreground">Completion photo</p>
-          </div>
-          <a href={`/api/services/${svc.id}/photo`} target="_blank" rel="noopener noreferrer" title="Open full size">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/services/${svc.id}/photo`}
-              alt="Service completion photo"
-              className="w-full object-cover hover:opacity-90 transition-opacity"
-            />
-          </a>
-        </div>
-      </div>
+    {/* Right column: completion photos */}
+    {(servicePhotos.length > 0 || svc.status === 'complete') && (
+      <CompletionPhotoGallery
+        serviceId={svc.id}
+        customerName={svc.customerName}
+        photos={servicePhotos}
+      />
     )}
     </div>{/* end grid */}
     </div>
