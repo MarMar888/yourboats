@@ -167,7 +167,7 @@ export default function ScheduleCard({
                   <TooltipTrigger asChild>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={completionPhotoUrl}
+                      src={`/api/services/${serviceId}/photo`}
                       alt="Completion photo"
                       className="h-7 w-7 rounded object-cover border border-sky-200 cursor-pointer"
                     />
@@ -175,7 +175,7 @@ export default function ScheduleCard({
                   <TooltipContent side="left" sideOffset={8} className="p-0 overflow-hidden border shadow-lg">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={completionPhotoUrl}
+                      src={`/api/services/${serviceId}/photo`}
                       alt="Completion photo"
                       className="w-56 max-h-72 object-cover"
                     />
