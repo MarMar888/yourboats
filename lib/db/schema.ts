@@ -140,6 +140,13 @@ export const services = pgTable('services', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+export const completionPhotos = pgTable('completion_photos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serviceId: uuid('service_id').notNull().references(() => services.id, { onDelete: 'cascade' }),
+  blobUrl: text('blob_url').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const rateTypeEnum = pgEnum('rate_type', ['per_ft', 'flat'])
 
 export const serviceBoats = pgTable(

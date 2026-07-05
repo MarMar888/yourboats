@@ -3,43 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { db } from '@/lib/db'
-import { services } from '@/lib/db/schema'
-
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getCurrentUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { id: serviceId } = await params
-
-  const [svc] = await db
-    .select({ completionPhotoUrl: services.completionPhotoUrl })
-    .from(services)
-    .where(eq(services.id, serviceId))
-    .limit(1)
-
-  if (!svc?.completionPhotoUrl) {
-    return NextResponse.json({ error: 'No photo found' }, { status: 404 })
-  }
-
-  const blobRes = await fetch(svc.completionPhotoUrl, {
-    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
-  })
-
-  if (!blobRes.ok) {
-    return NextResponse.json({ error: 'Failed to fetch photo' }, { status: 502 })
-  }
-
-  const contentType = blobRes.headers.get('content-type') ?? 'image/jpeg'
-  return new NextResponse(blobRes.body, {
-    headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'private, max-age=3600',
-    },
-  })
-}
+import { services, completionPhotos } from '@/lib/db/schema'
 
 // Raster image magic-byte signatures. We sniff the real bytes instead of
 // trusting the client-supplied Content-Type / filename, which prevents
@@ -106,7 +70,6 @@ export async function POST(
     return NextResponse.json({ error: 'File must be a JPEG, PNG, GIF, WEBP, or HEIC image' }, { status: 400 })
   }
 
-  // Random suffix avoids deterministic overwrite of an existing photo.
   const pathname = `completion-photos/${serviceId}.${ext}`
   const contentType = ext === 'jpg' ? 'image/jpeg' : ext === 'heic' ? 'image/heic' : `image/${ext}`
   const blob = await put(pathname, file, {
@@ -115,8 +78,10 @@ export async function POST(
     contentType,
   })
 
-  // Persist URL to the service record
-  await db.update(services).set({ completionPhotoUrl: blob.url }).where(eq(services.id, serviceId))
+  const [photo] = await db
+    .insert(completionPhotos)
+    .values({ serviceId, blobUrl: blob.url })
+    .returning({ id: completionPhotos.id })
 
-  return NextResponse.json({ url: blob.url })
+  return NextResponse.json({ id: photo.id, url: blob.url })
 }

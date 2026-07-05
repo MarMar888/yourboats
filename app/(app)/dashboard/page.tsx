@@ -8,6 +8,7 @@ import {
   boats,
   serviceBoatAssignments,
   users,
+  completionPhotos,
 } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import type { ReminderStatus } from '@/app/(app)/schedule/schedule-card'
@@ -41,7 +42,6 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
       totalPrice:         services.totalPrice,
       approvedAt:         services.approvedAt,
       reminderSentAt:     services.reminderSentAt,
-      completionPhotoUrl: services.completionPhotoUrl,
       customerId:         services.customerId,
       customerName:       customers.name,
       customerNotes:      customers.notes,
@@ -56,7 +56,7 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
 
   const serviceIds = serviceRows.map((s) => s.id)
 
-  const [boatRows, assignmentRows] = await Promise.all([
+  const [boatRows, assignmentRows, photoRows] = await Promise.all([
     db
       .select({
         serviceId:        serviceBoats.serviceId,
@@ -76,6 +76,11 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
       })
       .from(serviceBoatAssignments)
       .where(inArray(serviceBoatAssignments.serviceId, serviceIds)),
+    db
+      .select({ serviceId: completionPhotos.serviceId, id: completionPhotos.id })
+      .from(completionPhotos)
+      .where(inArray(completionPhotos.serviceId, serviceIds))
+      .orderBy(asc(completionPhotos.createdAt)),
   ])
 
   const assignments: Record<string, Record<string, string[]>> = {}
@@ -97,15 +102,23 @@ async function fetchServiceData(dateFilter: { start: string; end: string }) {
     })
   }
 
+  const firstPhotoId: Record<string, string> = {}
+  const photoCount: Record<string, number> = {}
+  for (const r of photoRows) {
+    if (!firstPhotoId[r.serviceId]) firstPhotoId[r.serviceId] = r.id
+    photoCount[r.serviceId] = (photoCount[r.serviceId] ?? 0) + 1
+  }
+
   return serviceRows.map((s) => ({
     ...s,
-    totalPrice:         s.totalPrice ?? null,
-    approvedAt:         s.approvedAt ?? null,
-    reminderSentAt:     s.reminderSentAt ?? null,
-    completionPhotoUrl: s.completionPhotoUrl ?? null,
-    customerNotes:      s.customerNotes ?? null,
-    customerAddress:    s.customerAddress ?? null,
-    boats:              boatsByService[s.id] ?? [],
+    totalPrice:      s.totalPrice ?? null,
+    approvedAt:      s.approvedAt ?? null,
+    reminderSentAt:  s.reminderSentAt ?? null,
+    firstPhotoId:    firstPhotoId[s.id] ?? null,
+    photoCount:      photoCount[s.id] ?? 0,
+    customerNotes:   s.customerNotes ?? null,
+    customerAddress: s.customerAddress ?? null,
+    boats:           boatsByService[s.id] ?? [],
   }))
 }
 
