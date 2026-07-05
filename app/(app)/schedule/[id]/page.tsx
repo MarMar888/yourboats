@@ -611,10 +611,10 @@ export default async function ServiceDetailPage({
           <div className="px-3 py-2 border-b">
             <p className="text-xs font-medium text-muted-foreground">Completion photo</p>
           </div>
-          <a href={svc.completionPhotoUrl} target="_blank" rel="noopener noreferrer" title="Open full size">
+          <a href={`/api/services/${svc.id}/photo`} target="_blank" rel="noopener noreferrer" title="Open full size">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={svc.completionPhotoUrl}
+              src={`/api/services/${svc.id}/photo`}
               alt="Service completion photo"
               className="w-full object-cover hover:opacity-90 transition-opacity"
             />
