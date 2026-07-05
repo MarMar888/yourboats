@@ -14,7 +14,8 @@
 | Dev server | `pnpm dev` (port 3000) |
 | Lint | `npx eslint . --ext .ts,.tsx,.js,.jsx` |
 | Tests | `pnpm test` |
-| DB push | `pnpm db:push` |
+| DB push (local dev) | `pnpm db:push` |
+| DB migrate (deploy) | `pnpm db:migrate` — applies `drizzle/*.sql`; runs in the Vercel build before traffic |
 | Seed | `pnpm seed` |
 
 ### Key caveats

@@ -11,4 +11,4 @@ ALTER TABLE "recurring_schedules"
   ALTER COLUMN "service_type" TYPE text USING "service_type"::text;
 
 ALTER TABLE "services"
-  ADD COLUMN "qbo_item_id" text;
+  ADD COLUMN IF NOT EXISTS "qbo_item_id" text;
