@@ -5,6 +5,42 @@ import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { db } from '@/lib/db'
 import { services } from '@/lib/db/schema'
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id: serviceId } = await params
+
+  const [svc] = await db
+    .select({ completionPhotoUrl: services.completionPhotoUrl })
+    .from(services)
+    .where(eq(services.id, serviceId))
+    .limit(1)
+
+  if (!svc?.completionPhotoUrl) {
+    return NextResponse.json({ error: 'No photo found' }, { status: 404 })
+  }
+
+  const blobRes = await fetch(svc.completionPhotoUrl, {
+    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+  })
+
+  if (!blobRes.ok) {
+    return NextResponse.json({ error: 'Failed to fetch photo' }, { status: 502 })
+  }
+
+  const contentType = blobRes.headers.get('content-type') ?? 'image/jpeg'
+  return new NextResponse(blobRes.body, {
+    headers: {
+      'Content-Type': contentType,
+      'Cache-Control': 'private, max-age=3600',
+    },
+  })
+}
+
 // Raster image magic-byte signatures. We sniff the real bytes instead of
 // trusting the client-supplied Content-Type / filename, which prevents
 // uploading an SVG (active content) by spoofing the MIME type.
@@ -74,7 +110,7 @@ export async function POST(
   const pathname = `completion-photos/${serviceId}.${ext}`
   const contentType = ext === 'jpg' ? 'image/jpeg' : ext === 'heic' ? 'image/heic' : `image/${ext}`
   const blob = await put(pathname, file, {
-    access: 'public',
+    access: 'private',
     addRandomSuffix: true,
     contentType,
   })
