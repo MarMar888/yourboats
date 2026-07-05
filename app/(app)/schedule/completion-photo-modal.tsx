@@ -6,11 +6,12 @@ import { cn } from '@/lib/utils'
 interface Props {
   serviceId: string
   customerName: string
+  submitLabel?: string
   onPhotoSaved: (photoUrl: string) => void
   onClose: () => void
 }
 
-export function CompletionPhotoModal({ serviceId, customerName, onPhotoSaved, onClose }: Props) {
+export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'Upload & complete', onPhotoSaved, onClose }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -119,7 +120,7 @@ export function CompletionPhotoModal({ serviceId, customerName, onPhotoSaved, on
                 : 'bg-primary/40 text-primary-foreground cursor-not-allowed'
             )}
           >
-            {uploading ? 'Uploading…' : 'Upload & complete'}
+            {uploading ? 'Uploading…' : submitLabel}
           </button>
           <button
             disabled={uploading}

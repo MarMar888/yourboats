@@ -9,6 +9,7 @@ import {
   boats,
   customers,
   customerReminderContacts,
+  completionPhotos,
 } from '@/lib/db/schema'
 import { eq, asc, and, gte, lte, inArray } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
@@ -196,13 +197,12 @@ export default async function SchedulePage({ searchParams }: PageProps) {
           serviceDate:  services.serviceDate,
           serviceType:  services.serviceType,
           status:       services.status,
-          totalPrice:          services.totalPrice,
-          notes:               services.notes,
-          approvedAt:          services.approvedAt,
-          reminderSentAt:      services.reminderSentAt,
-          completionPhotoUrl:  services.completionPhotoUrl,
-          customerId:          services.customerId,
-          customerName:        customers.name,
+          totalPrice:     services.totalPrice,
+          notes:          services.notes,
+          approvedAt:     services.approvedAt,
+          reminderSentAt: services.reminderSentAt,
+          customerId:     services.customerId,
+          customerName:   customers.name,
           customerNotes:       customers.notes,
           customerAddress:     customers.address,
         })
@@ -221,7 +221,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
 
   const serviceIds = serviceRows.map((s) => s.id)
 
-  const [boatRows, assignmentRows] = serviceIds.length
+  const [boatRows, assignmentRows, photoRows] = serviceIds.length
     ? await Promise.all([
       db
         .select({
@@ -243,8 +243,13 @@ export default async function SchedulePage({ searchParams }: PageProps) {
         })
         .from(serviceBoatAssignments)
         .where(inArray(serviceBoatAssignments.serviceId, serviceIds)),
+      db
+        .select({ serviceId: completionPhotos.serviceId, id: completionPhotos.id })
+        .from(completionPhotos)
+        .where(inArray(completionPhotos.serviceId, serviceIds))
+        .orderBy(asc(completionPhotos.createdAt)),
     ])
-    : [[], []]
+    : [[], [], []]
 
   // ── Build per-service boat+assignment data ────────────────────────────────
   // assignments[serviceId][boatId] = userId[]
@@ -266,21 +271,30 @@ export default async function SchedulePage({ searchParams }: PageProps) {
     })
   }
 
+  // firstPhotoId[serviceId] = photoId, photoCount[serviceId] = n
+  const firstPhotoId: Record<string, string> = {}
+  const photoCount: Record<string, number> = {}
+  for (const r of photoRows) {
+    if (!firstPhotoId[r.serviceId]) firstPhotoId[r.serviceId] = r.id
+    photoCount[r.serviceId] = (photoCount[r.serviceId] ?? 0) + 1
+  }
+
   type BoatEntry = { boatId: string; nickname: string; boatNotes: string | null; serviceBoatNotes: string | null; assignedIds: string[] }
   type ServiceCard = {
     id: string; serviceDate: string; serviceType: string; status: string
     totalPrice: string | null; notes: string | null; customerNotes: string | null; customerAddress: string | null; approvedAt: Date | null
-    reminderSentAt: Date | null; completionPhotoUrl: string | null; customerId: string; customerName: string; boats: BoatEntry[]
+    reminderSentAt: Date | null; firstPhotoId: string | null; photoCount: number; customerId: string; customerName: string; boats: BoatEntry[]
   }
 
   const cards: ServiceCard[] = serviceRows.map((s) => ({
     ...s,
-    totalPrice:         s.totalPrice ?? null,
-    approvedAt:         s.approvedAt ?? null,
-    reminderSentAt:     s.reminderSentAt ?? null,
-    completionPhotoUrl: s.completionPhotoUrl ?? null,
-    customerNotes:      s.customerNotes ?? null,
-    customerAddress:    s.customerAddress ?? null,
+    totalPrice:      s.totalPrice ?? null,
+    approvedAt:      s.approvedAt ?? null,
+    reminderSentAt:  s.reminderSentAt ?? null,
+    firstPhotoId:    firstPhotoId[s.id] ?? null,
+    photoCount:      photoCount[s.id] ?? 0,
+    customerNotes:   s.customerNotes ?? null,
+    customerAddress: s.customerAddress ?? null,
     boats: (boatsByService[s.id] ?? []).map((b) => ({
       ...b,
       assignedIds: assignments[s.id]?.[b.boatId] ?? [],
@@ -426,7 +440,8 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 approvedAt: card.approvedAt,
                 reminderStatus,
                 reminderSentAt: card.reminderSentAt,
-                completionPhotoUrl: card.completionPhotoUrl,
+                firstPhotoId: card.firstPhotoId,
+                photoCount: card.photoCount,
                 customerId: card.customerId,
                 customerName: card.customerName,
                 boats: card.boats,

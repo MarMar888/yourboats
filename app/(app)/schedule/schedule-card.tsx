@@ -41,7 +41,8 @@ interface ScheduleCardProps {
   approvedAt: Date | null
   reminderStatus: ReminderStatus
   reminderSentAt: Date | null
-  completionPhotoUrl: string | null
+  firstPhotoId: string | null
+  photoCount: number
   boats: ScheduleCardBoat[]
   employees: ScheduleCardEmployee[]
   isManager: boolean
@@ -119,7 +120,8 @@ export default function ScheduleCard({
   reminderSentAt,
   boats,
   employees,
-  completionPhotoUrl,
+  firstPhotoId,
+  photoCount,
   isManager,
   onComplete,
   onDelete,
@@ -161,21 +163,28 @@ export default function ScheduleCard({
 
           {/* Actions + status */}
           <div className="relative z-10 flex items-center gap-1 shrink-0">
-            {completionPhotoUrl && (
+            {firstPhotoId && (
               <TooltipProvider delayDuration={150}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/services/${serviceId}/photo`}
-                      alt="Completion photo"
-                      className="h-7 w-7 rounded object-cover border border-sky-200 cursor-pointer"
-                    />
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/services/${serviceId}/photos/${firstPhotoId}`}
+                        alt="Completion photo"
+                        className="h-7 w-7 rounded object-cover border border-sky-200 cursor-pointer"
+                      />
+                      {photoCount > 1 && (
+                        <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-0.5 text-[9px] font-bold text-white">
+                          {photoCount}
+                        </span>
+                      )}
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent side="left" sideOffset={8} className="p-0 overflow-hidden border shadow-lg">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={`/api/services/${serviceId}/photo`}
+                      src={`/api/services/${serviceId}/photos/${firstPhotoId}`}
                       alt="Completion photo"
                       className="w-56 max-h-72 object-cover"
                     />
