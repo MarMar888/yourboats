@@ -18,6 +18,7 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
   const [preview, setPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [skipping, setSkipping] = useState(false)
   const [error, setError] = useState('')
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -64,6 +65,12 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
     } finally {
       setUploading(false)
     }
+  }
+
+  function handleSkip() {
+    if (skipping || uploading) return
+    setSkipping(true)
+    onSkip?.()
   }
 
   return (
@@ -121,7 +128,7 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
         {/* Actions */}
         <div className="flex flex-col gap-2">
           <button
-            disabled={!selectedFile || uploading}
+            disabled={!selectedFile || uploading || skipping}
             onClick={handleUpload}
             className={cn(
               'w-full inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors',
@@ -134,15 +141,15 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
           </button>
           {onSkip && (
             <button
-              disabled={uploading}
-              onClick={onSkip}
+              disabled={uploading || skipping}
+              onClick={handleSkip}
               className="w-full inline-flex items-center justify-center rounded-lg border border-input px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors disabled:opacity-40"
             >
-              Complete without photo
+              {skipping ? 'Completing…' : 'Complete without photo'}
             </button>
           )}
           <button
-            disabled={uploading}
+            disabled={uploading || skipping}
             onClick={onClose}
             className="w-full inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-40"
           >

@@ -50,10 +50,16 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
   if (!photo) return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
 
-  // Delete DB row first — if blob delete fails the row is gone (no broken UI reference),
-  // which is preferable to a deleted blob with a live row causing broken thumbnails.
+  // Delete DB row first — it's the source of truth for what the gallery shows.
+  // Blob removal is best-effort: if it throws, the row is still gone, so the
+  // request must still report success or the client will treat this as a
+  // failed delete and leave a now-nonexistent photo in the gallery.
   await db.delete(completionPhotos).where(eq(completionPhotos.id, photoId))
-  await del(photo.blobUrl)
+  try {
+    await del(photo.blobUrl)
+  } catch (err) {
+    console.error('Failed to delete blob after removing completion_photos row', photo.blobUrl, err)
+  }
 
   return NextResponse.json({ ok: true })
 }
