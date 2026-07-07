@@ -50,10 +50,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
   if (!photo) return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
 
-  await Promise.all([
-    del(photo.blobUrl),
-    db.delete(completionPhotos).where(eq(completionPhotos.id, photoId)),
-  ])
+  // Delete DB row first — if blob delete fails the row is gone (no broken UI reference),
+  // which is preferable to a deleted blob with a live row causing broken thumbnails.
+  await db.delete(completionPhotos).where(eq(completionPhotos.id, photoId))
+  await del(photo.blobUrl)
 
   return NextResponse.json({ ok: true })
 }

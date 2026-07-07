@@ -101,6 +101,11 @@ export function DashboardScheduleCards({
             setPhotoModalFor(null)
             finishComplete(id)
           }}
+          onSkip={() => {
+            const id = photoModalFor.id
+            setPhotoModalFor(null)
+            finishComplete(id)
+          }}
           onClose={() => setPhotoModalFor(null)}
         />
       )}
