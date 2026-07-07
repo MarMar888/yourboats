@@ -8,10 +8,12 @@ interface Props {
   customerName: string
   submitLabel?: string
   onPhotoSaved: (photoUrl: string) => void
+  /** When provided, shows a "Complete without photo" option (photo is optional). */
+  onSkip?: () => void
   onClose: () => void
 }
 
-export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'Upload & complete', onPhotoSaved, onClose }: Props) {
+export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'Upload & complete', onPhotoSaved, onSkip, onClose }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -47,8 +49,13 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
         body: fd,
       })
       if (!res.ok) {
-        const body = await res.json() as { error?: string }
-        throw new Error(body.error ?? 'Upload failed')
+        // Body may not be JSON (e.g. a 413 from the platform's request-size
+        // limit returns plain text) — Safari's res.json() would otherwise throw
+        // "The string did not match the expected pattern".
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(
+          body.error ?? (res.status === 413 ? 'Photo is too large to upload' : 'Upload failed')
+        )
       }
       const { url } = await res.json() as { url: string }
       onPhotoSaved(url)
@@ -69,7 +76,10 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
         {/* Header */}
         <div>
           <h2 className="text-base font-semibold">Add completion photo</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">{customerName}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {customerName}
+            {onSkip && ' · optional'}
+          </p>
         </div>
 
         {/* Photo picker */}
@@ -122,6 +132,15 @@ export function CompletionPhotoModal({ serviceId, customerName, submitLabel = 'U
           >
             {uploading ? 'Uploading…' : submitLabel}
           </button>
+          {onSkip && (
+            <button
+              disabled={uploading}
+              onClick={onSkip}
+              className="w-full inline-flex items-center justify-center rounded-lg border border-input px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors disabled:opacity-40"
+            >
+              Complete without photo
+            </button>
+          )}
           <button
             disabled={uploading}
             onClick={onClose}

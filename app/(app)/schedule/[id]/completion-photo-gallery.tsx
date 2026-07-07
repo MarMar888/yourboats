@@ -19,15 +19,24 @@ export function CompletionPhotoGallery({ serviceId, customerName, photos }: Prop
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   async function handleDelete(photoId: string) {
     setDeletingId(photoId)
+    setDeleteError(null)
     try {
-      await fetch(`/api/services/${serviceId}/photos/${photoId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/services/${serviceId}/photos/${photoId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        setDeleteError(body.error ?? 'Failed to delete photo')
+        return
+      }
+      startTransition(() => router.refresh())
+    } catch {
+      setDeleteError('Failed to delete photo')
     } finally {
       setDeletingId(null)
-      startTransition(() => router.refresh())
     }
   }
 
@@ -50,6 +59,10 @@ export function CompletionPhotoGallery({ serviceId, customerName, photos }: Prop
           </button>
         </div>
 
+        {deleteError && (
+          <p className="px-3 py-2 text-xs text-destructive bg-destructive/10 border-b">{deleteError}</p>
+        )}
+
         <div className={photos.length > 1 ? 'grid grid-cols-2 gap-0.5 bg-border' : ''}>
           {photos.map((photo) => (
             <div key={photo.id} className="relative group bg-card">
@@ -67,10 +80,11 @@ export function CompletionPhotoGallery({ serviceId, customerName, photos }: Prop
                   style={{ aspectRatio: '4/3' }}
                 />
               </a>
+              {/* Always visible on touch devices; hover-only on pointer devices */}
               <button
                 onClick={() => handleDelete(photo.id)}
                 disabled={deletingId === photo.id}
-                className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 disabled:opacity-40"
+                className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white transition-opacity hover:bg-black/80 disabled:opacity-40 [@media(hover:none)]:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                 title="Delete photo"
               >
                 <X className="h-3 w-3" />
