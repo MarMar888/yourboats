@@ -66,10 +66,17 @@ export async function markComplete(serviceId: string): Promise<{ error?: string 
   if (!service) return { error: 'Service not found' }
   if (service.status !== 'scheduled') return { error: 'Service is not scheduled' }
 
-  await db
+  // Condition the update on status still being 'scheduled' so concurrent
+  // completions (e.g. a double-tap) can't both pass the check above and then
+  // both create an invoice below — only the request that actually flips the
+  // row proceeds.
+  const [updated] = await db
     .update(services)
     .set({ status: 'complete', completedAt: new Date(), completedByUserId: uuidOrNull(user.id) })
-    .where(eq(services.id, serviceId))
+    .where(and(eq(services.id, serviceId), eq(services.status, 'scheduled')))
+    .returning({ id: services.id })
+
+  if (!updated) return { error: 'Service is not scheduled' }
 
   // Prepaid customers never get invoices
   if (!service.invoiceId && !service.isPrepaid) {
