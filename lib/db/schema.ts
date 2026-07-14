@@ -111,6 +111,27 @@ export const serviceTypeShares = pgTable('service_type_shares', {
   employeeSharePct: numeric('employee_share_pct', { precision: 5, scale: 2 }).notNull(),
 })
 
+// Effective-dated pay-rate history. Both the crew-pool share (per service type)
+// and the tier deduction are stored here as dated rows; the value for a service
+// is the row with the greatest effective_from on/before that service's date.
+// serviceTypeShares/tierConfig above hold the *current* value for UI display.
+export const rateChanges = pgTable(
+  'rate_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),             // 'service_type_share' | 'tier_deduction'
+    key: text('key').notNull(),               // service type name, or employee tier
+    pct: numeric('pct', { precision: 5, scale: 2 }).notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    note: text('note'),
+    createdByUserId: text('created_by_user_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('rate_changes_kind_key_from_uniq').on(t.kind, t.key, t.effectiveFrom),
+  })
+)
+
 export const services = pgTable('services', {
   id: uuid('id').primaryKey().defaultRandom(),
   customerId: uuid('customer_id')
@@ -527,6 +548,8 @@ export type NewQboItem = typeof qboItems.$inferInsert
 export type TimeEntry = typeof timeEntries.$inferSelect
 export type NewTimeEntry = typeof timeEntries.$inferInsert
 export type ServiceTypeShare = typeof serviceTypeShares.$inferSelect
+export type RateChange = typeof rateChanges.$inferSelect
+export type NewRateChange = typeof rateChanges.$inferInsert
 export type Payroll = typeof payroll.$inferSelect
 export type NewPayroll = typeof payroll.$inferInsert
 export type ManualPayrollLine = typeof manualPayrollLines.$inferSelect
