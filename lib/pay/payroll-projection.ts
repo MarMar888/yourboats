@@ -4,11 +4,10 @@ import {
   payroll,
   serviceBoatAssignments,
   services,
-  tierConfig,
   users,
 } from '@/lib/db/schema'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import { getServiceTypeShareMap, lookupSharePct } from './service-type-shares'
+import { getRateHistory, resolveSharePctAsOf, resolveDeductionPctAsOf } from './rates'
 
 function splitEvenly(userIds: string[]): Record<string, number> {
   if (userIds.length === 0) return {}
@@ -101,13 +100,7 @@ export async function refreshServicePayroll(
     .sort((a, b) => a.userId.localeCompare(b.userId))
   if (assignments.length === 0) return
 
-  const [tierRows, shareMap] = await Promise.all([
-    db.select().from(tierConfig),
-    getServiceTypeShareMap(),
-  ])
-  const deductionByTier = Object.fromEntries(
-    tierRows.map((row) => [row.tier, Number(row.deductionPct)])
-  )
+  const rateHistory = await getRateHistory()
 
   const existingSplitByUser = new Map(
     unapprovedRows.map((row) => [row.userId, Number(row.splitPct)])
@@ -120,7 +113,7 @@ export async function refreshServicePayroll(
   const defaultSplits = splitEvenly(assignmentUserIds)
   const totalPrice = Number(service.totalPrice ?? 0)
   const tipAmount = Number(service.tipAmount ?? 0)
-  const serviceTypeShare = lookupSharePct(shareMap, service.serviceType)
+  const serviceTypeShare = resolveSharePctAsOf(rateHistory, service.serviceType, service.serviceDate)
   const employeePool = totalPrice * (serviceTypeShare / 100)
   const tipShare = assignments.length > 0 ? tipAmount / assignments.length : 0
   const savedByUserId = unapprovedRows[0]?.savedByUserId ?? null
@@ -130,7 +123,7 @@ export async function refreshServicePayroll(
       const splitPct = canPreserveSplits
         ? existingSplitByUser.get(assignment.userId)!
         : defaultSplits[assignment.userId]
-      const deductionPct = assignment.tier ? (deductionByTier[assignment.tier] ?? 0) : 0
+      const deductionPct = assignment.tier ? resolveDeductionPctAsOf(rateHistory, assignment.tier, service.serviceDate) : 0
       const effectivePct = Math.max(0, splitPct - deductionPct)
       const netPay = employeePool * (effectivePct / 100)
 

@@ -6,7 +6,7 @@ import { services, payroll, salariedPayroll, customers, salariedRules } from '@/
 import { eq, gte, lte, and, sql } from 'drizzle-orm'
 import { todayET } from '@/lib/date'
 import ProjectionsClient, { type SalariedRuleProjection, type ScheduledServiceRow } from './projections-client'
-import { getServiceTypeShareMap, lookupSharePct } from '@/lib/pay/service-type-shares'
+import { getRateHistory, resolveSharePctAsOf } from '@/lib/pay/rates'
 
 export const dynamic = 'force-dynamic'
 
@@ -121,7 +121,7 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
 
   if (activeTab === 'projections') {
     // All future scheduled services — already created in DB, use actual prices
-    const [futureRows, salRuleRows, shareMap] = await Promise.all([
+    const [futureRows, salRuleRows, rateHistory] = await Promise.all([
       db.select({
         id: services.id,
         serviceDate: services.serviceDate,
@@ -137,17 +137,20 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
           sql`${services.totalPrice} is not null`,
         )),
       db.select().from(salariedRules).where(and(eq(salariedRules.active, true), gte(salariedRules.effectiveTo, today))),
-      getServiceTypeShareMap(),
+      getRateHistory(),
     ])
 
-    projScheduledServices = futureRows.map((s) => ({
-      id: s.id,
-      date: toYMD(s.serviceDate as unknown as Date),
-      customerName: s.customerName,
-      serviceType: s.serviceType,
-      price: parseFloat(s.totalPrice ?? '0') || 0,
-      sharePct: lookupSharePct(shareMap, s.serviceType),
-    }))
+    projScheduledServices = futureRows.map((s) => {
+      const dateStr = toYMD(s.serviceDate as unknown as Date)
+      return {
+        id: s.id,
+        date: dateStr,
+        customerName: s.customerName,
+        serviceType: s.serviceType,
+        price: parseFloat(s.totalPrice ?? '0') || 0,
+        sharePct: resolveSharePctAsOf(rateHistory, s.serviceType, dateStr),
+      }
+    })
 
     projSalariedRules = salRuleRows.map((r) => ({
       id: r.id,
