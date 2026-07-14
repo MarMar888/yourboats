@@ -7,6 +7,7 @@ import { eq, gte, lte, and, sql } from 'drizzle-orm'
 import { todayET } from '@/lib/date'
 import ProjectionsClient, { type SalariedRuleProjection, type ScheduledServiceRow } from './projections-client'
 import { getServiceTypeShareMap, lookupSharePct } from '@/lib/pay/service-type-shares'
+import { computeProjectionTotals, computeProjectionWeeks, SEASON_END } from '@/lib/pay/projections'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +62,7 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
   if (!user || user.role !== 'owner') redirect('/dashboard')
 
   const { tab } = await searchParams
-  const activeTab = tab === 'projections' ? 'projections' : 'actuals'
+  const activeTab = tab === 'projections' ? 'projections' : tab === 'actuals' ? 'actuals' : 'overview'
 
   const today = todayET()
 
@@ -119,7 +120,7 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
   let projSalariedRules: SalariedRuleProjection[] = []
   let projScheduledServices: ScheduledServiceRow[] = []
 
-  if (activeTab === 'projections') {
+  if (activeTab === 'overview' || activeTab === 'projections') {
     // All future scheduled services — already created in DB, use actual prices
     const [futureRows, salRuleRows, shareMap] = await Promise.all([
       db.select({
@@ -161,6 +162,12 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
     }))
   }
 
+  const projWeeks = computeProjectionWeeks(projScheduledServices, projSalariedRules, SEASON_END)
+  const projTotals = computeProjectionTotals(projWeeks)
+
+  const combinedRevenue = totals.revenue + projTotals.revenue
+  const combinedProfit = (totals.revenue - totals.variableLaborBase - totals.salariedLabor) + projTotals.profit
+
   return (
     <div className="space-y-6 max-w-5xl">
       <h1 className="text-2xl font-semibold">Profit & Loss</h1>
@@ -168,6 +175,7 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
       {/* ── Tabs ────────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 border-b">
         {[
+          { key: 'overview', label: 'Overview' },
           { key: 'actuals', label: 'Actuals' },
           { key: 'projections', label: 'Projections' },
         ].map(({ key, label }) => (
@@ -184,6 +192,45 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
           </Link>
         ))}
       </div>
+
+      {/* ── Overview tab ────────────────────────────────────────────────────── */}
+      {activeTab === 'overview' && (
+        <div className="space-y-8">
+          <section>
+            <h2 className="text-base font-semibold mb-3">Combined (actual + projected)</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Revenue to date (6 mo)" value={fmt(totals.revenue)} sub={`${totals.jobCount} jobs`} />
+              <StatCard label="Projected revenue (remaining season)" value={fmt(projTotals.revenue)} sub={`${projWeeks.length} weeks scheduled`} />
+              <StatCard label="Combined revenue" value={fmt(combinedRevenue)} sub="actual + projected" />
+              <StatCard label="Combined profit" value={fmt(combinedProfit)} sub="actual + projected" highlight={combinedProfit >= 0 ? 'green' : 'red'} />
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold mb-3">Actuals (trailing 6 mo)</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Revenue" value={fmt(totals.revenue)} sub={`${totals.jobCount} jobs`} />
+              <StatCard label="Total Labor" value={fmt(totals.variableLaborBase + totals.salariedLabor)} sub={`${pct(totals.variableLaborBase + totals.salariedLabor, totals.revenue)} of revenue`} highlight="red" />
+              <StatCard label="Gross Profit" value={fmt(totals.revenue - totals.variableLaborBase - totals.salariedLabor)} sub={pct(totals.revenue - totals.variableLaborBase - totals.salariedLabor, totals.revenue) + ' margin'} highlight="green" />
+              <StatCard label="Tips (pass-through)" value={fmt(totals.tips)} sub="customer → employee" />
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold mb-3">Projections (through {SEASON_END})</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Projected Revenue" value={fmt(projTotals.revenue)} sub={`${projWeeks.length} weeks`} />
+              <StatCard label="Variable Labor" value={fmt(projTotals.varLabor)} sub={`${projTotals.revenue > 0 ? ((projTotals.varLabor / projTotals.revenue) * 100).toFixed(1) : 0}% of rev`} highlight="red" />
+              <StatCard label="Salaried Costs" value={fmt(projTotals.salariedCost)} sub="GM salary + bonus" highlight="red" />
+              <StatCard label="Projected Profit" value={fmt(projTotals.profit)} sub={projTotals.revenue > 0 ? `${((projTotals.profit / projTotals.revenue) * 100).toFixed(1)}% margin` : '—'} highlight={projTotals.profit >= 0 ? 'green' : 'red'} />
+            </div>
+          </section>
+
+          <p className="text-xs text-muted-foreground">
+            Actuals cover the last 6 completed months. Projections cover already-scheduled services through {SEASON_END}. See the Actuals and Projections tabs for full breakdowns.
+          </p>
+        </div>
+      )}
 
       {/* ── Actuals tab ─────────────────────────────────────────────────────── */}
       {activeTab === 'actuals' && (

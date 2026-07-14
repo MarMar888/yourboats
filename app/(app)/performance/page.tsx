@@ -1,11 +1,10 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { db } from '@/lib/db'
-import { users, payroll, timeEntries } from '@/lib/db/schema'
-import { eq, and, gte, lte, isNotNull, sql, asc } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { cn } from '@/lib/utils'
 import { todayET } from '@/lib/date'
+import { getEmployeeLaborStats, type EmployeeLaborStats, type LaborStatsTotals } from '@/lib/pay/labor-stats'
+import { SEASON_END } from '@/lib/pay/projections'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +24,12 @@ function monthLabel(year: number, month: number) {
   })
 }
 
+function dateLabel(ymd: string) {
+  return new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
 function prevMonth(year: number, month: number) {
   return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`
 }
@@ -35,6 +40,7 @@ function nextMonth(year: number, month: number) {
 
 function fmt(n: number) { return `$${n.toFixed(2)}` }
 function fmtHours(h: number) { return `${h.toFixed(1)}h` }
+function fmtWage(n: number | null) { return n != null ? `$${n.toFixed(2)}/hr` : '—' }
 
 const TIER_LABELS: Record<string, string> = {
   solo:   'Solo',
@@ -45,7 +51,7 @@ const TIER_LABELS: Record<string, string> = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface PageProps {
-  searchParams: Promise<{ month?: string }>
+  searchParams: Promise<{ month?: string; view?: string }>
 }
 
 export default async function PerformancePage({ searchParams }: PageProps) {
@@ -54,209 +60,179 @@ export default async function PerformancePage({ searchParams }: PageProps) {
   if (currentUser.role !== 'owner' && currentUser.role !== 'manager') redirect('/dashboard')
 
   const params = await searchParams
+  const activeView = params.view === 'season' ? 'season' : 'monthly'
+
   const { year, month } = parseMonthParam(params.month)
   const monthKey = `${year}-${String(month).padStart(2, '0')}`
-
-  // First and last day of the month as YYYY-MM-DD
-  const startDate = `${monthKey}-01`
+  const monthStart = `${monthKey}-01`
   const lastDay = new Date(Date.UTC(year, month, 0)).getDate() // day 0 of next month = last day of this
-  const endDate = `${monthKey}-${String(lastDay).padStart(2, '0')}`
+  const monthEnd = `${monthKey}-${String(lastDay).padStart(2, '0')}`
 
-  // ── All active employees ──────────────────────────────────────────────────
-  const employeeRows = await db
-    .select({ id: users.id, displayName: users.displayName, role: users.role, tier: users.tier })
-    .from(users)
-    .where(eq(users.active, true))
-    .orderBy(asc(users.displayName))
+  const seasonStart = `${todayET().slice(0, 4)}-01-01`
+  const seasonEnd = SEASON_END
 
-  // ── Payroll stats by userId for the month ─────────────────────────────────
-  // payroll.userId is text (auth user ID), payroll.serviceDate is date stored as string
-  const payrollStats = await db
-    .select({
-      userId:    payroll.userId,
-      services:  sql<number>`count(*)::int`,
-      totalPay:  sql<number>`coalesce(sum(${payroll.netPay}::numeric), 0)`,
-      avgPay:    sql<number>`coalesce(avg(${payroll.netPay}::numeric), 0)`,
-      approved:  sql<number>`count(*) filter (where ${payroll.approvedAt} is not null)::int`,
-    })
-    .from(payroll)
-    .where(
-      and(
-        gte(payroll.serviceDate, startDate),
-        lte(payroll.serviceDate, endDate),
-      )
-    )
-    .groupBy(payroll.userId)
-
-  const payrollByUser = new Map(payrollStats.map((r) => [r.userId, r]))
-
-  // ── Time entry hours by userId for the month ──────────────────────────────
-  // time_entries.userId is UUID; clock_in/clock_out are timestamps.
-  // We filter by clock_in falling in the month range (convert date to timestamp start-of-day).
-  const timeStats = await db
-    .select({
-      userId:     timeEntries.userId,
-      totalHours: sql<number>`coalesce(
-        sum(
-          extract(epoch from (${timeEntries.clockOut} - ${timeEntries.clockIn})) / 3600.0
-        ),
-        0
-      )`,
-    })
-    .from(timeEntries)
-    .where(
-      and(
-        isNotNull(timeEntries.clockOut),
-        gte(timeEntries.clockIn, sql`${startDate}::date`),
-        lte(timeEntries.clockIn, sql`(${endDate}::date + interval '1 day')`),
-      )
-    )
-    .groupBy(timeEntries.userId)
-
-  const timeByUser = new Map(timeStats.map((r) => [r.userId, r]))
-
-  // ── Merge into rows ───────────────────────────────────────────────────────
-  type EmployeeStats = {
-    id: string
-    displayName: string
-    role: string
-    tier: string | null
-    services: number
-    approved: number
-    totalPay: number
-    avgPay: number
-    totalHours: number
-  }
-
-  const rows: EmployeeStats[] = employeeRows
-    .map((emp) => {
-      // payroll userId is text; may equal emp.id (UUID string) for most entries
-      const pay = payrollByUser.get(emp.id) ?? null
-      const time = timeByUser.get(emp.id) ?? null
-      return {
-        id: emp.id,
-        displayName: emp.displayName,
-        role: emp.role,
-        tier: emp.tier,
-        services: pay?.services ?? 0,
-        approved: pay?.approved ?? 0,
-        totalPay: Number(pay?.totalPay ?? 0),
-        avgPay: Number(pay?.avgPay ?? 0),
-        totalHours: Number(time?.totalHours ?? 0),
-      }
-    })
-    // Sort: most services first, then alphabetically
-    .sort((a, b) => b.services - a.services || a.displayName.localeCompare(b.displayName))
-
-  const totalServices = rows.reduce((s, r) => s + r.services, 0)
-  const totalPay = rows.reduce((s, r) => s + r.totalPay, 0)
-  const totalHours = rows.reduce((s, r) => s + r.totalHours, 0)
+  const { rows, totals } = activeView === 'season'
+    ? await getEmployeeLaborStats(seasonStart, seasonEnd)
+    : await getEmployeeLaborStats(monthStart, monthEnd)
 
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-6">Team Performance</h1>
 
-      {/* Month navigation */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href={`/performance?month=${prevMonth(year, month)}`}
-          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
-        >
-          ← Prev
-        </Link>
-        <span className="text-sm font-medium flex-1 text-center">{monthLabel(year, month)}</span>
-        <Link
-          href={`/performance?month=${nextMonth(year, month)}`}
-          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
-        >
-          Next →
-        </Link>
-      </div>
-
-      {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      {/* ── Tabs ────────────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b mb-6">
         {[
-          { label: 'Total services', value: String(totalServices) },
-          { label: 'Total payroll', value: fmt(totalPay) },
-          { label: 'Total hours', value: fmtHours(totalHours) },
-        ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl border bg-card px-4 py-3 text-center">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="text-lg font-bold tabular-nums mt-0.5">{value}</p>
-          </div>
+          { key: 'monthly', label: 'Monthly' },
+          { key: 'season', label: 'Season' },
+        ].map(({ key, label }) => (
+          <Link
+            key={key}
+            href={key === 'monthly' ? `/performance?view=monthly&month=${monthKey}` : '/performance?view=season'}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeView === key
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {label}
+          </Link>
         ))}
       </div>
 
-      {/* Employee table */}
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-10 text-center">No employees found.</p>
-      ) : (
-        <div className="rounded-xl border bg-card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Employee</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Jobs</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Approved</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Total pay</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Avg / job</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Hours</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{row.displayName}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-                      {row.role}
-                      {row.tier && (
-                        <span className="ml-1.5 text-[10px] font-semibold bg-muted rounded px-1.5 py-0.5 uppercase tracking-wide">
-                          {TIER_LABELS[row.tier] ?? row.tier}
-                        </span>
-                      )}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    <span className={cn('font-semibold', row.services === 0 && 'text-muted-foreground')}>
-                      {row.services}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {row.services > 0 ? (
-                      <span className={cn(
-                        'text-xs font-semibold rounded px-1.5 py-0.5',
-                        row.approved === row.services
-                          ? 'text-green-700 bg-green-50 border border-green-200'
-                          : row.approved > 0
-                            ? 'text-amber-700 bg-amber-50 border border-amber-200'
-                            : 'text-muted-foreground bg-muted border border-border'
-                      )}>
-                        {row.approved}/{row.services}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium">
-                    {row.totalPay > 0 ? fmt(row.totalPay) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                    {row.services > 0 ? fmt(row.avgPay) : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                    {row.totalHours > 0 ? fmtHours(row.totalHours) : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {activeView === 'monthly' ? (
+        <>
+          {/* Month navigation */}
+          <div className="flex items-center gap-3 mb-6">
+            <Link
+              href={`/performance?month=${prevMonth(year, month)}`}
+              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+            >
+              ← Prev
+            </Link>
+            <span className="text-sm font-medium flex-1 text-center">{monthLabel(year, month)}</span>
+            <Link
+              href={`/performance?month=${nextMonth(year, month)}`}
+              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+            >
+              Next →
+            </Link>
+          </div>
 
-      <p className="text-xs text-muted-foreground mt-3">
-        Pay figures include both draft and approved entries. Hours are from the clock-in/out records for this month.
-      </p>
+          <SummaryBar totals={totals} />
+          <EmployeeTable rows={rows} />
+
+          <p className="text-xs text-muted-foreground mt-3">
+            Pay figures include both draft and approved entries. Hours are from the clock-in/out records for this month.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground mb-6">
+            {dateLabel(seasonStart)} – {dateLabel(seasonEnd)}
+          </p>
+
+          <SummaryBar totals={totals} />
+          <EmployeeTable rows={rows} />
+
+          <p className="text-xs text-muted-foreground mt-3">
+            Pay figures include both draft and approved entries. Hourly wage is derived as total pay ÷ clocked hours over the full season — it is not a set rate.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Shared components ────────────────────────────────────────────────────────
+
+function SummaryBar({ totals }: { totals: LaborStatsTotals }) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      {[
+        { label: 'Total services', value: String(totals.totalServices) },
+        { label: 'Total payroll', value: fmt(totals.totalPay) },
+        { label: 'Total hours', value: fmtHours(totals.totalHours) },
+        { label: 'Avg hourly wage', value: fmtWage(totals.avgHourlyWage) },
+      ].map(({ label, value }) => (
+        <div key={label} className="rounded-xl border bg-card px-4 py-3 text-center">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-lg font-bold tabular-nums mt-0.5">{value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EmployeeTable({ rows }: { rows: EmployeeLaborStats[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground py-10 text-center">No employees found.</p>
+  }
+
+  return (
+    <div className="rounded-xl border bg-card overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-muted/40">
+            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Employee</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Jobs</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Approved</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Total pay</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Avg / job</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Hours</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Avg hourly wage</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((row) => (
+            <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+              <td className="px-4 py-3">
+                <p className="font-medium">{row.displayName}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+                  {row.role}
+                  {row.tier && (
+                    <span className="ml-1.5 text-[10px] font-semibold bg-muted rounded px-1.5 py-0.5 uppercase tracking-wide">
+                      {TIER_LABELS[row.tier] ?? row.tier}
+                    </span>
+                  )}
+                </p>
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <span className={cn('font-semibold', row.services === 0 && 'text-muted-foreground')}>
+                  {row.services}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {row.services > 0 ? (
+                  <span className={cn(
+                    'text-xs font-semibold rounded px-1.5 py-0.5',
+                    row.approved === row.services
+                      ? 'text-green-700 bg-green-50 border border-green-200'
+                      : row.approved > 0
+                        ? 'text-amber-700 bg-amber-50 border border-amber-200'
+                        : 'text-muted-foreground bg-muted border border-border'
+                  )}>
+                    {row.approved}/{row.services}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums font-medium">
+                {row.totalPay > 0 ? fmt(row.totalPay) : <span className="text-muted-foreground">—</span>}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                {row.services > 0 ? fmt(row.avgPay) : '—'}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                {row.totalHours > 0 ? fmtHours(row.totalHours) : '—'}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums font-medium">
+                {fmtWage(row.avgHourlyWage)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
