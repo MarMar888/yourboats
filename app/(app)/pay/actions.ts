@@ -6,7 +6,15 @@ import { tierConfig, users, services, timeEntries, boats, serviceTypeShares, inv
 import { and, eq, gte, lte, inArray, isNotNull } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
+import {
+  getRateHistory,
+  insertRateChange,
+  resolveSharePctAsOf,
+  resolveDeductionPctAsOf,
+  DEFAULT_SERVICE_TYPE_SHARE,
+} from '@/lib/pay/rates'
 import { log } from '@/lib/log'
+import { todayET } from '@/lib/date'
 
 export async function saveTip(serviceId: string, tipAmount: number): Promise<void> {
   const user = await getCurrentUser()
@@ -31,12 +39,22 @@ export async function updatePayrollServiceType(
   }
 
   const [shareRow] = await db
-    .select({ employeeSharePct: serviceTypeShares.employeeSharePct })
+    .select({ serviceType: serviceTypeShares.serviceType })
     .from(serviceTypeShares)
     .where(eq(serviceTypeShares.serviceType, serviceType))
     .limit(1)
 
   if (!shareRow) return { ok: false, error: 'Unknown service type' }
+
+  // Report the share in effect on this service's own date.
+  const [svc] = await db
+    .select({ serviceDate: services.serviceDate })
+    .from(services)
+    .where(eq(services.id, serviceId))
+    .limit(1)
+  const serviceTypeShare = svc
+    ? resolveSharePctAsOf(await getRateHistory(), serviceType, svc.serviceDate)
+    : DEFAULT_SERVICE_TYPE_SHARE
 
   const [qboItem] = await db
     .select({ qboItemId: qboItems.qboItemId })
@@ -69,23 +87,64 @@ export async function updatePayrollServiceType(
   revalidatePath(`/schedule/${serviceId}`)
   revalidatePath('/schedule')
 
-  return { ok: true, serviceTypeShare: Number(shareRow.employeeSharePct) }
+  return { ok: true, serviceTypeShare }
 }
 
 export async function updateTierConfig(
   tier: 'top' | 'mid' | 'low',
-  deductionPct: number
+  deductionPct: number,
+  effectiveFrom?: string,   // YYYY-MM-DD; defaults to today
 ): Promise<void> {
   const user = await getCurrentUser()
   if (!user || user.role !== 'owner') throw new Error('Unauthorized')
 
+  // Record the dated change (drives all payroll math), then sync the current-value
+  // table that the Pay page displays to whatever is in effect today.
+  await insertRateChange({
+    kind: 'tier_deduction',
+    key: tier,
+    pct: deductionPct,
+    effectiveFrom: effectiveFrom ?? todayET(),
+    createdByUserId: user.id,
+  })
+
+  const currentPct = resolveDeductionPctAsOf(await getRateHistory(), tier, todayET())
   await db
     .update(tierConfig)
-    .set({ deductionPct: String(deductionPct), updatedAt: new Date() })
+    .set({ deductionPct: String(currentPct), updatedAt: new Date() })
     .where(eq(tierConfig.tier, tier))
 
   revalidatePath('/pay')
   revalidatePath('/team')
+}
+
+export async function setServiceTypeShare(
+  serviceType: string,
+  pct: number,
+  effectiveFrom?: string,   // YYYY-MM-DD; defaults to today
+): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'owner') throw new Error('Unauthorized')
+
+  await insertRateChange({
+    kind: 'service_type_share',
+    key: serviceType,
+    pct,
+    effectiveFrom: effectiveFrom ?? todayET(),
+    createdByUserId: user.id,
+  })
+
+  // Sync the current-value table (UI display) to today's effective share.
+  const currentPct = resolveSharePctAsOf(await getRateHistory(), serviceType, todayET())
+  await db
+    .insert(serviceTypeShares)
+    .values({ serviceType, employeeSharePct: String(currentPct) })
+    .onConflictDoUpdate({
+      target: serviceTypeShares.serviceType,
+      set: { employeeSharePct: String(currentPct) },
+    })
+
+  revalidatePath('/pay')
 }
 
 // ─── Labor analytics ──────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { payroll } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { getServiceTypeShareMap, lookupSharePct } from './service-type-shares'
+import { getRateHistory, resolveSharePctAsOf } from './rates'
 
 /**
  * When a service's totalPrice changes (via invoice edit or schedule edit),
@@ -15,14 +15,15 @@ export async function syncPayrollPriceForService(
   newTotalPrice: number
 ) {
   const rows = await db
-    .select({ userId: payroll.userId, effectivePct: payroll.effectivePct, tipShare: payroll.tipShare })
+    .select({ userId: payroll.userId, serviceDate: payroll.serviceDate, effectivePct: payroll.effectivePct, tipShare: payroll.tipShare })
     .from(payroll)
     .where(eq(payroll.serviceId, serviceId))
 
   if (rows.length === 0) return
 
-  const shareMap = await getServiceTypeShareMap()
-  const newPool = newTotalPrice * (lookupSharePct(shareMap, serviceType) / 100)
+  // Re-derive the pool from the share in effect on the service's own date.
+  const rateHistory = await getRateHistory()
+  const newPool = newTotalPrice * (resolveSharePctAsOf(rateHistory, serviceType, rows[0].serviceDate) / 100)
 
   await Promise.all(rows.map((row) => {
     const effectivePct = parseFloat(row.effectivePct) || 0
