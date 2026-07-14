@@ -10,6 +10,7 @@ import {
   serviceBoatAssignments, users,
 } from '../../lib/db/schema'
 import { getCurrentPeriod } from '../../lib/pay/periods'
+import { todayET } from '../../lib/date'
 import {
   resolveRateAsOf, DEFAULT_SERVICE_TYPE_SHARE, DEFAULT_TIER_DEDUCTION,
   type RateChangeRow,
@@ -27,10 +28,6 @@ async function loadRateHistory(): Promise<RateChangeRow[]> {
     pct: Number(r.pct),
     effectiveFrom: r.effectiveFrom,
   }))
-}
-
-function todayYMD(): string {
-  return new Date().toISOString().slice(0, 10)
 }
 
 export function registerPayTools(server: McpServer): void {
@@ -111,7 +108,7 @@ export function registerPayTools(server: McpServer): void {
       date: z.string().regex(YMD).optional().describe('As-of date (YYYY-MM-DD). Defaults to today.'),
     },
     async ({ date }) => {
-      const asOf = date ?? todayYMD()
+      const asOf = date ?? todayET()
       const history = await loadRateHistory()
       const shareKeys = Array.from(new Set(history.filter((r) => r.kind === 'service_type_share').map((r) => r.key))).sort()
       const tierKeys = Array.from(new Set(history.filter((r) => r.kind === 'tier_deduction').map((r) => r.key))).sort()
@@ -150,13 +147,13 @@ export function registerPayTools(server: McpServer): void {
       // Sync the current-value table (UI display) to whatever is in effect today.
       const history = await loadRateHistory()
       if (kind === 'service_type_share') {
-        const cur = resolveRateAsOf(history, 'service_type_share', key, todayYMD(), DEFAULT_SERVICE_TYPE_SHARE)
+        const cur = resolveRateAsOf(history, 'service_type_share', key, todayET(), DEFAULT_SERVICE_TYPE_SHARE)
         await db
           .insert(serviceTypeShares)
           .values({ serviceType: key, employeeSharePct: String(cur) })
           .onConflictDoUpdate({ target: serviceTypeShares.serviceType, set: { employeeSharePct: String(cur) } })
       } else {
-        const cur = resolveRateAsOf(history, 'tier_deduction', key, todayYMD(), DEFAULT_TIER_DEDUCTION)
+        const cur = resolveRateAsOf(history, 'tier_deduction', key, todayET(), DEFAULT_TIER_DEDUCTION)
         await db
           .update(tierConfig)
           .set({ deductionPct: String(cur), updatedAt: new Date() })

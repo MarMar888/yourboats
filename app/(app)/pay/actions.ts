@@ -14,10 +14,7 @@ import {
   DEFAULT_SERVICE_TYPE_SHARE,
 } from '@/lib/pay/rates'
 import { log } from '@/lib/log'
-
-function todayYMD(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayET } from '@/lib/date'
 
 export async function saveTip(serviceId: string, tipAmount: number): Promise<void> {
   const user = await getCurrentUser()
@@ -107,11 +104,11 @@ export async function updateTierConfig(
     kind: 'tier_deduction',
     key: tier,
     pct: deductionPct,
-    effectiveFrom: effectiveFrom ?? todayYMD(),
+    effectiveFrom: effectiveFrom ?? todayET(),
     createdByUserId: user.id,
   })
 
-  const currentPct = resolveDeductionPctAsOf(await getRateHistory(), tier, todayYMD())
+  const currentPct = resolveDeductionPctAsOf(await getRateHistory(), tier, todayET())
   await db
     .update(tierConfig)
     .set({ deductionPct: String(currentPct), updatedAt: new Date() })
@@ -133,12 +130,12 @@ export async function setServiceTypeShare(
     kind: 'service_type_share',
     key: serviceType,
     pct,
-    effectiveFrom: effectiveFrom ?? todayYMD(),
+    effectiveFrom: effectiveFrom ?? todayET(),
     createdByUserId: user.id,
   })
 
   // Sync the current-value table (UI display) to today's effective share.
-  const currentPct = resolveSharePctAsOf(await getRateHistory(), serviceType, todayYMD())
+  const currentPct = resolveSharePctAsOf(await getRateHistory(), serviceType, todayET())
   await db
     .insert(serviceTypeShares)
     .values({ serviceType, employeeSharePct: String(currentPct) })
