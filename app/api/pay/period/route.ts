@@ -3,10 +3,10 @@ import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
   services, customers, serviceBoatAssignments,
-  serviceBoats, boats, users, tierConfig,
+  serviceBoats, boats, users,
 } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
-import { getServiceTypeShareMap, lookupSharePct } from '@/lib/pay/service-type-shares'
+import { getRateHistory, resolveSharePctAsOf, resolveDeductionPctAsOf } from '@/lib/pay/rates'
 
 export type AssignmentRow = {
   userId: string
@@ -98,13 +98,8 @@ export async function GET(req: NextRequest) {
     .innerJoin(users, sql`${users.id}::text = ${serviceBoatAssignments.userId}`)
     .where(inArray(serviceBoatAssignments.serviceId, svcIds))
 
-  // 4. Tier deduction config + service type share map (both fetched once)
-  const [tierRows, shareMap] = await Promise.all([
-    db.select().from(tierConfig),
-    getServiceTypeShareMap(),
-  ])
-  const deductionByTier: Record<string, number> = {}
-  for (const t of tierRows) deductionByTier[t.tier] = Number(t.deductionPct)
+  // 4. Effective-dated rate history (shares + tier deductions), fetched once
+  const rateHistory = await getRateHistory()
 
   // 5. Deduplicate: a user may appear multiple times per service (one per boat)
   const uniqueByService: Record<string, Map<string, { displayName: string; tier: string | null }>> = {}
@@ -120,8 +115,8 @@ export async function GET(req: NextRequest) {
     const totalPrice = Number(s.totalPrice ?? 0)
     const tipAmount = s.tipAmount != null ? Number(s.tipAmount) : null
 
-    // Service-type share determines the employee pay pool
-    const serviceTypeShare = lookupSharePct(shareMap, s.serviceType)
+    // Service-type share (as of this service's date) determines the pay pool
+    const serviceTypeShare = resolveSharePctAsOf(rateHistory, s.serviceType, s.serviceDate)
     const employeePool = totalPrice * (serviceTypeShare / 100)
 
     const userMap = uniqueByService[s.id]
@@ -150,7 +145,7 @@ export async function GET(req: NextRequest) {
 
     const assignments: AssignmentRow[] = userEntries.map(([userId, info], idx) => {
       const splitPct = idx === count - 1 ? basePct + remainder : basePct
-      const deductionPct = info.tier ? (deductionByTier[info.tier] ?? 0) : 0
+      const deductionPct = info.tier ? resolveDeductionPctAsOf(rateHistory, info.tier, s.serviceDate) : 0
       // Deduction reduces effective split: netPay = pool × (splitPct − deductionPct)/100
       const effectivePct = Math.max(0, splitPct - deductionPct)
       const netPay = employeePool * (effectivePct / 100)

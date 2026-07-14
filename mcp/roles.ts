@@ -8,8 +8,12 @@
 import type { Role } from './actor'
 
 export const TOOL_REQUIRED_ROLES: Record<string, Role[]> = {
-  // Payroll figures
+  // Payroll figures + effective-dated rate config
   get_pay_period_summary: ['owner', 'manager'],
+  get_rates_as_of: ['owner', 'manager'],
+  employee_boat_counts: ['owner', 'manager'],
+  recompute_pay_period: ['owner', 'manager'],
+  set_rate: ['owner'], // changing pay rates is owner-only, mirroring updateTierConfig
 
   // Scheduling / pricing / data writes
   create_service: ['owner', 'manager'],
