@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { customers, boats } from '@/lib/db/schema'
 import { getQboClient } from '@/lib/qbo/client'
+import { extractQboErrorMessage } from '@/lib/qbo/errors'
 import { eq } from 'drizzle-orm'
 import { log } from '@/lib/log'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
@@ -63,7 +64,7 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
     customer.qboCustomerId = qboCustomer.Id
     await log({ action: 'push_customer_qbo', entityType: 'customer', entityId: customer.id, metadata: { qboId: qboCustomer.Id } })
   } catch (err) {
-    await log({ action: 'push_customer_qbo', entityType: 'customer', entityId: customer.id, error: String(err) })
+    await log({ action: 'push_customer_qbo', entityType: 'customer', entityId: customer.id, error: extractQboErrorMessage(err) })
   }
 
   return { ok: true, customer }

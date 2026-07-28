@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { pushCustomerToQbo, bulkPushCustomersToQbo } from '@/app/(app)/customers/[id]/update-customer-action'
@@ -16,6 +17,7 @@ export interface UnsyncedCustomer {
 
 export interface StaleInvoice {
   id: string
+  customerId: string
   customerName: string
   serviceDate: string
   amount: string
@@ -171,7 +173,11 @@ export function QboSyncHealth({ unsyncedCustomers, staleInvoices }: QboSyncHealt
                 <tbody className="divide-y">
                   {unsyncedCustomers.map((customer) => (
                     <tr key={customer.id}>
-                      <td className="px-3 py-2">{customer.name}</td>
+                      <td className="px-3 py-2">
+                        <Link href={`/customers/${customer.id}`} className="hover:text-primary hover:underline">
+                          {customer.name}
+                        </Link>
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">{customer.email ?? '—'}</td>
                       <td className="px-3 py-2 text-right">
                         <CustomerSyncButton customerId={customer.id} />
@@ -213,7 +219,11 @@ export function QboSyncHealth({ unsyncedCustomers, staleInvoices }: QboSyncHealt
                 <tbody className="divide-y">
                   {staleInvoices.map((invoice) => (
                     <tr key={invoice.id}>
-                      <td className="px-3 py-2">{invoice.customerName}</td>
+                      <td className="px-3 py-2">
+                        <Link href={`/customers/${invoice.customerId}`} className="hover:text-primary hover:underline">
+                          {invoice.customerName}
+                        </Link>
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">{invoice.serviceDate}</td>
                       <td className="px-3 py-2">${Number(invoice.amount).toFixed(2)}</td>
                       <td className="px-3 py-2 text-muted-foreground capitalize">{invoice.status}</td>

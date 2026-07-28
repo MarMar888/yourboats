@@ -17,6 +17,10 @@ type Props = {
   confirmLabel?: string
   pendingLabel?: string
   size?: 'sm' | 'default'
+  // 'destructive' (default) is red, for delete/void-style actions.
+  // 'default' is neutral, for confirm-gated actions that aren't destructive
+  // (e.g. recording a payment).
+  tone?: 'destructive' | 'default'
 }
 
 export function ConfirmDeleteButton({
@@ -27,6 +31,7 @@ export function ConfirmDeleteButton({
   confirmLabel = 'Delete',
   pendingLabel = 'Deleting…',
   size = 'sm',
+  tone = 'destructive',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -51,9 +56,9 @@ export function ConfirmDeleteButton({
   return (
     <>
       <Button
-        variant="ghost"
+        variant={tone === 'destructive' ? 'ghost' : 'outline'}
         size={size}
-        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        className={tone === 'destructive' ? 'text-destructive hover:text-destructive hover:bg-destructive/10' : undefined}
         onClick={() => { setError(null); setOpen(true) }}
       >
         {triggerLabel}
@@ -72,7 +77,7 @@ export function ConfirmDeleteButton({
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleConfirm} disabled={isPending}>
+            <Button variant={tone === 'destructive' ? 'destructive' : 'default'} onClick={handleConfirm} disabled={isPending}>
               {isPending ? pendingLabel : confirmLabel}
             </Button>
           </DialogFooter>

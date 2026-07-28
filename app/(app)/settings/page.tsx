@@ -81,6 +81,7 @@ export default async function SettingsPage({
         db
           .select({
             id: invoices.id,
+            customerId: customers.id,
             customerName: customers.name,
             serviceDate: services.serviceDate,
             amount: invoices.amount,

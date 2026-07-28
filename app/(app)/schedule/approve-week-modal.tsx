@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { approveWeek, unapproveWeek, sendRemindersNow } from './actions'
 import {
   Dialog,
@@ -140,7 +141,16 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
                           <div key={svc.id} className="px-4 py-3 space-y-2 bg-amber-50/40">
                             <div className="flex items-start justify-between gap-3">
                               <div className="space-y-0.5 min-w-0">
-                                <p className="font-medium leading-tight">{svc.customerName}</p>
+                                <p className="font-medium leading-tight">
+                                  <Link
+                                    href={`/schedule/${svc.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-primary hover:underline"
+                                  >
+                                    {svc.customerName}
+                                  </Link>
+                                </p>
                                 <p className="text-xs text-muted-foreground">{svc.serviceDate}</p>
                                 {svc.boats.length > 0 && (
                                   <p className="text-xs text-muted-foreground">{svc.boats.join(', ')}</p>
@@ -212,7 +222,16 @@ export function ApproveWeekModal({ startDate, endDate, scheduledServices }: Appr
                         <div key={svc.id} className="px-4 py-3 space-y-1.5">
                           <div className="flex items-start justify-between gap-4">
                             <div className="space-y-0.5">
-                              <p className="font-medium leading-tight">{svc.customerName}</p>
+                              <p className="font-medium leading-tight">
+                                <Link
+                                  href={`/schedule/${svc.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:text-primary hover:underline"
+                                >
+                                  {svc.customerName}
+                                </Link>
+                              </p>
                               <p className="text-xs text-muted-foreground">{svc.serviceDate}</p>
                               {svc.boats.length > 0 && (
                                 <p className="text-xs text-muted-foreground">{svc.boats.join(', ')}</p>

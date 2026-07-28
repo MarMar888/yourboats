@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -8,8 +9,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { EditInvoiceForm } from './edit-invoice-form'
 import { InvoiceActionsButton } from './invoice-actions-button'
+import { SendReminderButton } from './send-reminder-button'
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
-import { deleteInvoice, voidInvoice } from './actions'
+import { deleteInvoice, voidInvoice, markInvoicePaid } from './actions'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -86,7 +88,15 @@ export function InvoiceRow({
         className="hover:bg-muted/30 transition-colors cursor-pointer"
         onClick={() => setOpen(true)}
       >
-        <td className="px-4 py-3 font-medium">{inv.customerName}</td>
+        <td className="px-4 py-3 font-medium">
+          <Link
+            href={`/customers/${inv.customerId}`}
+            className="hover:text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {inv.customerName}
+          </Link>
+        </td>
         <td className="px-4 py-3 text-muted-foreground">{fmtDate(inv.serviceDate)}</td>
         <td className="px-4 py-3 text-right tabular-nums font-semibold">
           ${Number(inv.amount).toFixed(2)}
@@ -148,6 +158,20 @@ export function InvoiceRow({
             <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
               {inv.canManage && (
                 <div className="flex items-center justify-end gap-1">
+                  {(inv.status === 'sent' || inv.status === 'overdue') && (
+                    <>
+                      <SendReminderButton invoiceId={inv.invoiceId} />
+                      <ConfirmDeleteButton
+                        action={markInvoicePaid.bind(null, inv.invoiceId)}
+                        tone="default"
+                        title="Mark invoice paid"
+                        description={`Record a payment of $${Number(inv.amount).toFixed(2)} for ${inv.customerName} in QuickBooks (deposited to Undeposited Funds). Use this for payments received outside QuickBooks — cash, check, Venmo, etc.`}
+                        triggerLabel="Mark paid"
+                        confirmLabel="Mark paid"
+                        pendingLabel="Recording…"
+                      />
+                    </>
+                  )}
                   {inv.status !== 'void' && inv.status !== 'paid' && (
                     <ConfirmDeleteButton
                       action={voidInvoice.bind(null, inv.invoiceId)}
@@ -206,7 +230,11 @@ export function InvoiceRow({
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Customer</dt>
-                  <dd className="mt-1 font-medium">{inv.customerName}</dd>
+                  <dd className="mt-1 font-medium">
+                    <Link href={`/customers/${inv.customerId}`} className="hover:text-primary hover:underline">
+                      {inv.customerName}
+                    </Link>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Service date</dt>
@@ -302,6 +330,20 @@ export function InvoiceRow({
 
                 {inv.canManage && (
                   <div className="ml-auto flex items-center gap-2">
+                    {(inv.status === 'sent' || inv.status === 'overdue') && (
+                      <>
+                        <SendReminderButton invoiceId={inv.invoiceId} />
+                        <ConfirmDeleteButton
+                          action={async () => { await markInvoicePaid(inv.invoiceId) }}
+                          tone="default"
+                          title="Mark invoice paid"
+                          description={`Record a payment of $${Number(inv.amount).toFixed(2)} for ${inv.customerName} in QuickBooks (deposited to Undeposited Funds). Use this for payments received outside QuickBooks — cash, check, Venmo, etc.`}
+                          triggerLabel="Mark paid"
+                          confirmLabel="Mark paid"
+                          pendingLabel="Recording…"
+                        />
+                      </>
+                    )}
                     {inv.status !== 'void' && inv.status !== 'paid' && (
                       <ConfirmDeleteButton
                         action={async () => { await voidInvoice(inv.invoiceId); setOpen(false) }}

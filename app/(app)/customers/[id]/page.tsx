@@ -16,6 +16,7 @@ import type { RecurringScheduleRow } from './recurring-schedule-client'
 import { EditCustomerModal } from './edit-customer-modal'
 import { EditBoatModal } from './edit-boat-modal'
 import { SyncToQboButton } from './sync-to-qbo-button'
+import { SendStatementButton } from './send-statement-button'
 import { CopyContextButton } from './copy-context-button'
 import { todayET } from '@/lib/date'
 
@@ -329,6 +330,12 @@ export default async function CustomerDetailPage({
                 </Badge>
               )}
             </div>
+            {isQboSynced && canManage && (
+              <div>
+                <p className="text-muted-foreground text-xs mb-0.5">Statement</p>
+                <SendStatementButton customerId={id} />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
