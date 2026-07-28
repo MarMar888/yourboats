@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { log } from '@/lib/log'
 import { getQboClient } from '@/lib/qbo/client'
+import { extractQboErrorMessage } from '@/lib/qbo/errors'
 
 export async function updateCustomer(customerId: string, data: {
   name: string
@@ -62,7 +63,7 @@ export async function updateCustomer(customerId: string, data: {
         .set({ lastSyncedAt: new Date() })
         .where(eq(customers.id, customerId))
     } catch (err) {
-      console.error('[QBO] Failed to sync customer update', customerId, err)
+      console.error('[QBO] Failed to sync customer update', customerId, extractQboErrorMessage(err))
     }
   }
 
@@ -113,7 +114,9 @@ export async function pushCustomerToQbo(customerId: string): Promise<{ ok: true 
     revalidatePath(`/customers/${customerId}`)
     return { ok: true }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    const message = extractQboErrorMessage(err)
+    await log({ action: 'push_customer_qbo', entityType: 'customer', entityId: customerId, error: message })
+    return { ok: false, error: message }
   }
 }
 

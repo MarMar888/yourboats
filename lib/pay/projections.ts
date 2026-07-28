@@ -21,6 +21,7 @@ export type ScheduledServiceRow = {
 }
 
 export type OccurrenceEntry = {
+  id: string
   customerName: string
   date: string
   price: number
@@ -74,7 +75,7 @@ export function computeProjectionWeeks(
     if (s.date > seasonEnd) continue
     const ws = weekStart(s.date)
     ensureWeek(ws)
-    weekMap[ws].occurrences.push({ customerName: s.customerName, date: s.date, price: s.price, sharePct: s.sharePct })
+    weekMap[ws].occurrences.push({ id: s.id, customerName: s.customerName, date: s.date, price: s.price, sharePct: s.sharePct })
   }
 
   if (Object.keys(weekMap).length === 0) return []

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { saveTip, updateTierConfig, getLaborEntriesForPeriod, updatePayrollServiceType, getUnclockedBoatsForPeriod } from './actions'
 import type { LaborTimeEntry, UnclockedBoat } from './actions'
@@ -710,7 +711,11 @@ function PeriodReview({
                     {fmtDate(row.serviceDate)}
                   </td>
                   <td className="px-3 py-2.5">
-                    <div className="font-medium text-sm leading-tight">{row.customerName}</div>
+                    <div className="font-medium text-sm leading-tight">
+                      <Link href={`/schedule/${row.serviceId}`} className="hover:text-primary hover:underline">
+                        {row.customerName}
+                      </Link>
+                    </div>
                     <div className="flex items-center gap-1 mt-1 flex-wrap">
                       {isOwnerOrManager ? (
                         <select
@@ -1323,7 +1328,11 @@ function PeriodReview({
                               {fmtDate(s.serviceDate)}
                             </td>
                             <td className="px-3 py-2">
-                              <div className="text-sm">{s.customerName}</div>
+                              <div className="text-sm">
+                                <Link href={`/schedule/${s.serviceId}`} className="hover:text-primary hover:underline">
+                                  {s.customerName}
+                                </Link>
+                              </div>
                               <div className="text-xs text-muted-foreground">{s.serviceType}</div>
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-sm">{fmt(s.totalPrice)}</td>
@@ -1664,7 +1673,11 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
                       {fmtDate(d.serviceDate)}
                     </td>
                     <td className="px-3 py-2.5 font-medium">{d.boatNickname}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{d.customerName}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">
+                      <Link href={`/schedule/${d.serviceId}`} className="hover:text-primary hover:underline">
+                        {d.customerName}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2.5">{d.displayName}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground text-xs" title="Assigned crew size">
                       {d.crewCount}
@@ -1719,7 +1732,11 @@ function LaborAnalytics({ period }: { period: PayPeriod }) {
                       {fmtDate(b.serviceDate)}
                     </td>
                     <td className="px-3 py-2.5 font-medium text-amber-900">{b.boatNickname}</td>
-                    <td className="px-3 py-2.5 text-amber-800">{b.customerName}</td>
+                    <td className="px-3 py-2.5 text-amber-800">
+                      <Link href={`/schedule/${b.serviceId}`} className="hover:text-primary hover:underline">
+                        {b.customerName}
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

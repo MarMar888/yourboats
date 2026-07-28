@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { services, customers, serviceBoats, serviceBoatAssignments, boats, invoices, customerReminderContacts } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getQboClient, fetchQboInvoiceLink } from '@/lib/qbo/client'
+import { extractQboErrorMessage } from '@/lib/qbo/errors'
 import { voidQboInvoice } from '@/lib/qbo/void-invoice'
 import { voidInvoiceById } from '@/lib/invoices/void-invoice'
 import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
@@ -404,23 +405,14 @@ export async function updateInvoice(
 
 // ─── Send invoice via QBO (emails the customer) ───────────────────────────────
 
-export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
-  const [inv] = await db
-    .select({
-      id:             invoices.id,
-      qboInvoiceId:   invoices.qboInvoiceId,
-      qboPaymentLink: invoices.qboPaymentLink,
-      status:         invoices.status,
-      serviceId:      invoices.serviceId,
-    })
-    .from(invoices)
-    .where(eq(invoices.id, invoiceId))
-    .limit(1)
-
-  if (!inv) return { ok: false, error: 'Invoice not found.' }
-  if (!inv.qboInvoiceId) return { ok: false, error: 'Invoice has not been created in QuickBooks yet.' }
-  if (inv.status === 'sent' || inv.status === 'paid') return { ok: false, error: 'Invoice already sent.' }
-
+// Shared by the initial send and the reminder resend — QBO's public API has no
+// separate "reminder" endpoint, so a reminder is just resending the same
+// invoice email (node-quickbooks' sendInvoicePdf → POST /invoice/{id}/send).
+async function emailInvoiceToCustomer(
+  invoiceId: string,
+  inv: { qboInvoiceId: string; qboPaymentLink: string | null; serviceId: string },
+  opts: { markAsSent: boolean; logAction: string; logActionReminderContacts: string; posthogEvent: string }
+): Promise<ActionResult> {
   const [svc] = await db
     .select({ email: customers.email, customerId: customers.id, customerName: customers.name })
     .from(services)
@@ -429,6 +421,8 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
     .limit(1)
 
   if (!svc) return { ok: false, error: 'Service not found.' }
+
+  const statusUpdate = opts.markAsSent ? { status: 'sent' as const, sentAt: new Date() } : {}
 
   // No primary email — fall back to sending the QBO invoice link to reminder contacts via Gmail
   // (reminder contacts are often vtext addresses — plain text + link, no PDF attachment)
@@ -476,8 +470,8 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
       return { ok: false, error: `Failed to send: ${err instanceof Error ? err.message : String(err)}` }
     }
 
-    await db.update(invoices).set({ status: 'sent', sentAt: new Date() }).where(eq(invoices.id, invoiceId))
-    await log({ action: 'send_invoice_via_reminder_contacts', entityType: 'invoice', entityId: invoiceId, metadata: { to } })
+    await db.update(invoices).set(statusUpdate).where(eq(invoices.id, invoiceId))
+    await log({ action: opts.logActionReminderContacts, entityType: 'invoice', entityId: invoiceId, metadata: { to } })
     revalidatePath('/invoices')
     return { ok: true }
   }
@@ -496,19 +490,144 @@ export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
 
     await db
       .update(invoices)
-      .set({ status: 'sent', sentAt: new Date(), lastSyncedAt: new Date() })
+      .set({ ...statusUpdate, lastSyncedAt: new Date() })
       .where(eq(invoices.id, invoiceId))
 
-    await log({ action: 'send_qbo_invoice', entityType: 'invoice', entityId: invoiceId })
+    await log({ action: opts.logAction, entityType: 'invoice', entityId: invoiceId })
 
     const sendUser = await getCurrentUser()
     if (sendUser) {
       const posthog = getPostHogClient()
-      posthog.capture({ distinctId: sendUser.id, event: 'invoice_sent', properties: { invoice_id: invoiceId, qbo_invoice_id: inv.qboInvoiceId } })
+      posthog.capture({ distinctId: sendUser.id, event: opts.posthogEvent, properties: { invoice_id: invoiceId, qbo_invoice_id: inv.qboInvoiceId } })
       await posthog.shutdown()
     }
   } catch (err) {
-    return { ok: false, error: `Failed to send: ${err instanceof Error ? err.message : String(err)}` }
+    return { ok: false, error: `Failed to send: ${extractQboErrorMessage(err)}` }
+  }
+
+  revalidatePath('/invoices')
+  return { ok: true }
+}
+
+export async function sendQboInvoice(invoiceId: string): Promise<ActionResult> {
+  const [inv] = await db
+    .select({
+      id:             invoices.id,
+      qboInvoiceId:   invoices.qboInvoiceId,
+      qboPaymentLink: invoices.qboPaymentLink,
+      status:         invoices.status,
+      serviceId:      invoices.serviceId,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1)
+
+  if (!inv) return { ok: false, error: 'Invoice not found.' }
+  if (!inv.qboInvoiceId) return { ok: false, error: 'Invoice has not been created in QuickBooks yet.' }
+  if (inv.status === 'sent' || inv.status === 'paid') return { ok: false, error: 'Invoice already sent.' }
+
+  return emailInvoiceToCustomer(invoiceId, { qboInvoiceId: inv.qboInvoiceId, qboPaymentLink: inv.qboPaymentLink, serviceId: inv.serviceId }, {
+    markAsSent: true,
+    logAction: 'send_qbo_invoice',
+    logActionReminderContacts: 'send_invoice_via_reminder_contacts',
+    posthogEvent: 'invoice_sent',
+  })
+}
+
+// ─── Send a payment reminder for an already-sent invoice ──────────────────────
+
+export async function sendInvoiceReminder(invoiceId: string): Promise<ActionResult> {
+  const [inv] = await db
+    .select({
+      id:             invoices.id,
+      qboInvoiceId:   invoices.qboInvoiceId,
+      qboPaymentLink: invoices.qboPaymentLink,
+      status:         invoices.status,
+      serviceId:      invoices.serviceId,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1)
+
+  if (!inv) return { ok: false, error: 'Invoice not found.' }
+  if (!inv.qboInvoiceId) return { ok: false, error: 'Invoice has not been created in QuickBooks yet.' }
+  if (inv.status !== 'sent' && inv.status !== 'overdue') {
+    return { ok: false, error: 'Invoice must be sent before you can send a reminder.' }
+  }
+
+  return emailInvoiceToCustomer(invoiceId, { qboInvoiceId: inv.qboInvoiceId, qboPaymentLink: inv.qboPaymentLink, serviceId: inv.serviceId }, {
+    markAsSent: false,
+    logAction: 'send_invoice_reminder',
+    logActionReminderContacts: 'send_invoice_reminder_via_reminder_contacts',
+    posthogEvent: 'invoice_reminder_sent',
+  })
+}
+
+// ─── Mark an invoice paid (records a real QBO payment) ────────────────────────
+
+// QBO's payment status is derived from linked Payment transactions, not a
+// status field on the invoice — so "marking paid" locally without recording a
+// real Payment would leave QBO's own books showing the invoice outstanding.
+// This creates a QBO Payment for the invoice's live balance, deposited to
+// QBO's default Undeposited Funds account, for payments taken outside QBO
+// (cash, check, Venmo, etc).
+export async function markInvoicePaid(invoiceId: string): Promise<ActionResult> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'owner' && user.role !== 'manager')) {
+    return { ok: false, error: 'Not authorized.' }
+  }
+
+  const [inv] = await db
+    .select({ id: invoices.id, qboInvoiceId: invoices.qboInvoiceId, status: invoices.status })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1)
+
+  if (!inv) return { ok: false, error: 'Invoice not found.' }
+  if (!inv.qboInvoiceId) return { ok: false, error: 'Invoice has not been created in QuickBooks yet.' }
+  if (inv.status === 'paid') return { ok: false, error: 'Invoice is already marked paid.' }
+  if (inv.status === 'void') return { ok: false, error: 'Void invoices cannot be marked paid.' }
+
+  try {
+    const qbo = await getQboClient()
+
+    // Pull the live invoice from QBO so we pay off the actual outstanding
+    // balance (and its CustomerRef) rather than trusting local caches.
+    const qboInvoice = await new Promise<{ Balance: number; CustomerRef: { value: string } }>(
+      (resolve, reject) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        qbo.getInvoice(inv.qboInvoiceId!, (err: unknown, result: any) => (err ? reject(err) : resolve(result)))
+    )
+
+    const balance = Number(qboInvoice.Balance)
+    if (balance <= 0) {
+      return { ok: false, error: 'Invoice already has a zero balance in QuickBooks.' }
+    }
+
+    await new Promise<void>((resolve, reject) =>
+      qbo.createPayment(
+        {
+          CustomerRef: qboInvoice.CustomerRef,
+          TotalAmt: balance,
+          Line: [{ Amount: balance, LinkedTxn: [{ TxnId: inv.qboInvoiceId!, TxnType: 'Invoice' }] }],
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (err: unknown, _result: any) => (err ? reject(err) : resolve())
+      )
+    )
+
+    await db
+      .update(invoices)
+      .set({ status: 'paid', paidAt: new Date(), lastSyncedAt: new Date() })
+      .where(eq(invoices.id, invoiceId))
+
+    await log({ action: 'mark_invoice_paid', entityType: 'invoice', entityId: invoiceId, metadata: { amount: balance } })
+
+    const posthog = getPostHogClient()
+    posthog.capture({ distinctId: user.id, event: 'invoice_marked_paid', properties: { invoice_id: invoiceId, qbo_invoice_id: inv.qboInvoiceId, amount: balance } })
+    await posthog.shutdown()
+  } catch (err) {
+    return { ok: false, error: `Failed to record payment: ${extractQboErrorMessage(err)}` }
   }
 
   revalidatePath('/invoices')

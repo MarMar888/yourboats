@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SuppressButton } from './suppress-button'
 import { todayET } from '@/lib/date'
+import Link from 'next/link'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,9 @@ export default async function RemindersPage() {
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
                           <CardTitle className="text-base font-semibold leading-tight">
-                            {s.customerName}
+                            <Link href={`/customers/${s.customerId}`} className="hover:text-primary hover:underline">
+                              {s.customerName}
+                            </Link>
                           </CardTitle>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {s.reminderSuppressed ? (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import Link from 'next/link'
 import {
   getCurrentPeriod,
   getPeriodByIndex,
@@ -410,7 +411,11 @@ export function EmployeePayView({
                     <div key={row.serviceId} className="px-4 py-3 space-y-1.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-medium leading-tight">{row.customerName}</p>
+                          <p className="font-medium leading-tight">
+                            <Link href={`/schedule/${row.serviceId}`} className="hover:text-primary hover:underline">
+                              {row.customerName}
+                            </Link>
+                          </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {fmtDate(row.serviceDate)}
                             {' · '}

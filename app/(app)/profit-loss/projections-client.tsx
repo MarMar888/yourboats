@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
+import Link from 'next/link'
 import {
   computeProjectionTotals,
   computeProjectionWeeks,
@@ -114,7 +115,13 @@ export default function ProjectionsClient({
                                 key={i}
                                 className="inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5 bg-primary/8 text-primary"
                               >
-                                {o.customerName}
+                                <Link
+                                  href={`/schedule/${o.id}`}
+                                  className="hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {o.customerName}
+                                </Link>
                                 {o.price > 0 && <span className="opacity-60">{fmt(o.price)}</span>}
                               </span>
                             ))}
@@ -164,7 +171,11 @@ export default function ProjectionsClient({
                                       const oLabor = o.price * (o.sharePct / 100)
                                       return (
                                         <tr key={i}>
-                                          <td className="py-0.5">{o.customerName}</td>
+                                          <td className="py-0.5">
+                                            <Link href={`/schedule/${o.id}`} className="hover:text-primary hover:underline">
+                                              {o.customerName}
+                                            </Link>
+                                          </td>
                                           <td className="py-0.5 text-muted-foreground">{o.date}</td>
                                           <td className="py-0.5 text-right tabular-nums">{fmt(o.price)}</td>
                                           <td className="py-0.5 text-right tabular-nums text-muted-foreground">{o.sharePct}%</td>
