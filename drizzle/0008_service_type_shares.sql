@@ -1,4 +1,4 @@
-CREATE TABLE "service_type_shares" (
+CREATE TABLE IF NOT EXISTS "service_type_shares" (
   "service_type" text PRIMARY KEY,
   "employee_share_pct" numeric(5,2) NOT NULL
 );
@@ -23,4 +23,5 @@ INSERT INTO "service_type_shares" ("service_type", "employee_share_pct") VALUES
   ('powerwashing',       50),
   ('gelcoat_wetsanding', 50),
   ('captaining',         83),
-  ('other',              50);
+  ('other',              50)
+ON CONFLICT ("service_type") DO NOTHING;

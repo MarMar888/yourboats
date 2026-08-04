@@ -45,10 +45,22 @@ cp .env.example .env.local
 | `DATABASE_URL` | Supabase → Settings → Database → Connection string (Session mode) |
 | `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` in dev |
 
-4. **Push the schema**
+4. **Set up the schema**
+
+For local development, push the schema straight from `lib/db/schema.ts`:
 
 ```bash
 pnpm drizzle-kit push
+```
+
+Deployments instead apply the versioned SQL files in `drizzle/` via `pnpm db:migrate`,
+which runs automatically as part of the Vercel build (`buildCommand` in `vercel.json`)
+**before** the new code serves traffic. Each file is applied once and tracked in a
+`_migrations` table, so schema changes can never lag behind the code that queries them.
+You can run it by hand too:
+
+```bash
+pnpm tsx --env-file=.env.local scripts/migrate.ts
 ```
 
 5. **Run**

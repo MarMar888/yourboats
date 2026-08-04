@@ -1,1 +1,1 @@
-ALTER TABLE "invoices" ADD COLUMN "qbo_payment_link" text;
+ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "qbo_payment_link" text;
