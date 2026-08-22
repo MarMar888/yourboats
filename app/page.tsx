@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { DEMO_URL } from '@/lib/demo-mode'
 import ServiceCard from '@/components/service-card'
 import { InvoiceRow, type InvoiceRowData } from '@/app/(app)/invoices/invoice-row'
+import { RequestInfoForm } from '@/components/request-info-form'
 
 const INTEGRATIONS = ['QuickBooks Online', 'Gmail', 'Voice / SMS reminders', 'Photo uploads']
 
@@ -138,6 +139,7 @@ export default async function LandingPage() {
                 <Link href={DEMO_URL}>See a demo</Link>
               </Button>
             </div>
+            <RequestInfoForm />
           </div>
 
           <div className="animate-fade-up [animation-delay:75ms]" aria-hidden="true">
