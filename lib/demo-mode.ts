@@ -11,6 +11,15 @@ export function isDemoModeEnabled(): boolean {
   return true
 }
 
+// The demo branch deploys as a Vercel Preview, which is behind Vercel's SSO
+// wall by default. The bypass token below is a "Protection Bypass for
+// Automation" secret scoped to this project — it only unlocks Preview
+// deployments (never affects Production or its access controls), and
+// x-vercel-set-bypass-cookie persists access after the first click so the
+// token isn't needed on every subsequent request.
+export const DEMO_URL =
+  'https://yourboats-tour.vercel.app/demo?x-vercel-protection-bypass=dWJrC9LJtfmFRHG3090bqAQSru34d0wJ&x-vercel-set-bypass-cookie=true'
+
 export const DEMO_USER_COOKIE = 'demo_role'
 
 export const DEMO_ROLES = [

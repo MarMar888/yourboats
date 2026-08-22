@@ -3,34 +3,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
-
-const FEATURED = {
-  title: 'Scheduling & job cards',
-  body: 'Recurring schedules generate every service through season end. Crews see only their assigned jobs, with customer notes and boat details right on the card.',
-}
-
-const FEATURES = [
-  {
-    title: 'Invoicing synced to QuickBooks',
-    body: "Mark a job complete and it lands in the manager's ready-to-invoice queue. One click pushes the invoice to QuickBooks — no double entry.",
-  },
-  {
-    title: 'Payroll that runs itself',
-    body: 'Effective-dated pay rates and tiered commissions calculate pay automatically, per service, per pay period — retroactive-safe when rates change mid-season.',
-  },
-  {
-    title: 'AR, P&L, and season analytics',
-    body: 'Live accounts-receivable stats, a profit & loss overview, and season-over-season labor analytics — no exporting to a spreadsheet to see where things stand.',
-  },
-  {
-    title: 'Time clock & complaints',
-    body: 'Crew clocks in and out per job. Complaints get logged against the service and customer, tracked severity to resolution.',
-  },
-  {
-    title: 'Customer statements & reminders',
-    body: 'Send customer statements and automatic service reminders by email or text, with clickable links between every customer, boat, service, and invoice.',
-  },
-]
+import { DEMO_URL } from '@/lib/demo-mode'
+import ServiceCard from '@/components/service-card'
+import { InvoiceRow, type InvoiceRowData } from '@/app/(app)/invoices/invoice-row'
 
 const INTEGRATIONS = ['QuickBooks Online', 'Gmail', 'Voice / SMS reminders', 'Photo uploads']
 
@@ -46,28 +21,76 @@ const STATUS_VARIANT: Record<(typeof PREVIEW_JOBS)[number]['status'], 'secondary
   Complete: 'success',
 }
 
-const JOB_CARDS = [
+const SAMPLE_INVOICE: InvoiceRowData = {
+  invoiceId: 'sample-invoice',
+  qboInvoiceId: 'sample-qbo-1042',
+  docNumber: 1042,
+  amount: '145.00',
+  notes: null,
+  status: 'paid',
+  sentAt: new Date('2026-08-15T16:00:00'),
+  paidAt: new Date('2026-08-18T11:00:00'),
+  serviceDate: '2026-08-14',
+  serviceStatus: 'complete',
+  serviceId: 'sample-service',
+  customerName: 'Dave Halvorson',
+  customerId: 'sample-customer',
+  isPrepaid: false,
+  canManage: false,
+  qboEnv: 'production',
+  lineItems: [
+    {
+      serviceId: 'sample-service',
+      boatId: 'sample-boat',
+      nickname: 'Salty Paws',
+      lengthFt: 21,
+      description: 'Interior, Exterior',
+      rateType: 'per_ft',
+      rate: '6.50',
+    },
+  ],
+}
+
+const PAYROLL_ROWS = [
   {
-    customer: 'Susan Pelto',
-    boat: 'Knot Working · MasterCraft X24',
-    note: 'Prefers afternoon service.',
-    status: 'Scheduled',
+    customer: 'Karen Ostlund',
+    date: 'Aug 17',
+    type: 'Recurring wash',
+    pay: '$51.25',
+    approved: true,
+    breakdown: 'Revenue $82.00 · 62.5% to crew = pool $51.25 · Your 100% of pool = $51.25',
   },
   {
-    customer: 'Rick & Jen Torgerson',
-    boat: 'Reel Therapy · Chaparral 246 SSi',
-    note: 'Dog on the dock — friendly but loud.',
-    status: 'In progress',
-  },
-  {
-    customer: 'Nancy Kowalski',
-    boat: 'Wake Me Up · Nautique G23',
-    note: 'Biweekly wash, gate code on file.',
-    status: 'Complete',
+    customer: 'Chris & Amy Delaney',
+    date: 'Aug 19',
+    type: 'Buffing & wax',
+    pay: '$108.00',
+    approved: false,
+    breakdown: 'Revenue $320.00 · 60% to crew = pool $192.00 · 70% split − 2.5% tier = 67.5% = $108.00 + $12 tip',
   },
 ] as const
 
-const CONTACT_EMAIL = 'marley@squeakycleanboats.com'
+const PL_STATS = [
+  { label: 'Projected revenue', value: '$18,420', sub: '12 weeks', color: '' },
+  { label: 'Variable labor', value: '$10,980', sub: '59.6% of rev', color: 'text-amber-600' },
+  { label: 'Salaried costs', value: '$2,400', sub: 'GM salary + bonus', color: 'text-amber-600' },
+  { label: 'Projected profit', value: '$5,040', sub: '27.4% margin', color: 'text-green-700' },
+] as const
+
+const COMPLAINT = {
+  customer: 'Dave Halvorson',
+  date: 'Aug 14',
+  severity: 'Minor' as const,
+  description: 'Slight streaking on the windshield after the wash — customer asked for a touch-up next visit.',
+  resolved: true,
+}
+
+const REMINDER = {
+  customer: 'Nancy Kowalski',
+  email: 'nkowalski@icloud.com',
+  boat: 'Wake Me Up',
+  sends: 'Tomorrow evening',
+}
 
 export default async function LandingPage() {
   const user = await getCurrentUser()
@@ -82,9 +105,14 @@ export default async function LandingPage() {
             <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
             yourboats
           </span>
-          <Button asChild size="sm">
-            <Link href={primaryHref}>{primaryLabel}</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href={DEMO_URL}>See a demo</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href={primaryHref}>{primaryLabel}</Link>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -103,17 +131,17 @@ export default async function LandingPage() {
               job cards for the crew, one-tap invoicing synced to QuickBooks, and payroll
               that runs itself.
             </p>
-            <div className="mt-8">
+            <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <Link href={primaryHref}>{primaryLabel}</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href={DEMO_URL}>See a demo</Link>
               </Button>
             </div>
           </div>
 
-          <div
-            className="animate-fade-up [animation-delay:75ms]"
-            aria-hidden="true"
-          >
+          <div className="animate-fade-up [animation-delay:75ms]" aria-hidden="true">
             <Card className="overflow-hidden">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <p className="text-sm font-semibold text-foreground">Today, Aug 22</p>
@@ -138,30 +166,227 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section className="pb-20">
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">
-            Everything the crew and the office need
-          </h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card className="transition-transform duration-150 hover:-translate-y-0.5 sm:col-span-2">
-              <CardHeader>
-                <CardTitle>{FEATURED.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">{FEATURED.body}</CardContent>
-            </Card>
-            {FEATURES.map((feature, i) => (
-              <Card
-                key={feature.title}
-                className={`transition-transform duration-150 hover:-translate-y-0.5 ${
-                  i === FEATURES.length - 1 ? 'sm:col-span-2 lg:col-span-3' : ''
-                }`}
-              >
-                <CardHeader>
-                  <CardTitle>{feature.title}</CardTitle>
+        <section className="border-t border-border py-12">
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Every marina, detail shop, and crew runs their program a little differently.
+            yourboats flexes to match how you already schedule, price, and pay — pricing per
+            foot or flat rate, solo crews or split-share teams, weekly or biweekly routes —
+            not the other way around.
+          </p>
+        </section>
+
+        {/* ── Scheduling & job cards ─────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Scheduling &amp; job cards
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Recurring schedules generate every service through season end. Crews see
+                only their assigned jobs, with customer notes and boat details right on
+                the card.
+              </p>
+            </div>
+            <div className="mx-auto w-full max-w-sm" aria-hidden="true">
+              <ServiceCard
+                serviceId="sample-service-1"
+                customerId="sample-customer-1"
+                customerName="Karen Ostlund"
+                customerNotes="Gate code 4471. Prefers morning service."
+                serviceType="recurring"
+                serviceTypeLabel="Recurring wash"
+                serviceDate="2026-08-22"
+                status="scheduled"
+                totalPrice="82.00"
+                boats={[
+                  { boatId: 'sample-boat-1', nickname: 'Second Wind', makeModel: 'Malibu Wakesetter 23 LSV', lengthFt: 23 },
+                ]}
+                canComplete={false}
+                canManage={false}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Invoicing ───────────────────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Invoicing synced to QuickBooks
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Mark a job complete and it lands in the manager&apos;s ready-to-invoice
+                queue. One click pushes the invoice to QuickBooks — no double entry.
+              </p>
+            </div>
+            <div className="lg:order-1 overflow-hidden rounded-lg border border-border" aria-hidden="true">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Customer</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Date</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Amount</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Invoice #</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  <InvoiceRow inv={SAMPLE_INVOICE} qboItemOptions={[]} />
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Payroll ─────────────────────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Payroll that runs itself
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Effective-dated pay rates and tiered commissions calculate pay
+                automatically, per service, per pay period — retroactive-safe when rates
+                change mid-season.
+              </p>
+            </div>
+            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card text-sm" aria-hidden="true">
+              {PAYROLL_ROWS.map((row) => (
+                <div key={row.customer} className="space-y-1.5 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium leading-tight">{row.customer}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {row.date} · {row.type}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-semibold tabular-nums">{row.pay}</p>
+                      <span
+                        className={
+                          row.approved
+                            ? 'mt-1 inline-block rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700'
+                            : 'mt-1 inline-block rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700'
+                        }
+                      >
+                        {row.approved ? '✓ Approved' : 'Draft'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] tabular-nums text-muted-foreground">{row.breakdown}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── AR, P&L, and season analytics ──────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                AR, P&amp;L, and season analytics
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Live accounts-receivable stats, a profit &amp; loss overview, and
+                season-over-season labor analytics — no exporting to a spreadsheet to see
+                where things stand.
+              </p>
+            </div>
+            <div className="lg:order-1 grid grid-cols-2 gap-4" aria-hidden="true">
+              {PL_STATS.map((stat) => (
+                <div key={stat.label} className="rounded-lg border border-border bg-card px-4 py-4">
+                  <p className="text-xs text-muted-foreground">{stat.label}</p>
+                  <p className={`text-2xl font-semibold tabular-nums ${stat.color}`}>{stat.value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Time clock & complaints ─────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Time clock &amp; complaints
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Crew clocks in and out per job. Complaints get logged against the service
+                and customer, tracked severity to resolution.
+              </p>
+            </div>
+            <div className="space-y-4" aria-hidden="true">
+              <div className="rounded-xl border border-border bg-card px-6 py-8 text-center">
+                <div className="font-mono text-5xl font-semibold tracking-tight tabular-nums text-green-600">
+                  2:14:08
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Clocked in to <span className="font-medium text-foreground">Reel Therapy</span>
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{COMPLAINT.customer}</span>
+                      <span className="text-xs text-muted-foreground">{COMPLAINT.date}</span>
+                      <span className="inline-flex items-center rounded-full bg-yellow-50 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
+                        {COMPLAINT.severity}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{COMPLAINT.description}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant="success">Resolved</Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Customer statements & reminders ────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Customer statements &amp; reminders
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Send customer statements and automatic service reminders by email or
+                text, with clickable links between every customer, boat, service, and
+                invoice.
+              </p>
+            </div>
+            <div className="mx-auto w-full max-w-sm lg:order-1" aria-hidden="true">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-base font-semibold leading-tight">
+                      {REMINDER.customer}
+                    </CardTitle>
+                    <Badge variant="secondary" className="text-xs">Scheduled</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{REMINDER.email}</p>
                 </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">{feature.body}</CardContent>
+                <CardContent className="space-y-2 pt-0">
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Boats</p>
+                    <Badge variant="outline" className="text-xs">{REMINDER.boat}</Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-xs text-muted-foreground">Sends:</span>
+                    <span className="text-xs font-medium text-foreground">{REMINDER.sends}</span>
+                  </div>
+                </CardContent>
               </Card>
-            ))}
+            </div>
           </div>
         </section>
 
@@ -210,32 +435,6 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section className="border-t border-border py-16">
-          <div className="max-w-2xl">
-            <h2 className="text-xl font-semibold tracking-tight text-foreground">
-              Job cards the crew actually sees
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Everything an employee needs for the stop — boat details, notes, and status,
-              right on the card.
-            </p>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {JOB_CARDS.map((job) => (
-              <Card key={job.customer}>
-                <CardHeader>
-                  <CardTitle className="text-base">{job.customer}</CardTitle>
-                  <p className="text-xs text-muted-foreground">{job.boat}</p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{job.note}</p>
-                  <Badge variant={STATUS_VARIANT[job.status]}>{job.status}</Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
         <section className="border-t border-border py-16 text-center">
           <h2 className="text-xl font-semibold tracking-tight text-foreground">
             See it running before you set anything up
@@ -243,6 +442,9 @@ export default async function LandingPage() {
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">
               <Link href={primaryHref}>{primaryLabel}</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href={DEMO_URL}>See a demo</Link>
             </Button>
           </div>
         </section>
@@ -252,10 +454,10 @@ export default async function LandingPage() {
         <div className="mx-auto flex max-w-screen-xl flex-col items-center gap-2 px-4 py-10 text-center">
           <p className="text-sm text-muted-foreground">Questions? We&apos;re happy to help.</p>
           <a
-            href={`mailto:${CONTACT_EMAIL}`}
+            href="mailto:marley@squeakycleanboats.com"
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            {CONTACT_EMAIL}
+            marley@squeakycleanboats.com
           </a>
         </div>
       </footer>

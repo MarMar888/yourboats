@@ -5,16 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { isDemoModeEnabled } from '@/lib/demo-mode'
-
-// The demo branch deploys as a Vercel Preview, which is behind Vercel's SSO
-// wall by default. The bypass token below is a "Protection Bypass for
-// Automation" secret scoped to this project — it only unlocks Preview
-// deployments (never affects Production or its access controls), and
-// x-vercel-set-bypass-cookie persists access after the first click so the
-// token isn't needed on every subsequent request.
-const DEMO_URL =
-  'https://yourboats-tour.vercel.app/demo?x-vercel-protection-bypass=dWJrC9LJtfmFRHG3090bqAQSru34d0wJ&x-vercel-set-bypass-cookie=true'
+import { isDemoModeEnabled, DEMO_URL } from '@/lib/demo-mode'
 
 export default async function LoginPage({
   searchParams,
