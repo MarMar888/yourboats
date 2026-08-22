@@ -100,6 +100,10 @@ module.exports = {
   			'fade-up': {
   				from: { opacity: '0', transform: 'translateY(8px)' },
   				to: { opacity: '1', transform: 'translateY(0)' }
+  			},
+  			marquee: {
+  				from: { transform: 'translateX(0)' },
+  				to: { transform: 'translateX(-50%)' }
   			}
   		},
   		animation: {
@@ -107,7 +111,8 @@ module.exports = {
   			'accordion-up': 'accordion-up 0.2s ease-out',
   			bob: 'bob 3s ease-in-out infinite',
   			wave: 'wave 2.5s ease-in-out infinite',
-  			'fade-up': 'fade-up 250ms ease-out both'
+  			'fade-up': 'fade-up 250ms ease-out both',
+  			marquee: 'marquee 24s linear infinite'
   		}
   	}
   },

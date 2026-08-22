@@ -5,10 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { DEMO_URL } from '@/lib/demo-mode'
 import ServiceCard from '@/components/service-card'
+import { IntegrationsMarquee } from '@/components/integrations-marquee'
 import { InvoiceRow, type InvoiceRowData } from '@/app/(app)/invoices/invoice-row'
 import { RequestInfoForm } from '@/components/request-info-form'
-
-const INTEGRATIONS = ['QuickBooks Online', 'Gmail', 'Voice / SMS reminders', 'Photo uploads']
 
 const PREVIEW_JOBS = [
   { customer: 'Karen Ostlund', type: 'Recurring wash', time: '8:30 AM', status: 'Scheduled' },
@@ -430,13 +429,7 @@ export default async function LandingPage() {
               them, so billing, communication, and records all stay in sync.
             </p>
           </div>
-          <div className="mt-6 flex flex-wrap gap-2">
-            {INTEGRATIONS.map((name) => (
-              <Badge key={name} variant="outline" className="px-3 py-1 text-sm">
-                {name}
-              </Badge>
-            ))}
-          </div>
+          <IntegrationsMarquee />
         </section>
 
         <section className="border-t border-border py-16">
