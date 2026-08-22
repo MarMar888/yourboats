@@ -46,6 +46,29 @@ const STATUS_VARIANT: Record<(typeof PREVIEW_JOBS)[number]['status'], 'secondary
   Complete: 'success',
 }
 
+const JOB_CARDS = [
+  {
+    customer: 'Susan Pelto',
+    boat: 'Knot Working · MasterCraft X24',
+    note: 'Prefers afternoon service.',
+    status: 'Scheduled',
+  },
+  {
+    customer: 'Rick & Jen Torgerson',
+    boat: 'Reel Therapy · Chaparral 246 SSi',
+    note: 'Dog on the dock — friendly but loud.',
+    status: 'In progress',
+  },
+  {
+    customer: 'Nancy Kowalski',
+    boat: 'Wake Me Up · Nautique G23',
+    note: 'Biweekly wash, gate code on file.',
+    status: 'Complete',
+  },
+] as const
+
+const CONTACT_EMAIL = 'marley@squeakycleanboats.com'
+
 export default async function LandingPage() {
   const user = await getCurrentUser()
   const primaryHref = user ? '/dashboard' : '/login'
@@ -187,6 +210,32 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        <section className="border-t border-border py-16">
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              Job cards the crew actually sees
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Everything an employee needs for the stop — boat details, notes, and status,
+              right on the card.
+            </p>
+          </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {JOB_CARDS.map((job) => (
+              <Card key={job.customer}>
+                <CardHeader>
+                  <CardTitle className="text-base">{job.customer}</CardTitle>
+                  <p className="text-xs text-muted-foreground">{job.boat}</p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">{job.note}</p>
+                  <Badge variant={STATUS_VARIANT[job.status]}>{job.status}</Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         <section className="border-t border-border py-16 text-center">
           <h2 className="text-xl font-semibold tracking-tight text-foreground">
             See it running before you set anything up
@@ -198,6 +247,18 @@ export default async function LandingPage() {
           </div>
         </section>
       </main>
+
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-screen-xl flex-col items-center gap-2 px-4 py-10 text-center">
+          <p className="text-sm text-muted-foreground">Questions? We&apos;re happy to help.</p>
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {CONTACT_EMAIL}
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }
