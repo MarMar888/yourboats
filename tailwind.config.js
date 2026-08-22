@@ -96,13 +96,18 @@ module.exports = {
   			wave: {
   				'0%, 100%': { transform: 'translateX(-2px)', opacity: '0.35' },
   				'50%': { transform: 'translateX(2px)', opacity: '0.7' }
+  			},
+  			'fade-up': {
+  				from: { opacity: '0', transform: 'translateY(8px)' },
+  				to: { opacity: '1', transform: 'translateY(0)' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
   			bob: 'bob 3s ease-in-out infinite',
-  			wave: 'wave 2.5s ease-in-out infinite'
+  			wave: 'wave 2.5s ease-in-out infinite',
+  			'fade-up': 'fade-up 250ms ease-out both'
   		}
   	}
   },

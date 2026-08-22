@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 
+const FEATURED = {
+  title: 'Scheduling & job cards',
+  body: 'Recurring schedules generate every service through season end. Crews see only their assigned jobs, with customer notes and boat details right on the card.',
+}
+
 const FEATURES = [
-  {
-    title: 'Scheduling & job cards',
-    body: 'Recurring schedules generate every service through season end. Crews see only their assigned jobs, with customer notes and boat details right on the card.',
-  },
   {
     title: 'Invoicing synced to QuickBooks',
     body: "Mark a job complete and it lands in the manager's ready-to-invoice queue. One click pushes the invoice to QuickBooks — no double entry.",
@@ -31,12 +32,19 @@ const FEATURES = [
   },
 ]
 
-const INTEGRATIONS = [
-  'QuickBooks Online',
-  'Gmail',
-  'Voice / SMS reminders',
-  'Photo uploads',
-]
+const INTEGRATIONS = ['QuickBooks Online', 'Gmail', 'Voice / SMS reminders', 'Photo uploads']
+
+const PREVIEW_JOBS = [
+  { customer: 'Karen Ostlund', type: 'Recurring wash', time: '8:30 AM', status: 'Scheduled' },
+  { customer: 'Dave Halvorson', type: 'Detailing', time: '10:00 AM', status: 'In progress' },
+  { customer: 'Chris & Amy Delaney', type: 'Buffing & wax', time: '1:15 PM', status: 'Complete' },
+] as const
+
+const STATUS_VARIANT: Record<(typeof PREVIEW_JOBS)[number]['status'], 'secondary' | 'default' | 'success'> = {
+  Scheduled: 'secondary',
+  'In progress': 'default',
+  Complete: 'success',
+}
 
 export default async function LandingPage() {
   const user = await getCurrentUser()
@@ -47,7 +55,10 @@ export default async function LandingPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-screen-xl items-center justify-between px-4 py-4">
-          <span className="text-lg font-semibold tracking-tight">yourboats</span>
+          <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+            yourboats
+          </span>
           <Button asChild size="sm">
             <Link href={primaryHref}>{primaryLabel}</Link>
           </Button>
@@ -55,13 +66,13 @@ export default async function LandingPage() {
       </header>
 
       <main className="mx-auto max-w-screen-xl px-4">
-        <section className="py-16 sm:py-24">
-          <div className="max-w-2xl">
+        <section className="grid gap-10 py-16 sm:py-24 lg:grid-cols-2 lg:items-center lg:gap-8">
+          <div className="max-w-xl animate-fade-up">
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-              Boat cleaning operations
+              Marine service operations
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Run the whole crew from one board — scheduling, jobs, invoices, and pay.
+              Run your marina, detail shop, or service crew from one board.
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
               yourboats replaces the spreadsheet-and-text-message shuffle with a single
@@ -75,6 +86,33 @@ export default async function LandingPage() {
               </Button>
             </div>
           </div>
+
+          <div
+            className="animate-fade-up [animation-delay:75ms]"
+            aria-hidden="true"
+          >
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <p className="text-sm font-semibold text-foreground">Today, Aug 22</p>
+                <p className="text-xs text-muted-foreground">3 jobs</p>
+              </div>
+              <div className="divide-y divide-border">
+                {PREVIEW_JOBS.map((job) => (
+                  <div key={job.customer} className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{job.customer}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {job.type} · <span className="tabular-nums">{job.time}</span>
+                      </p>
+                    </div>
+                    <Badge variant={STATUS_VARIANT[job.status]} className="shrink-0">
+                      {job.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
         </section>
 
         <section className="pb-20">
@@ -82,8 +120,19 @@ export default async function LandingPage() {
             Everything the crew and the office need
           </h2>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((feature) => (
-              <Card key={feature.title}>
+            <Card className="transition-transform duration-150 hover:-translate-y-0.5 sm:col-span-2">
+              <CardHeader>
+                <CardTitle>{FEATURED.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">{FEATURED.body}</CardContent>
+            </Card>
+            {FEATURES.map((feature, i) => (
+              <Card
+                key={feature.title}
+                className={`transition-transform duration-150 hover:-translate-y-0.5 ${
+                  i === FEATURES.length - 1 ? 'sm:col-span-2 lg:col-span-3' : ''
+                }`}
+              >
                 <CardHeader>
                   <CardTitle>{feature.title}</CardTitle>
                 </CardHeader>
