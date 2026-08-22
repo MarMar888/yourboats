@@ -391,13 +391,18 @@ export default async function LandingPage() {
         <section className="border-t border-border py-16">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+                <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                AI native
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
                 Run it from Claude, not just the browser
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Yourboats ships a real MCP server. Issue a personal access token from
-                Settings and drive schedules, invoices, and payroll from Claude or any
-                MCP-compatible AI client. No separate app to open.
+                Yourboats ships a real MCP server, not a bolted-on chatbot. Issue a
+                personal access token from Settings and drive schedules, invoices, and
+                payroll from Claude or any MCP-compatible AI client. No separate app to
+                open.
               </p>
             </div>
             <div
