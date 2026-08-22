@@ -84,7 +84,7 @@ export async function sendScheduleReminderTest(): Promise<{ ok: boolean; message
 
   try {
     await emailTransport.sendMail({
-      from: `"yourboats" <${process.env.GMAIL_USER}>`,
+      from: `"Yourboats" <${process.env.GMAIL_USER}>`,
       to: NATE_SMS,
       subject: 'Schedule approval reminder',
       text: 'Reminder: Please approve this weeks schedule. (https://yourboats.vercel.app/schedule)',

@@ -130,7 +130,7 @@ export default function AppNav({ user }: { user: CurrentUser }) {
             )}
           >
             <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)] transition-shadow group-hover:shadow-[0_0_0_6px_hsl(var(--primary)/0.16)]" />
-            <span className="tracking-tight">yourboats</span>
+            <span className="tracking-tight">Yourboats</span>
           </Link>
 
           {/* Desktop nav */}

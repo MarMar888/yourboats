@@ -18,7 +18,7 @@ export default function PickUserPage() {
       <Card className="w-full max-w-sm overflow-hidden">
         <div className="h-1 bg-primary" />
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">yourboats</CardTitle>
+          <CardTitle className="text-2xl">Yourboats</CardTitle>
           <CardDescription>Who are you today?</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

@@ -27,7 +27,7 @@ export default async function AppFooter() {
   return (
     <footer className="border-t bg-background/80 py-3 px-6 flex items-center justify-center gap-2">
       <p className="text-xs text-muted-foreground">
-        yourboats v{version} / Squeaky Clean Boat Services LLC
+        Yourboats v{version} / Squeaky Clean Boat Services LLC
       </p>
       <Link
         href="/logs"

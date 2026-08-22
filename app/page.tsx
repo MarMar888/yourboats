@@ -103,7 +103,7 @@ export default async function LandingPage() {
         <div className="mx-auto flex max-w-screen-xl items-center justify-between px-4 py-4">
           <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-            yourboats
+            Yourboats
           </span>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="outline">
@@ -126,7 +126,7 @@ export default async function LandingPage() {
               Run your marina, detail shop, or service crew from one board.
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              yourboats replaces the spreadsheet-and-text-message shuffle with a single
+              Yourboats replaces the spreadsheet-and-text-message shuffle with a single
               operations app: recurring schedules that generate the season automatically,
               job cards for the crew, one-tap invoicing synced to QuickBooks, and payroll
               that runs itself.
@@ -169,7 +169,7 @@ export default async function LandingPage() {
         <section className="border-t border-border py-12">
           <p className="max-w-2xl text-sm text-muted-foreground">
             Every marina, detail shop, and crew runs their program a little differently.
-            yourboats flexes to match how you already schedule, price, and pay — pricing per
+            Yourboats flexes to match how you already schedule, price, and pay — pricing per
             foot or flat rate, solo crews or split-share teams, weekly or biweekly routes —
             not the other way around.
           </p>
@@ -396,7 +396,7 @@ export default async function LandingPage() {
               Connects to what you already run
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              yourboats doesn&apos;t ask you to rip out your existing tools — it plugs into
+              Yourboats doesn&apos;t ask you to rip out your existing tools — it plugs into
               them, so billing, communication, and records all stay in sync.
             </p>
           </div>

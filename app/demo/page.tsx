@@ -18,7 +18,7 @@ export default function DemoPickerPage() {
       <Card className="w-full max-w-sm overflow-hidden">
         <div className="h-1 bg-primary" />
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">yourboats</CardTitle>
+          <CardTitle className="text-2xl">Yourboats</CardTitle>
           <CardDescription>See it as an owner, manager, or crew member.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

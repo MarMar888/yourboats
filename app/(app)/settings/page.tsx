@@ -51,7 +51,7 @@ export default async function SettingsPage({
             <CardHeader>
               <CardTitle>AI access tokens (MCP)</CardTitle>
               <CardDescription>
-                Generate a personal token to drive yourboats from an AI client (e.g. Claude Code)
+                Generate a personal token to drive Yourboats from an AI client (e.g. Claude Code)
                 as yourself. Tokens act with your role and can be revoked anytime.
               </CardDescription>
             </CardHeader>
@@ -115,7 +115,7 @@ export default async function SettingsPage({
           <CardHeader>
             <CardTitle>AI access tokens (MCP)</CardTitle>
             <CardDescription>
-              Generate a personal token to drive yourboats from an AI client (e.g. Claude Code)
+              Generate a personal token to drive Yourboats from an AI client (e.g. Claude Code)
               as yourself. Tokens act with your role and can be revoked anytime.
             </CardDescription>
           </CardHeader>
@@ -178,7 +178,7 @@ export default async function SettingsPage({
             <CardHeader>
               <CardTitle>Import customers</CardTitle>
               <CardDescription>
-                Pull all active customers from QuickBooks into yourboats. Safe to run multiple
+                Pull all active customers from QuickBooks into Yourboats. Safe to run multiple
                 times — existing customers are updated, not duplicated.
               </CardDescription>
             </CardHeader>
@@ -221,7 +221,7 @@ export default async function SettingsPage({
             <CardHeader>
               <CardTitle>Sync QBO items</CardTitle>
               <CardDescription>
-                Pull your active products/services from QuickBooks into yourboats. These are used
+                Pull your active products/services from QuickBooks into Yourboats. These are used
                 when creating invoices — run this after adding or changing items in QBO.
               </CardDescription>
             </CardHeader>
@@ -237,7 +237,7 @@ export default async function SettingsPage({
               <CardTitle>Reconcile invoice numbers</CardTitle>
               <CardDescription>
                 Fetch the real invoice number from QuickBooks for every synced invoice and update
-                yourboats to match. Run this once to fix any numbers assigned before this was automated.
+                Yourboats to match. Run this once to fix any numbers assigned before this was automated.
               </CardDescription>
             </CardHeader>
             <CardContent>

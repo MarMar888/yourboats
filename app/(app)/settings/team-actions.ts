@@ -95,7 +95,7 @@ export async function createTeamAccount(data: {
     // If our users table insert fails, the auth account was created — note this
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('unique') || msg.includes('duplicate')) {
-      return { error: 'An account with that email already exists in yourboats' }
+      return { error: 'An account with that email already exists in Yourboats' }
     }
     return { error: `Created auth account but failed to save profile: ${msg}` }
   }

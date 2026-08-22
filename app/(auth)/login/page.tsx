@@ -23,7 +23,7 @@ export default async function LoginPage({
       <Card className="w-full max-w-sm overflow-hidden">
         <div className="h-1 bg-primary" />
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">yourboats</CardTitle>
+          <CardTitle className="text-2xl">Yourboats</CardTitle>
           <p className="text-sm font-medium text-muted-foreground">Squeaky Clean Boat Services</p>
         </CardHeader>
         <CardContent className="space-y-4">

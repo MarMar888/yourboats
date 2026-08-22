@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <SidebarTrigger />
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-foreground">
               <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)]" />
-              <span className="tracking-tight">yourboats</span>
+              <span className="tracking-tight">Yourboats</span>
             </Link>
           </div>
           <div className="flex flex-1 min-w-0">

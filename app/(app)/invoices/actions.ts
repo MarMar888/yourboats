@@ -245,7 +245,7 @@ export async function createQboInvoice(invoiceId: string, selectedQboItemId?: st
     if (isOAuthError && createUser && createUser.email !== 'marley@squeakycleanboats.com') {
       try {
         await emailTransport.sendMail({
-          from: `"yourboats" <${process.env.GMAIL_USER}>`,
+          from: `"Yourboats" <${process.env.GMAIL_USER}>`,
           to: MARLEY_SMS,
           subject: `QBO auth error — ${createUser.displayName ?? createUser.email} tried to create an invoice`,
           text: `${createUser.displayName ?? createUser.email} (${createUser.email}) tried to create an invoice but QuickBooks isn't connected. Reconnect in Settings.`,

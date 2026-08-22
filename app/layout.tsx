@@ -4,7 +4,7 @@ import { StaleDeploymentBanner } from '@/components/stale-deployment-banner'
 
 export const metadata = {
   metadataBase: new URL('https://yourboats.vercel.app'),
-  title: 'yourboats',
+  title: 'Yourboats',
   description: 'Boat cleaning operations — scheduling, jobs, and invoicing',
 }
 
