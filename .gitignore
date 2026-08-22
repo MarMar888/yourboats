@@ -42,3 +42,4 @@ yarn-error.log*
 .gstack/
 .env.local
 .claude/worktrees/
+.env*

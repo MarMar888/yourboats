@@ -1,14 +1,23 @@
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { login } from './actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { isDemoModeEnabled } from '@/lib/demo-mode'
+
+const DEMO_URL = 'https://yourboats-git-demo-marmar888s-projects.vercel.app/demo'
 
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ message?: string }>
 }) {
+  // This deployment IS the demo branch — skip straight to the role picker,
+  // there's no real Neon Auth configured here.
+  if (isDemoModeEnabled()) redirect('/demo')
+
   const { message } = await searchParams
 
   return (
@@ -48,6 +57,16 @@ export default async function LoginPage({
               Sign in
             </Button>
           </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Just looking?{' '}
+            <Link
+              href={DEMO_URL}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              See a demo
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
