@@ -81,7 +81,7 @@ const COMPLAINT = {
   customer: 'Dave Halvorson',
   date: 'Aug 14',
   severity: 'Minor' as const,
-  description: 'Slight streaking on the windshield after the wash — customer asked for a touch-up next visit.',
+  description: 'Slight streaking on the windshield after the wash. Customer asked for a touch-up next visit.',
   resolved: true,
 }
 
@@ -119,17 +119,16 @@ export default async function LandingPage() {
       <main className="mx-auto max-w-screen-xl px-4">
         <section className="grid gap-10 py-16 sm:py-24 lg:grid-cols-2 lg:items-center lg:gap-8">
           <div className="max-w-xl animate-fade-up">
-            <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-              Marine service operations
+            <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+              Marina service operations
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Run your marina, detail shop, or service crew from one board.
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+              The board your marina&apos;s service crew actually uses.
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
               Yourboats replaces the spreadsheet-and-text-message shuffle with a single
-              operations app: recurring schedules that generate the season automatically,
-              job cards for the crew, one-tap invoicing synced to QuickBooks, and payroll
-              that runs itself.
+              operations app.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
@@ -142,37 +141,35 @@ export default async function LandingPage() {
           </div>
 
           <div className="animate-fade-up [animation-delay:75ms]" aria-hidden="true">
-            <Card className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <p className="text-sm font-semibold text-foreground">Today, Aug 22</p>
-                <p className="text-xs text-muted-foreground">3 jobs</p>
+            <div className="rounded-xl border border-border bg-muted/40 p-3 shadow-sm">
+              <div className="mb-3 flex items-center gap-1.5 px-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/20" />
+                <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/20" />
+                <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/20" />
               </div>
-              <div className="divide-y divide-border">
-                {PREVIEW_JOBS.map((job) => (
-                  <div key={job.customer} className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{job.customer}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {job.type} · <span className="tabular-nums">{job.time}</span>
-                      </p>
+              <Card className="overflow-hidden">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground">Today, Aug 22</p>
+                  <p className="text-xs text-muted-foreground">3 jobs</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {PREVIEW_JOBS.map((job) => (
+                    <div key={job.customer} className="flex items-center justify-between px-4 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{job.customer}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {job.type} · <span className="tabular-nums">{job.time}</span>
+                        </p>
+                      </div>
+                      <Badge variant={STATUS_VARIANT[job.status]} className="shrink-0">
+                        {job.status}
+                      </Badge>
                     </div>
-                    <Badge variant={STATUS_VARIANT[job.status]} className="shrink-0">
-                      {job.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </Card>
+                  ))}
+                </div>
+              </Card>
+            </div>
           </div>
-        </section>
-
-        <section className="border-t border-border py-12">
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Every marina, detail shop, and crew runs their program a little differently.
-            Yourboats flexes to match how you already schedule, price, and pay — pricing per
-            foot or flat rate, solo crews or split-share teams, weekly or biweekly routes —
-            not the other way around.
-          </p>
         </section>
 
         {/* ── Scheduling & job cards ─────────────────────────────────────────── */}
@@ -218,7 +215,7 @@ export default async function LandingPage() {
               </h2>
               <p className="mt-3 text-muted-foreground">
                 Mark a job complete and it lands in the manager&apos;s ready-to-invoice
-                queue. One click pushes the invoice to QuickBooks — no double entry.
+                queue. One click pushes the invoice to QuickBooks, no double entry.
               </p>
             </div>
             <div className="lg:order-1 overflow-hidden rounded-lg border border-border" aria-hidden="true">
@@ -250,7 +247,7 @@ export default async function LandingPage() {
               </h2>
               <p className="mt-3 text-muted-foreground">
                 Effective-dated pay rates and tiered commissions calculate pay
-                automatically, per service, per pay period — retroactive-safe when rates
+                automatically, per service, per pay period, retroactive-safe when rates
                 change mid-season.
               </p>
             </div>
@@ -293,7 +290,7 @@ export default async function LandingPage() {
               </h2>
               <p className="mt-3 text-muted-foreground">
                 Live accounts-receivable stats, a profit &amp; loss overview, and
-                season-over-season labor analytics — no exporting to a spreadsheet to see
+                season-over-season labor analytics. No exporting to a spreadsheet to see
                 where things stand.
               </p>
             </div>
@@ -390,13 +387,39 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ── MCP / AI access ─────────────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Run it from Claude, not just the browser
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Yourboats ships a real MCP server. Issue a personal access token from
+                Settings and drive schedules, invoices, and payroll from Claude or any
+                MCP-compatible AI client. No separate app to open.
+              </p>
+            </div>
+            <div
+              className="rounded-lg border border-border bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-100"
+              aria-hidden="true"
+            >
+              <p className="text-zinc-500">$ claude</p>
+              <p className="mt-2">&gt; Mark the Halvorson detailing job complete and send the invoice.</p>
+              <p className="mt-2 text-emerald-400">✓ mark_complete(service: &quot;svc_9f2&quot;)</p>
+              <p className="text-emerald-400">✓ send_invoice(invoice: &quot;inv_2a7&quot;) → QuickBooks</p>
+              <p className="mt-2 text-zinc-400">Done. Dave Halvorson invoiced $145.00, synced to QuickBooks.</p>
+            </div>
+          </div>
+        </section>
+
         <section className="border-t border-border py-16">
           <div className="max-w-2xl">
             <h2 className="text-xl font-semibold tracking-tight text-foreground">
               Connects to what you already run
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Yourboats doesn&apos;t ask you to rip out your existing tools — it plugs into
+              Yourboats doesn&apos;t ask you to rip out your existing tools. It plugs into
               them, so billing, communication, and records all stay in sync.
             </p>
           </div>
@@ -410,11 +433,29 @@ export default async function LandingPage() {
         </section>
 
         <section className="border-t border-border py-16">
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              Need something custom?
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Every operation runs a little differently. If a connection or workflow
+              you need isn&apos;t on the list above, we build custom integrations and
+              setups on request. Just reach out.
+            </p>
+            <div className="mt-4">
+              <Button asChild variant="outline">
+                <a href="mailto:marley@squeakycleanboats.com">Get in touch</a>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-border py-16">
           <div className="grid gap-8 sm:grid-cols-3">
             <div>
               <p className="text-sm font-semibold text-primary">Owner</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Full financial visibility — AR, P&amp;L, payroll, and employee management —
+                Full financial visibility: AR, P&amp;L, payroll, and employee management,
                 plus every operational view.
               </p>
             </div>
@@ -428,7 +469,7 @@ export default async function LandingPage() {
             <div>
               <p className="text-sm font-semibold text-primary">Employee</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Sees only their assigned jobs — customer notes, boat details, and a
+                Sees only their assigned jobs: customer notes, boat details, and a
                 one-tap complete button.
               </p>
             </div>
