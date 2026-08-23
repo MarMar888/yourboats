@@ -94,6 +94,10 @@ const ROLES = [
   },
 ] as const
 
+// Not built yet — kept clearly separate from the live IntegrationsMarquee above
+// and labeled "coming soon" so this never reads as an existing integration.
+const COMING_SOON = ['Mailchimp', 'DocuSign', 'Square', 'Stripe'] as const
+
 const SAMPLE_INVOICE: InvoiceRowData = {
   invoiceId: 'sample-invoice',
   qboInvoiceId: 'sample-qbo-1042',
@@ -671,6 +675,19 @@ export default async function LandingPage() {
             </p>
           </div>
           <IntegrationsMarquee />
+
+          <div className="mt-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Also coming soon
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {COMING_SOON.map((name) => (
+                <Badge key={name} variant="outline" className="px-3 py-1 text-sm text-muted-foreground">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="border-t border-border py-16">
