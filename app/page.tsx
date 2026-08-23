@@ -108,6 +108,22 @@ const ROLES = [
 // and labeled "coming soon" so this never reads as an existing integration.
 const COMING_SOON = ['Mailchimp', 'DocuSign', 'Square', 'Stripe'] as const
 
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Yourboats',
+  url: 'https://yourboats.vercel.app',
+  description:
+    'Yourboats is the operating system for marinas and boat detailers: slip management, scheduling, invoicing synced to QuickBooks, payroll, and an AI assistant that runs the marina for you.',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  publisher: {
+    '@type': 'Organization',
+    name: 'Yourboats',
+    email: 'marley@squeakycleanboats.com',
+  },
+} as const
+
 const SAMPLE_INVOICE: InvoiceRowData = {
   invoiceId: 'sample-invoice',
   qboInvoiceId: 'sample-qbo-1042',
@@ -204,6 +220,11 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-screen-xl items-center justify-between px-4 py-4">
           <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">

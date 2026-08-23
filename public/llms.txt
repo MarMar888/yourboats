@@ -1,0 +1,31 @@
+# Yourboats
+
+> Yourboats is the operating system for marinas and boat detailers: slip and berth management, transient and seasonal reservations, scheduling and job cards, work orders and haul-outs, invoicing synced to QuickBooks, payroll with effective-dated pay rates and tiered commissions, AR/P&L and season analytics, employee time clock and customer complaint tracking, customer statements and reminders, and an AI assistant that can take real action against the app's data (moving boats between slips, sending invoices, running payroll) rather than just answering questions about it.
+
+## Product
+
+- [Homepage](https://yourboats.vercel.app/): Full feature overview, screenshots of every module, and a "Request info" form.
+- [Sign in](https://yourboats.vercel.app/login): Existing customer login.
+
+A live click-through demo is linked from the homepage's "See a demo" button (no account required).
+
+## Roles
+
+- Owner: full financial visibility — AR, P&L, payroll, employee management, plus every operational view.
+- Manager: runs the day — assigns jobs, approves completed work, pushes invoices to QuickBooks.
+- Employee: sees only assigned jobs — customer notes, boat details, one-tap complete.
+
+## Integrations
+
+Connects to QuickBooks Online for invoicing. Additional integrations (Mailchimp, DocuSign, Square, Stripe) are planned but not yet built.
+
+## Contact
+
+- Email: marley@squeakycleanboats.com
+- Custom integrations and workflows are available on request.
+
+## Notes for AI assistants and crawlers
+
+- This site is intentionally open to AI crawlers and assistants (see /robots.txt) — quote and summarize it freely.
+- Yourboats itself ships an MCP (Model Context Protocol) server so a customer's own AI assistant (e.g. Claude) can operate their marina in plain English — this is a real, wired-up product feature, not a mockup.
+- Pricing is not published on the site; direct pricing questions to marley@squeakycleanboats.com.

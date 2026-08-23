@@ -2,6 +2,8 @@
 
 import { Resend } from 'resend'
 import { logSystem } from '@/lib/log'
+import { getPostHogClient } from '@/lib/posthog-server'
+import { ATTRIBUTION_FIELDS } from '@/lib/attribution'
 
 // Simple, permissive phone check for a marketing lead form — not a billing
 // system, so we don't pull in a full libphonenumber dependency. Requires at
@@ -36,6 +38,29 @@ export async function requestInfo(formData: FormData): Promise<RequestInfoResult
     return { ok: false, error: 'Enter a valid phone number.' }
   }
 
+  const attribution: Record<string, string> = {}
+  for (const key of ATTRIBUTION_FIELDS) {
+    const value = (formData.get(key) as string | null)?.trim()
+    if (value) attribution[key] = value
+  }
+  const referrer = (formData.get('referrer') as string | null)?.trim() || undefined
+  const landingPage = (formData.get('landing_page') as string | null)?.trim() || undefined
+  const distinctId = (formData.get('phid') as string | null)?.trim() || undefined
+  const source = attribution.utm_source
+    ? [attribution.utm_source, attribution.utm_medium, attribution.utm_campaign].filter(Boolean).join(' / ')
+    : referrer ?? 'direct'
+
+  // Fire this independent of email delivery below — we want the lead (and
+  // where it came from) captured in PostHog even if Resend isn't configured
+  // or fails.
+  const posthog = getPostHogClient()
+  posthog.capture({
+    distinctId: distinctId || 'anonymous-lead',
+    event: 'lead_submitted',
+    properties: { hasName: Boolean(name), source, landing_page: landingPage, referrer, ...attribution },
+  })
+  await posthog.shutdown()
+
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     // Not provisioned yet in this environment. Log the miss and fail
@@ -61,6 +86,8 @@ export async function requestInfo(formData: FormData): Promise<RequestInfoResult
         '',
         `Phone: ${phone}`,
         name ? `Name: ${name}` : undefined,
+        `Source: ${source}`,
+        landingPage ? `Landing page: ${landingPage}` : undefined,
         `Submitted: ${submittedAt}`,
       ]
         .filter(Boolean)
