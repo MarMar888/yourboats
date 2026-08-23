@@ -1,82 +1,60 @@
 # TODOS
 
-## Landing page: trim hero tagline
-**File:** `app/page.tsx` (hero paragraph)
+## Landing page: finish Resend setup
+**File:** `app/request-info-action.ts`
 
-**What:** Cut the tagline after "...replaces the spreadsheet-and-text-message shuffle
-with a single operations app." Drop the trailing list (recurring schedules, job cards,
-invoicing, payroll) — that's covered by the feature sections below it.
+**What:** The lead-capture form and server action are live in production, but
+`RESEND_API_KEY` is not yet set — Resend's Vercel Marketplace install is blocked on
+accepting Resend's marketplace terms in a browser (link was sent to Marley). Until
+that's done, submissions succeed for the visitor but no email actually sends (logged
+via `logSystem` as `request_info_email_skipped`). Once terms are accepted: re-run
+`vercel integration add resend -m domain=squeakycleanboats.com -m region=us-east-1
+--plan free --no-claim`, pull env vars, and redeploy. Also decide on domain
+verification (currently sends from Resend's shared `onboarding@resend.dev`, not a
+verified `@squeakycleanboats.com` sender) — see code comment in
+`request-info-action.ts`.
 
-**Why:** Per Marley: "this is the real unlock" — the short line is the punchier version;
-the feature list is redundant with the per-feature sections already on the page.
-
----
-
-## Landing page: remove "every shop runs differently" paragraph
-**File:** `app/page.tsx` (section right after the hero, before the feature sections)
-
-**What:** Remove the "Every marina, detail shop, and crew runs their program a little
-differently..." paragraph entirely.
-
-**Why:** Per Marley, cut from the page.
+**Depends on:** Marley accepting Resend's marketplace terms (browser step, can't be
+automated headlessly).
 
 ---
 
-## Landing page: add a "custom connections & setups" section
-**File:** `app/page.tsx`
+## Landing page: decide on more "connects to" logos (Mailchimp, etc.)
+**File:** `components/integrations-marquee.tsx`
 
-**What:** Add a section near the bottom (before or alongside the footer) saying
-Yourboats can build custom connections/setups on request — "just reach out" — linking
-to the same contact email already in the footer (`marley@squeakycleanboats.com`).
+**What:** Marley asked to add more common connectors to the logo marquee (named
+Mailchimp as an example). Only QuickBooks Online, Gmail, Voice/SMS reminders, and
+Photo uploads are real, shipped integrations today — Mailchimp and similar aren't
+built. Did not add unbuilt integrations to the marquee to avoid a false capability
+claim on a live marketing page (same reasoning as the slip-management question below).
 
-**Why:** Per Marley — signal that integrations beyond the stock list (QBO/Gmail/SMS/
-photos) are available on request, not a hard limit of the product.
-
----
-
-## Landing page: highlight MCP / AI-agent access
-**File:** `app/page.tsx`
-
-**What:** Add a feature callout for the MCP server (already real and shipped —
-`app/api/[transport]/route.ts`, personal access tokens issued from Settings) — pitch:
-"run your business right from Claude" / any AI client, not just the web UI.
-
-**Why:** Per Marley — this is a real, already-built differentiator not currently
-mentioned anywhere on the landing page.
-
-**Depends on:** None — the MCP server and token issuance already exist in production;
-this is copy + a section, not new functionality.
+**Decision needed:** either (a) scope and build a real Mailchimp integration (new
+engineering task — figure out what it would even sync: customer list? campaign
+triggers on invoice events?), or (b) Marley is fine with the current 4 real items and
+this is dropped, or (c) some other honest way to signal "more on request" beyond the
+existing "Need something custom?" section, which already covers this.
 
 ---
 
-## Landing page: scrolling logo marquee for integrations
-**File:** `app/page.tsx` ("Connects to what you already run" section)
+## Landing page / product: slip & space management — copy vs. real feature?
+**File:** `app/page.tsx` (positioning), potentially `lib/db/schema.ts` (new tables)
 
-**What:** Replace the plain `Badge` list (QuickBooks Online, Gmail, Voice/SMS,
-Photo uploads) with a horizontally scrolling logo marquee.
+**What:** Marley wants yourboats positioned partly around "slip management," inspired
+by competitor marina software (Sharper MMS) that does slip/berth assignment, a marina
+map, and dock billing. The current schema has zero tables for slips, berths, docks, or
+vessel-to-space assignment — yourboats is entirely service-ops (scheduling, job cards,
+invoicing, payroll) today. Asked Marley to clarify and haven't heard back:
 
-**Why:** Per Marley — more visual than text pills.
+1. **Copy only** — reposition "slip management" loosely (e.g. "we manage the service
+   work for boats in your slips") without claiming real slip/berth assignment features.
+2. **Real feature** — actually build slip/berth assignment (new schema: a `slips`/
+   `berths` table, boat-to-slip assignment, a marina map UI, probably dock/space
+   billing). This is a significant, separate engineering project, not a landing-page
+   edit — needs its own scoping pass if it's the direction.
 
-**Blocker:** Needs real logo assets (QuickBooks, Gmail, etc.) — check licensing/brand
-guidelines before using official logos on a marketing page. No assets sourced yet.
+**Why this matters:** don't want a capability claim live on the site that isn't true.
 
----
-
-## Landing page: "request more info" form wired to Resend
-**File:** `app/page.tsx` (new field near the top) + new server action + email send
-
-**What:** Add a phone-number input field near the top of the page. On submit, send an
-email to `marley@squeakycleanboats.com` via Resend notifying that someone filled out
-the form (include the submitted phone number).
-
-**Why:** Per Marley — capture inbound interest from the landing page directly.
-
-**Depends on:** Resend is a new external service for this project (current email
-sending goes through Gmail SMTP via nodemailer, not Resend) — needs the Vercel
-Marketplace `messaging` integration flow (provision + env vars) before writing code,
-per this project's standing rule to provision real integrations before building
-against them. Also needs a plain server action (public form on an unauthenticated
-page) with basic validation/rate-limiting so it can't be spammed.
+**Depends on:** Marley's answer.
 
 ---
 
