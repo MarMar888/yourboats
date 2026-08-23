@@ -7,6 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isDemoModeEnabled, DEMO_URL } from '@/lib/demo-mode'
 
+export const metadata = {
+  title: 'Sign in',
+  alternates: { canonical: '/login' },
+  openGraph: { url: '/login' },
+}
+
 export default async function LoginPage({
   searchParams,
 }: {

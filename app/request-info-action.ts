@@ -17,6 +17,15 @@ function isPlausiblePhone(value: string): boolean {
   return digitCount >= 7 && digitCount <= 15
 }
 
+// Ad platforms auto-tag their click-through links with these instead of
+// utm_source (Google/Microsoft Ads' "auto-tagging" default), so a lead can
+// carry a click ID with no utm_source set at all.
+const CLICK_ID_SOURCE: Record<string, string> = {
+  gclid: 'google-ads (gclid)',
+  fbclid: 'facebook-ads (fbclid)',
+  msclkid: 'microsoft-ads (msclkid)',
+}
+
 export type RequestInfoResult = { ok: true } | { ok: false; error: string }
 
 export async function requestInfo(formData: FormData): Promise<RequestInfoResult> {
@@ -46,9 +55,12 @@ export async function requestInfo(formData: FormData): Promise<RequestInfoResult
   const referrer = (formData.get('referrer') as string | null)?.trim() || undefined
   const landingPage = (formData.get('landing_page') as string | null)?.trim() || undefined
   const distinctId = (formData.get('phid') as string | null)?.trim() || undefined
+  const clickIdSource = Object.keys(CLICK_ID_SOURCE).find((key) => attribution[key])
   const source = attribution.utm_source
     ? [attribution.utm_source, attribution.utm_medium, attribution.utm_campaign].filter(Boolean).join(' / ')
-    : referrer ?? 'direct'
+    : clickIdSource
+      ? CLICK_ID_SOURCE[clickIdSource]
+      : referrer ?? 'direct'
 
   // Fire this independent of email delivery below — we want the lead (and
   // where it came from) captured in PostHog even if Resend isn't configured

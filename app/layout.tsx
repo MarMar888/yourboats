@@ -23,11 +23,9 @@ export const metadata = {
     'marina invoicing QuickBooks',
     'marina operations software',
   ],
-  alternates: { canonical: SITE_URL },
   robots: { index: true, follow: true },
   openGraph: {
     type: 'website',
-    url: SITE_URL,
     siteName: SITE_NAME,
     title: 'Yourboats — The Operating System for Marinas + Boat Detailers',
     description: DESCRIPTION,

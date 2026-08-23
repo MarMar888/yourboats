@@ -20,6 +20,11 @@ import { IntegrationsMarquee } from '@/components/integrations-marquee'
 import { InvoiceRow, type InvoiceRowData } from '@/app/(app)/invoices/invoice-row'
 import { RequestInfoForm } from '@/components/request-info-form'
 
+export const metadata = {
+  alternates: { canonical: '/' },
+  openGraph: { url: '/' },
+}
+
 const PREVIEW_JOBS = [
   { customer: 'Karen Ostlund', type: 'Slip inspection', time: '8:30 AM', status: 'Scheduled' },
   { customer: 'Dave Halvorson', type: 'Haul-out', time: '10:00 AM', status: 'In progress' },
