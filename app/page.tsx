@@ -124,7 +124,7 @@ export default async function LandingPage() {
               Marina service operations
             </p>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              The Operating System for Marinas.
+              The Operating System for Marinas + Boat Detailers.
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
               Yourboats replaces the spreadsheet-and-text-message shuffle with a single

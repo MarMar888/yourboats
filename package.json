@@ -67,6 +67,7 @@
     "@types/nodemailer": "^8.0.0",
     "@vitest/coverage-v8": "^4.1.7",
     "dotenv": "^17.4.2",
+    "prettier": "^3.9.6",
     "tsx": "^4.22.0",
     "vitest": "^4.1.7"
   }
