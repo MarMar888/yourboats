@@ -10,9 +10,9 @@ import { InvoiceRow, type InvoiceRowData } from '@/app/(app)/invoices/invoice-ro
 import { RequestInfoForm } from '@/components/request-info-form'
 
 const PREVIEW_JOBS = [
-  { customer: 'Karen Ostlund', type: 'Recurring wash', time: '8:30 AM', status: 'Scheduled' },
-  { customer: 'Dave Halvorson', type: 'Detailing', time: '10:00 AM', status: 'In progress' },
-  { customer: 'Chris & Amy Delaney', type: 'Buffing & wax', time: '1:15 PM', status: 'Complete' },
+  { customer: 'Karen Ostlund', type: 'Slip inspection', time: '8:30 AM', status: 'Scheduled' },
+  { customer: 'Dave Halvorson', type: 'Haul-out', time: '10:00 AM', status: 'In progress' },
+  { customer: 'Chris & Amy Delaney', type: 'Detailing', time: '1:15 PM', status: 'Complete' },
 ] as const
 
 const STATUS_VARIANT: Record<(typeof PREVIEW_JOBS)[number]['status'], 'secondary' | 'default' | 'success'> = {
@@ -20,6 +20,60 @@ const STATUS_VARIANT: Record<(typeof PREVIEW_JOBS)[number]['status'], 'secondary
   'In progress': 'default',
   Complete: 'success',
 }
+
+const SLIPS = [
+  { id: 'A12', status: 'occupied' },
+  { id: 'A13', status: 'available' },
+  { id: 'A14', status: 'occupied' },
+  { id: 'A15', status: 'occupied' },
+  { id: 'B08', status: 'maintenance' },
+  { id: 'B09', status: 'occupied' },
+  { id: 'B10', status: 'available' },
+  { id: 'B11', status: 'occupied' },
+  { id: 'C21', status: 'occupied' },
+  { id: 'C22', status: 'available' },
+  { id: 'C23', status: 'occupied' },
+  { id: 'C24', status: 'occupied' },
+] as const
+
+const SLIP_STATUS_STYLE: Record<string, string> = {
+  occupied: 'border-primary/30 bg-primary/10 text-primary',
+  available: 'border-border bg-muted text-muted-foreground',
+  maintenance: 'border-amber-200 bg-amber-50 text-amber-700',
+}
+
+const RESERVATIONS = [
+  { boat: 'Second Wind', slip: 'A14', dates: 'Aug 22 – Aug 25', rate: '$45/night' },
+  { boat: 'Reel Therapy', slip: 'B10', dates: 'Aug 23 (1 night)', rate: '$45/night' },
+  { boat: 'Wake Me Up', slip: 'C22', dates: 'Seasonal, Sep 1 – May 31', rate: '$3,200/season' },
+] as const
+
+const WORK_ORDERS = [
+  { boat: 'Loose Change', type: 'Haul-out & bottom paint', status: 'Scheduled', date: 'Aug 28' },
+  { boat: 'Salty Paws', type: 'Engine service', status: 'In progress', date: 'Aug 24' },
+  { boat: 'Knot Working', type: 'Winterization', status: 'Complete', date: 'Aug 12' },
+] as const
+
+const WORK_ORDER_STATUS_VARIANT: Record<(typeof WORK_ORDERS)[number]['status'], 'secondary' | 'default' | 'success'> = {
+  Scheduled: 'secondary',
+  'In progress': 'default',
+  Complete: 'success',
+}
+
+const MORE_CAPABILITIES = [
+  {
+    label: 'Fuel dock',
+    body: 'Track fuel sales per boat and reconcile against tank readings.',
+  },
+  {
+    label: "Ship's store POS",
+    body: 'Ring up retail sales and tie them back to the customer account.',
+  },
+  {
+    label: 'Utility billing',
+    body: 'Meter electric and water per slip and roll it into the season invoice.',
+  },
+] as const
 
 const SAMPLE_INVOICE: InvoiceRowData = {
   invoiceId: 'sample-invoice',
@@ -173,6 +227,80 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ── Slip & berth management ──────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Slip &amp; berth management
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                See every slip at a glance: who&apos;s in it, who&apos;s out, and what
+                needs attention. Assign a boat to a slip in a click and the season&apos;s
+                billing follows automatically.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4" aria-hidden="true">
+              <div className="grid grid-cols-4 gap-2">
+                {SLIPS.map((slip) => (
+                  <div
+                    key={slip.id}
+                    className={`rounded-md border px-2 py-3 text-center text-xs font-semibold ${SLIP_STATUS_STYLE[slip.status]}`}
+                  >
+                    {slip.id}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-primary/30 bg-primary/10" />
+                  Occupied
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-border bg-muted" />
+                  Available
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-amber-200 bg-amber-50" />
+                  Maintenance
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Transient & seasonal reservations ────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Transient &amp; seasonal reservations
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Book a transient boat for the night or a seasonal tenant for the
+                summer, same board either way. Rates, dates, and slip assignment in
+                one place.
+              </p>
+            </div>
+            <div
+              className="lg:order-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card text-sm"
+              aria-hidden="true"
+            >
+              {RESERVATIONS.map((r) => (
+                <div key={r.boat} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="font-medium">{r.boat}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Slip {r.slip} · {r.dates}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold tabular-nums">{r.rate}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── Scheduling & job cards ─────────────────────────────────────────── */}
         <section className="border-t border-border py-16">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
@@ -203,6 +331,38 @@ export default async function LandingPage() {
                 canComplete={false}
                 canManage={false}
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Work orders & haul-outs ───────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Work orders &amp; haul-outs
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Repairs, winterization, haul-outs. Yard work runs through the same
+                job cards as everything else, so nothing falls through the cracks
+                between the dock crew and the yard.
+              </p>
+            </div>
+            <div
+              className="lg:order-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card text-sm"
+              aria-hidden="true"
+            >
+              {WORK_ORDERS.map((w) => (
+                <div key={w.boat} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="font-medium">{w.boat}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {w.type} · {w.date}
+                    </p>
+                  </div>
+                  <Badge variant={WORK_ORDER_STATUS_VARIANT[w.status]}>{w.status}</Badge>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -388,6 +548,27 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ── More marina capabilities ─────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              And the rest of the marina
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              The parts that don&apos;t fit neatly into a feature list still run
+              through the same board.
+            </p>
+          </div>
+          <div className="mt-6 grid gap-8 sm:grid-cols-3">
+            {MORE_CAPABILITIES.map((cap) => (
+              <div key={cap.label}>
+                <p className="text-sm font-semibold text-primary">{cap.label}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{cap.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* ── MCP / AI access ─────────────────────────────────────────────────── */}
         <section className="border-t border-border py-16">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
@@ -411,10 +592,10 @@ export default async function LandingPage() {
               aria-hidden="true"
             >
               <p className="text-zinc-500">$ claude</p>
-              <p className="mt-2">&gt; Mark the Halvorson detailing job complete and send the invoice.</p>
-              <p className="mt-2 text-emerald-400">✓ mark_complete(service: &quot;svc_9f2&quot;)</p>
+              <p className="mt-2">&gt; Move the Ostlund boat to slip B09 and send this month&apos;s dockage invoice.</p>
+              <p className="mt-2 text-emerald-400">✓ assign_slip(boat: &quot;svc_9f2&quot;, slip: &quot;B09&quot;)</p>
               <p className="text-emerald-400">✓ send_invoice(invoice: &quot;inv_2a7&quot;) → QuickBooks</p>
-              <p className="mt-2 text-zinc-400">Done. Dave Halvorson invoiced $145.00, synced to QuickBooks.</p>
+              <p className="mt-2 text-zinc-400">Done. Karen Ostlund moved to B09, invoiced $145.00, synced to QuickBooks.</p>
             </div>
           </div>
         </section>
