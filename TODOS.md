@@ -19,42 +19,38 @@ automated headlessly).
 
 ---
 
+## Product: build real slip/berth management (currently landing-page-only)
+**File:** New feature area — `lib/db/schema.ts` (new tables), new `app/(app)/marina/`
+routes, etc. Not started.
+
+**What:** The landing page now markets slip & berth management, transient/seasonal
+reservations, work orders & haul-outs, fuel dock, ship's store POS, and utility
+billing (`app/page.tsx`, shipped per Marley's explicit direction: "slip management and
+all this stuff are all features we need to add to the homepage to make this work for
+marinas"). None of this exists in the actual product yet — the schema has zero tables
+for slips, berths, docks, reservations, work orders, fuel, POS, or utility metering.
+Today yourboats is entirely service-ops (scheduling, job cards, invoicing, payroll).
+
+**Why this matters:** the homepage is ahead of the product on purpose (Marley's call,
+made with the gap explicitly flagged first) — but the gap is real and growing with
+each new section added. This needs a real scoping pass whenever there's room for it:
+at minimum a `slips`/`berths` table + boat-to-slip assignment + a marina map UI for
+the flagship claim; reservations, work orders, fuel/POS/utilities can follow.
+
+**Depends on:** Marley prioritizing this against the rest of the roadmap.
+
+---
+
 ## Landing page: decide on more "connects to" logos (Mailchimp, etc.)
 **File:** `components/integrations-marquee.tsx`
 
 **What:** Marley asked to add more common connectors to the logo marquee (named
-Mailchimp as an example). Only QuickBooks Online, Gmail, Voice/SMS reminders, and
-Photo uploads are real, shipped integrations today — Mailchimp and similar aren't
-built. Did not add unbuilt integrations to the marquee to avoid a false capability
-claim on a live marketing page (same reasoning as the slip-management question below).
+Mailchimp as an example) and confirmed listing capabilities ahead of the build is fine
+for this page. Still haven't picked which additional logos/names to add — need a
+concrete list (Mailchimp confirmed; what else counts as "common" for a marina/detailer
+audience?).
 
-**Decision needed:** either (a) scope and build a real Mailchimp integration (new
-engineering task — figure out what it would even sync: customer list? campaign
-triggers on invoice events?), or (b) Marley is fine with the current 4 real items and
-this is dropped, or (c) some other honest way to signal "more on request" beyond the
-existing "Need something custom?" section, which already covers this.
-
----
-
-## Landing page / product: slip & space management — copy vs. real feature?
-**File:** `app/page.tsx` (positioning), potentially `lib/db/schema.ts` (new tables)
-
-**What:** Marley wants yourboats positioned partly around "slip management," inspired
-by competitor marina software (Sharper MMS) that does slip/berth assignment, a marina
-map, and dock billing. The current schema has zero tables for slips, berths, docks, or
-vessel-to-space assignment — yourboats is entirely service-ops (scheduling, job cards,
-invoicing, payroll) today. Asked Marley to clarify and haven't heard back:
-
-1. **Copy only** — reposition "slip management" loosely (e.g. "we manage the service
-   work for boats in your slips") without claiming real slip/berth assignment features.
-2. **Real feature** — actually build slip/berth assignment (new schema: a `slips`/
-   `berths` table, boat-to-slip assignment, a marina map UI, probably dock/space
-   billing). This is a significant, separate engineering project, not a landing-page
-   edit — needs its own scoping pass if it's the direction.
-
-**Why this matters:** don't want a capability claim live on the site that isn't true.
-
-**Depends on:** Marley's answer.
+**Decision needed:** the actual list of names/logos to add to the marquee.
 
 ---
 
