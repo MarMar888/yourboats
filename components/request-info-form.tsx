@@ -6,9 +6,31 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { requestInfo } from '@/app/request-info-action'
 
+// Formats digits as a US-style phone number while typing, e.g. "9525295203"
+// -> "(952) 529-5203". This is a marketing lead form for a US-based
+// business, not international billing, so a single US pattern is enough.
+function formatPhoneInput(value: string): string {
+  let digits = value.replace(/\D/g, '')
+  // Strip a leading US country code (e.g. "+1 952 529 5203" or "19525295203")
+  // so it doesn't get formatted as part of the area code.
+  if (digits.length === 11 && digits.startsWith('1')) {
+    digits = digits.slice(1)
+  }
+  digits = digits.slice(0, 10)
+  const areaCode = digits.slice(0, 3)
+  const prefix = digits.slice(3, 6)
+  const line = digits.slice(6, 10)
+
+  if (digits.length > 6) return `(${areaCode}) ${prefix}-${line}`
+  if (digits.length > 3) return `(${areaCode}) ${prefix}`
+  if (digits.length > 0) return `(${areaCode}`
+  return ''
+}
+
 export function RequestInfoForm() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [phone, setPhone] = useState('')
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -54,6 +76,8 @@ export function RequestInfoForm() {
             inputMode="tel"
             placeholder="(555) 123-4567"
             required
+            value={phone}
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
             className="h-10 w-44 sm:w-52"
             aria-invalid={error ? true : undefined}
           />

@@ -1,5 +1,15 @@
 import Link from 'next/link'
-import { ShieldCheck, Users, UserCheck, Sparkles, MessageSquare, Zap, CheckCircle2 } from 'lucide-react'
+import {
+  ShieldCheck,
+  Users,
+  UserCheck,
+  Sparkles,
+  MessageSquare,
+  Zap,
+  CheckCircle2,
+  LogIn,
+  BarChart3,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -168,6 +178,24 @@ const REMINDER = {
   boat: 'Wake Me Up',
   sends: 'Tomorrow evening',
 }
+
+const PORTAL_TILES = [
+  { label: 'Open invoices', value: '2' },
+  { label: 'Next service', value: 'Aug 26' },
+  { label: 'Boats on file', value: '1' },
+  { label: 'Saved payment', value: 'Visa ····4242' },
+] as const
+
+const REVENUE_BARS = [
+  { label: 'Wk 1', pct: 38 },
+  { label: 'Wk 2', pct: 52 },
+  { label: 'Wk 3', pct: 47 },
+  { label: 'Wk 4', pct: 68 },
+  { label: 'Wk 5', pct: 61 },
+  { label: 'Wk 6', pct: 84 },
+  { label: 'Wk 7', pct: 73 },
+  { label: 'Wk 8', pct: 100 },
+] as const
 
 export default async function LandingPage() {
   const user = await getCurrentUser()
@@ -665,6 +693,78 @@ export default async function LandingPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Customer portal (coming soon) ────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <Badge variant="secondary">Coming soon</Badge>
+              <h2 className="mt-3 flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
+                <LogIn className="h-5 w-5 text-primary" aria-hidden="true" />
+                Let customers handle their own account
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Customers get their own login to see their invoices, make a payment,
+                and check when their boat is scheduled next, without calling the
+                office. Staff still see everything; customers only see their own
+                account.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card" aria-hidden="true">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <p className="text-sm font-semibold text-foreground">Welcome, Karen Ostlund</p>
+                <p className="text-xs text-muted-foreground">
+                  Balance due: <span className="font-medium text-foreground">$145.00</span>
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 p-4">
+                {PORTAL_TILES.map((tile) => (
+                  <div key={tile.label} className="rounded-md border border-border px-3 py-3">
+                    <p className="text-xs text-muted-foreground">{tile.label}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{tile.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Reporting & analytics (coming soon) ──────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <Badge variant="secondary">Coming soon</Badge>
+              <h2 className="mt-3 flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
+                <BarChart3 className="h-5 w-5 text-primary" aria-hidden="true" />
+                Charts on top of the numbers you already have
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                AR and P&amp;L already run live in yourboats. Coming soon: visual
+                trend lines and week-over-week comparisons, so you can see the shape
+                of the season at a glance, not just a table.
+              </p>
+            </div>
+            <div className="lg:order-1 rounded-lg border border-border bg-card p-4" aria-hidden="true">
+              <p className="text-xs font-medium text-muted-foreground">Revenue by week</p>
+              <div className="mt-4 flex h-32 items-end gap-2">
+                {REVENUE_BARS.map((bar) => (
+                  <div
+                    key={bar.label}
+                    className="flex-1 rounded-t-sm bg-primary/80"
+                    style={{ height: `${bar.pct}%` }}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                {REVENUE_BARS.map((bar) => (
+                  <span key={bar.label} className="flex-1 text-center text-[10px] text-muted-foreground">
+                    {bar.label}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
