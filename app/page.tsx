@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ShieldCheck, Users, UserCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -72,6 +73,24 @@ const MORE_CAPABILITIES = [
   {
     label: 'Utility billing',
     body: 'Meter electric and water per slip and roll it into the season invoice.',
+  },
+] as const
+
+const ROLES = [
+  {
+    name: 'Owner',
+    Icon: ShieldCheck,
+    body: 'Full financial visibility: AR, P&L, payroll, and employee management, plus every operational view.',
+  },
+  {
+    name: 'Manager',
+    Icon: Users,
+    body: 'Runs the day: assigns jobs, approves completed work, and pushes invoices to QuickBooks.',
+  },
+  {
+    name: 'Employee',
+    Icon: UserCheck,
+    body: 'Sees only their assigned jobs: customer notes, boat details, and a one-tap complete button.',
   },
 ] as const
 
@@ -632,28 +651,25 @@ export default async function LandingPage() {
         </section>
 
         <section className="border-t border-border py-16">
-          <div className="grid gap-8 sm:grid-cols-3">
-            <div>
-              <p className="text-sm font-semibold text-primary">Owner</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Full financial visibility: AR, P&amp;L, payroll, and employee management,
-                plus every operational view.
-              </p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-primary">Manager</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Runs the day: assigns jobs, approves completed work, and pushes invoices to
-                QuickBooks.
-              </p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-primary">Employee</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Sees only their assigned jobs: customer notes, boat details, and a
-                one-tap complete button.
-              </p>
-            </div>
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              Built for the whole team
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Everyone signs into the same board and sees exactly what their role
+              needs, nothing more.
+            </p>
+          </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {ROLES.map((role) => (
+              <Card key={role.name}>
+                <CardHeader className="flex-row items-center gap-2 space-y-0">
+                  <role.Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <CardTitle className="text-base">{role.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">{role.body}</CardContent>
+              </Card>
+            ))}
           </div>
         </section>
 
