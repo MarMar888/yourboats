@@ -103,7 +103,7 @@ module.exports = {
   			},
   			marquee: {
   				from: { transform: 'translateX(0)' },
-  				to: { transform: 'translateX(-50%)' }
+  				to: { transform: 'translateX(-25%)' }
   			}
   		},
   		animation: {

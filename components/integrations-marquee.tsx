@@ -14,34 +14,38 @@ const INTEGRATIONS: Integration[] = [
   { name: 'Photo uploads', Icon: Camera },
 ]
 
+// Repeated 4x (not 2x) in a single flat, uniformly-gapped row so there's always
+// enough buffer content to fill wide viewports for the whole scroll cycle — with
+// only 2 copies, the strip could visibly run out of items before looping back
+// (a gap would appear) on any container wider than ~2 copies' width. Nesting
+// two separately-gapped "copy" divs also breaks the translateX(-50%) seam math
+// (the outer gap between copies isn't counted the same as the inner ones), so
+// this flattens everything into one array with a single uniform gap instead.
+const MARQUEE_ITEMS = [...INTEGRATIONS, ...INTEGRATIONS, ...INTEGRATIONS, ...INTEGRATIONS]
+
 /**
- * Horizontally auto-scrolling logo strip. Renders the integration list twice back-to-back
- * and animates a translateX(-50%) loop, so the second copy seamlessly picks up where the
- * first left off. Pure CSS keyframe animation (see `animate-marquee` in tailwind.config.js) —
- * no JS timer/library — and it automatically respects the app-wide
+ * Horizontally auto-scrolling logo strip. Animates translateX(0) -> translateX(-25%),
+ * i.e. exactly one repeat-unit's width out of four, so it loops seamlessly forever.
+ * Pure CSS keyframe animation (see `animate-marquee` in tailwind.config.js) — no JS
+ * timer/library — and it automatically respects the app-wide
  * `prefers-reduced-motion: reduce` rule in app/globals.css, which zeroes animation duration.
  */
 export function IntegrationsMarquee() {
   return (
     <div className="mt-6 overflow-hidden border-y border-border py-6">
-      <div className="flex w-max animate-marquee gap-12 hover:[animation-play-state:paused]">
-        {[0, 1].map((copyIndex) => (
+      <div
+        role="list"
+        className="flex w-max animate-marquee items-center gap-12 hover:[animation-play-state:paused]"
+      >
+        {MARQUEE_ITEMS.map(({ name, Icon }, i) => (
           <div
-            key={copyIndex}
-            role="list"
-            aria-hidden={copyIndex === 1}
-            className="flex shrink-0 items-center gap-12"
+            key={`${name}-${i}`}
+            role="listitem"
+            aria-hidden={i >= INTEGRATIONS.length}
+            className="flex shrink-0 items-center gap-2 text-muted-foreground"
           >
-            {INTEGRATIONS.map(({ name, Icon }) => (
-              <div
-                key={name}
-                role="listitem"
-                className="flex shrink-0 items-center gap-2 text-muted-foreground"
-              >
-                <Icon className="h-6 w-6 shrink-0" />
-                <span className="whitespace-nowrap text-sm font-medium">{name}</span>
-              </div>
-            ))}
+            <Icon className="h-6 w-6 shrink-0" />
+            <span className="whitespace-nowrap text-sm font-medium">{name}</span>
           </div>
         ))}
       </div>
