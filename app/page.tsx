@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ShieldCheck, Users, UserCheck } from 'lucide-react'
+import { ShieldCheck, Users, UserCheck, Sparkles, MessageSquare, Zap, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -588,33 +588,74 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        {/* ── MCP / AI access ─────────────────────────────────────────────────── */}
+        {/* ── AI assistant ─────────────────────────────────────────────────────── */}
         <section className="border-t border-border py-16">
-          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+          <div className="max-w-2xl">
+            <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              AI assistant
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+              An assistant that actually runs the marina
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Most AI features just answer questions. Yourboats&apos; assistant does the
+              work. Give it a plain-English instruction and it moves boats, sends
+              invoices, and runs payroll, for real, against your actual records.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-10 lg:grid-cols-2">
             <div>
-              <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
-                <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-                AI native
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  Talk to it, don&apos;t click through it
+                </h3>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Tell it what you need in plain English from Claude or your AI assistant
+                of choice. No new app to learn, no separate login.
               </p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                Run it from Claude, not just the browser
-              </h2>
-              <p className="mt-3 text-muted-foreground">
-                Yourboats ships a real MCP server, not a bolted-on chatbot. Issue a
-                personal access token from Settings and drive schedules, invoices, and
-                payroll from Claude or any MCP-compatible AI client. No separate app to
-                open.
-              </p>
+              <div
+                className="mt-4 rounded-lg border border-border bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-100"
+                aria-hidden="true"
+              >
+                <p className="text-zinc-500">$ claude</p>
+                <p className="mt-2">&gt; Move the Ostlund boat to slip B09 and send this month&apos;s dockage invoice.</p>
+                <p className="mt-2 text-emerald-400">✓ assign_slip(boat: &quot;svc_9f2&quot;, slip: &quot;B09&quot;)</p>
+                <p className="text-emerald-400">✓ send_invoice(invoice: &quot;inv_2a7&quot;) → QuickBooks</p>
+                <p className="mt-2 text-zinc-400">Done. Karen Ostlund moved to B09, invoiced $145.00, synced to QuickBooks.</p>
+              </div>
             </div>
-            <div
-              className="rounded-lg border border-border bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-100"
-              aria-hidden="true"
-            >
-              <p className="text-zinc-500">$ claude</p>
-              <p className="mt-2">&gt; Move the Ostlund boat to slip B09 and send this month&apos;s dockage invoice.</p>
-              <p className="mt-2 text-emerald-400">✓ assign_slip(boat: &quot;svc_9f2&quot;, slip: &quot;B09&quot;)</p>
-              <p className="text-emerald-400">✓ send_invoice(invoice: &quot;inv_2a7&quot;) → QuickBooks</p>
-              <p className="mt-2 text-zinc-400">Done. Karen Ostlund moved to B09, invoiced $145.00, synced to QuickBooks.</p>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  It takes action, not just chats
+                </h3>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                The assistant is wired straight into your schedule, invoices, payroll,
+                and customer records, so it can actually do the task, not just describe
+                it.
+              </p>
+              <div className="mt-4 rounded-lg border border-border bg-card p-4">
+                <ul className="space-y-2.5 text-sm">
+                  {[
+                    "Reassigned 3 boats on today's schedule",
+                    'Sent 2 overdue invoices, synced to QuickBooks',
+                    "Recomputed this week's payroll",
+                    'Logged and resolved a customer complaint',
+                  ].map((line) => (
+                    <li key={line} className="flex items-start gap-2 text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         </section>
