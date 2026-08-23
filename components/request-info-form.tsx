@@ -1,10 +1,12 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import posthog from 'posthog-js'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { requestInfo } from '@/app/request-info-action'
+import { ATTRIBUTION_FIELDS, captureAttribution, type Attribution } from '@/lib/attribution'
 
 // Formats digits as a US-style phone number while typing, e.g. "9525295203"
 // -> "(952) 529-5203". This is a marketing lead form for a US-based
@@ -31,8 +33,18 @@ export function RequestInfoForm() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [phone, setPhone] = useState('')
+  const [attribution, setAttribution] = useState<Attribution>({})
+  const [distinctId, setDistinctId] = useState('')
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
+
+  // Captured once on mount (client-only — posthog isn't initialized during
+  // SSR) so we know which channel/campaign brought this visitor before they
+  // ever touch the form.
+  useEffect(() => {
+    setAttribution(captureAttribution())
+    setDistinctId(posthog.get_distinct_id())
+  }, [])
 
   if (status === 'success') {
     return (
@@ -63,6 +75,16 @@ export function RequestInfoForm() {
         <label htmlFor="company">Company</label>
         <input id="company" name="company" type="text" tabIndex={-1} autoComplete="off" />
       </div>
+
+      {/* First-touch attribution, so leads land in the inbox with a source. */}
+      <input type="hidden" name="phid" value={distinctId} />
+      {ATTRIBUTION_FIELDS.map((key) =>
+        attribution[key] ? <input key={key} type="hidden" name={key} value={attribution[key]} /> : null
+      )}
+      {attribution.referrer ? <input type="hidden" name="referrer" value={attribution.referrer} /> : null}
+      {attribution.landing_page ? (
+        <input type="hidden" name="landing_page" value={attribution.landing_page} />
+      ) : null}
 
       <div className="grid gap-1">
         <Label htmlFor="phone" className="text-xs text-muted-foreground">
