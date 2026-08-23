@@ -225,7 +225,7 @@ export default async function LandingPage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/20" />
                 <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/20" />
               </div>
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.06),0_18px_40px_hsl(var(--foreground)/0.09)]">
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <p className="text-sm font-semibold text-foreground">Today, Aug 22</p>
                   <p className="text-xs text-muted-foreground">3 jobs</p>
@@ -337,7 +337,10 @@ export default async function LandingPage() {
                 the card.
               </p>
             </div>
-            <div className="mx-auto w-full max-w-sm" aria-hidden="true">
+            <div
+              className="mx-auto w-full max-w-sm transition-transform duration-150 ease-out hover:-translate-y-0.5"
+              aria-hidden="true"
+            >
               <ServiceCard
                 serviceId="sample-service-1"
                 customerId="sample-customer-1"
@@ -480,7 +483,10 @@ export default async function LandingPage() {
             </div>
             <div className="lg:order-1 grid grid-cols-2 gap-4" aria-hidden="true">
               {PL_STATS.map((stat) => (
-                <div key={stat.label} className="rounded-lg border border-border bg-card px-4 py-4">
+                <div
+                  key={stat.label}
+                  className="rounded-lg border border-border bg-card px-4 py-4 transition-all duration-150 ease-out hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.06),0_14px_32px_hsl(var(--foreground)/0.08)]"
+                >
                   <p className="text-xs text-muted-foreground">{stat.label}</p>
                   <p className={`text-2xl font-semibold tabular-nums ${stat.color}`}>{stat.value}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
@@ -546,7 +552,7 @@ export default async function LandingPage() {
               </p>
             </div>
             <div className="mx-auto w-full max-w-sm lg:order-1" aria-hidden="true">
-              <Card>
+              <Card className="transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.06),0_18px_40px_hsl(var(--foreground)/0.09)]">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base font-semibold leading-tight">
@@ -720,7 +726,10 @@ export default async function LandingPage() {
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {ROLES.map((role) => (
-              <Card key={role.name}>
+              <Card
+                key={role.name}
+                className="transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.06),0_18px_40px_hsl(var(--foreground)/0.09)]"
+              >
                 <CardHeader className="flex-row items-center gap-2 space-y-0">
                   <role.Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <CardTitle className="text-base">{role.name}</CardTitle>
