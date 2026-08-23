@@ -10,7 +10,13 @@ import { requestInfo } from '@/app/request-info-action'
 // -> "(952) 529-5203". This is a marketing lead form for a US-based
 // business, not international billing, so a single US pattern is enough.
 function formatPhoneInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 10)
+  let digits = value.replace(/\D/g, '')
+  // Strip a leading US country code (e.g. "+1 952 529 5203" or "19525295203")
+  // so it doesn't get formatted as part of the area code.
+  if (digits.length === 11 && digits.startsWith('1')) {
+    digits = digits.slice(1)
+  }
+  digits = digits.slice(0, 10)
   const areaCode = digits.slice(0, 3)
   const prefix = digits.slice(3, 6)
   const line = digits.slice(6, 10)
