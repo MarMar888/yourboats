@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   LogIn,
   BarChart3,
+  CloudRain,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,6 +59,10 @@ const RESERVATIONS = [
   { boat: 'Reel Therapy', slip: 'B10', dates: 'Aug 23 (1 night)', rate: '$45/night' },
   { boat: 'Wake Me Up', slip: 'C22', dates: 'Seasonal, Sep 1 – May 31', rate: '$3,200/season' },
 ] as const
+
+const WEATHER_HOUR_LABELS = ['7a', '8a', '9a', '10a', '11a', '12p', '1p', '2p', '3p', '4p', '5p', '6p', '7p'] as const
+
+const WEATHER_HOURLY_RAIN_PCT = [5, 5, 8, 15, 10, 8, 20, 55, 35, 8, 5, 5, 5] as const
 
 const WORK_ORDERS = [
   { boat: 'Loose Change', type: 'Haul-out & bottom paint', status: 'Scheduled', date: 'Aug 28' },
@@ -406,6 +411,64 @@ export default async function LandingPage() {
                 canComplete={false}
                 canManage={false}
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Weather-aware scheduling ──────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+                <CloudRain className="h-4 w-4" aria-hidden="true" />
+                Weather-aware scheduling
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+                Know which jobs are at risk before the crew rolls out
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Every day on the schedule shows temperature, rain chance, and wind, with
+                an hourly rain breakdown a click away. Approved jobs that land in a rain
+                or wind window get flagged automatically in Exceptions.
+              </p>
+            </div>
+            <div className="mx-auto w-full max-w-sm" aria-hidden="true">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-foreground">Fri, Aug 28</p>
+                  <span className="inline-flex shrink-0 items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-700">
+                    Risk 77° · 32% · 11 mph
+                  </span>
+                </div>
+                <div className="mt-4 rounded-lg border border-border/80 bg-card p-3 shadow-[0_18px_46px_hsl(var(--foreground)/0.1)]">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="text-[12px] font-semibold text-foreground">Hourly rain chance</span>
+                    <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                      77°F high · 11 mph wind
+                    </span>
+                  </div>
+                  <div className="flex h-16 items-end gap-[3px]">
+                    {WEATHER_HOURLY_RAIN_PCT.map((pct, i) => (
+                      <div key={i} className="relative flex h-full flex-1 flex-col justify-end">
+                        <div className="absolute inset-0 rounded-sm bg-muted" />
+                        <div
+                          className={`relative rounded-sm ${
+                            pct >= 60 ? 'bg-sky-600' : pct >= 30 ? 'bg-amber-400' : 'bg-sky-300'
+                          }`}
+                          style={{ height: `max(3px, ${pct}%)` }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex gap-[3px]">
+                    {WEATHER_HOUR_LABELS.map((label) => (
+                      <span key={label} className="flex-1 text-center text-[8.5px] leading-none text-muted-foreground">
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
