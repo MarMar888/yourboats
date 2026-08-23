@@ -38,12 +38,10 @@ export async function requestInfo(formData: FormData): Promise<RequestInfoResult
 
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
-    // Resend isn't provisioned yet (or the integration's env var wasn't
-    // pulled into this environment). Mirrors the GMAIL_USER /
-    // GMAIL_APP_PASSWORD guard pattern used elsewhere in this codebase: log
-    // the miss and fail gracefully instead of throwing. The visitor still
-    // sees a normal success state — don't expose internal integration
-    // state on a public page.
+    // Not provisioned yet in this environment. Log the miss and fail
+    // gracefully instead of throwing — the visitor still sees a normal
+    // success state, don't expose internal integration state on a public
+    // page.
     await logSystem({
       action: 'request_info_email_skipped',
       metadata: { reason: 'RESEND_API_KEY not set', hasName: Boolean(name) },
@@ -55,10 +53,7 @@ export async function requestInfo(formData: FormData): Promise<RequestInfoResult
     const resend = new Resend(apiKey)
     const submittedAt = new Date().toISOString()
     await resend.emails.send({
-      // Resend's shared onboarding sender works without domain verification.
-      // TODO: switch to a verified @squeakycleanboats.com (or similar) sender
-      // once domain verification is set up in Resend.
-      from: 'Yourboats <onboarding@resend.dev>',
+      from: 'Yourboats <leads@squeakycleanboats.com>',
       to: 'marley@squeakycleanboats.com',
       subject: 'New info request from yourboats.vercel.app',
       text: [
