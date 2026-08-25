@@ -1,0 +1,37 @@
+name: Daily Outreach
+
+on:
+  schedule:
+    # 15:00 UTC = 10am Eastern / 9am Central, once a day.
+    - cron: "0 15 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Send next queued outreach email
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: node scripts/send-daily-outreach.js
+
+      - name: Commit updated queue
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- data/outreach-queue.json; then
+            git add data/outreach-queue.json
+            git commit -m "chore: record daily outreach send"
+            git push
+          else
+            echo "No changes to commit."
+          fi
