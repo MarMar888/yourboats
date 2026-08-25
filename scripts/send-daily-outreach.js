@@ -18,17 +18,14 @@ function textToPlainHtml(text) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(
-      LINK_TEXT,
-      `<a href="${LINK_HREF}" style="color: #0000EE;">${LINK_TEXT}</a>`
-    );
+    .replace(LINK_TEXT, `<a href="${LINK_HREF}">${LINK_TEXT}</a>`);
 
   const paragraphs = escaped
     .split("\n\n")
     .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
     .join("");
 
-  return `<div style="font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 14px; color: #000000;">${paragraphs}</div>`;
+  return `<div>${paragraphs}</div>`;
 }
 
 async function main() {
