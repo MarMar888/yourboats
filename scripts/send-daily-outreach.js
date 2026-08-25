@@ -7,6 +7,29 @@ const fs = require("fs");
 const path = require("path");
 
 const QUEUE_PATH = path.join(__dirname, "..", "data", "outreach-queue.json");
+const LINK_TEXT = "yourboats.squeakycleanboats.com";
+const LINK_HREF = "https://yourboats.squeakycleanboats.com";
+
+// Builds a plain-looking HTML version so Resend's click tracking has a
+// real <a href> to rewrite, while still reading like a plain-text email
+// (no colors, no layout, just paragraphs and line breaks).
+function textToPlainHtml(text) {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(
+      LINK_TEXT,
+      `<a href="${LINK_HREF}" style="color: #0000EE;">${LINK_TEXT}</a>`
+    );
+
+  const paragraphs = escaped
+    .split("\n\n")
+    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+
+  return `<div style="font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 14px; color: #000000;">${paragraphs}</div>`;
+}
 
 async function main() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -35,6 +58,7 @@ async function main() {
       to: [next.email],
       subject: next.subject,
       text: next.text,
+      html: textToPlainHtml(next.text),
     }),
   });
 
