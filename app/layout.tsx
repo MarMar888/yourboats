@@ -2,15 +2,16 @@ import './globals.css'
 import { PostHogPageView } from '@/components/posthog-pageview'
 import { StaleDeploymentBanner } from '@/components/stale-deployment-banner'
 
-const SITE_URL = 'https://yourboats.vercel.app'
+const SITE_URL = 'https://yourboats.squeakycleanboats.com'
 const SITE_NAME = 'Yourboats'
+const TITLE = 'Yourboats — Marina Operations Software'
 const DESCRIPTION =
-  'Yourboats is the operating system for marinas and boat detailers: slip management, scheduling, invoicing synced to QuickBooks, payroll, and an AI assistant that runs the marina for you.'
+  'Yourboats is marina operations software for marinas and boat detailers: slip management, scheduling, invoicing, payroll, and an AI assistant.'
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Yourboats — The Operating System for Marinas + Boat Detailers',
+    default: TITLE,
     template: '%s | Yourboats',
   },
   description: DESCRIPTION,
@@ -29,13 +30,13 @@ export const metadata = {
     type: 'website',
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: 'Yourboats — The Operating System for Marinas + Boat Detailers',
+    title: TITLE,
     description: DESCRIPTION,
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Yourboats — The Operating System for Marinas + Boat Detailers',
+    title: TITLE,
     description: DESCRIPTION,
   },
 }

@@ -51,6 +51,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: DISALLOW,
       },
     ],
-    sitemap: 'https://yourboats.vercel.app/sitemap.xml',
+    sitemap: 'https://yourboats.squeakycleanboats.com/sitemap.xml',
   }
 }

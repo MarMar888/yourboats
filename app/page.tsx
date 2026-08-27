@@ -172,9 +172,9 @@ const JSON_LD = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
   name: 'Yourboats',
-  url: 'https://yourboats.vercel.app',
+  url: 'https://yourboats.squeakycleanboats.com',
   description:
-    'Yourboats is the operating system for marinas and boat detailers: slip management, scheduling, invoicing synced to QuickBooks, payroll, and an AI assistant that runs the marina for you.',
+    'Yourboats is the operating system for marinas and boat detailers: slip management, scheduling, invoicing, payroll, and an AI assistant.',
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   publisher: {
