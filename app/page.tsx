@@ -10,6 +10,9 @@ import {
   LogIn,
   BarChart3,
   CloudRain,
+  Link2,
+  StickyNote,
+  GanttChart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,10 +51,29 @@ const SLIPS = [
   { id: 'C24', status: 'occupied' },
 ] as const
 
-const SLIP_STATUS_STYLE: Record<string, string> = {
-  occupied: 'border-primary/30 bg-primary/10 text-primary',
-  available: 'border-border bg-muted text-muted-foreground',
-  maintenance: 'border-amber-200 bg-amber-50 text-amber-700',
+const MARINA_PIERS = [
+  { label: 'Pier A', cx: 80, slips: SLIPS.slice(0, 4) },
+  { label: 'Pier B', cx: 200, slips: SLIPS.slice(4, 8) },
+  { label: 'Pier C', cx: 320, slips: SLIPS.slice(8, 12) },
+] as const
+
+const SLIP_SLOT_OFFSETS = [
+  { x: -46, y: 44 },
+  { x: 12, y: 44 },
+  { x: -46, y: 96 },
+  { x: 12, y: 96 },
+] as const
+
+const SLIP_MAP_RECT_STYLE: Record<string, string> = {
+  occupied: 'fill-primary/10 stroke-primary/40',
+  available: 'fill-muted stroke-border',
+  maintenance: 'fill-amber-50 stroke-amber-300',
+}
+
+const SLIP_MAP_TEXT_STYLE: Record<string, string> = {
+  occupied: 'fill-primary',
+  available: 'fill-muted-foreground',
+  maintenance: 'fill-amber-700',
 }
 
 const RESERVATIONS = [
@@ -64,6 +86,18 @@ const WEATHER_HOUR_LABELS = ['7a', '8a', '9a', '10a', '11a', '12p', '1p', '2p', 
 
 const WEATHER_HOURLY_RAIN_PCT = [5, 5, 8, 15, 10, 8, 20, 55, 35, 8, 5, 5, 5] as const
 
+const BOOKING_LINKS = [
+  { label: 'Half-day pontoon rental', href: '/book/pontoon-half-day', price: '$220 / half day' },
+  { label: 'Full-day wakeboard boat rental', href: '/book/wakeboard-full-day', price: '$450 / day' },
+  { label: 'Detailing add-on', href: '/book/detail-addon', price: '$85' },
+] as const
+
+const CLIENT_TASKS = [
+  { label: 'Order replacement fender', done: false },
+  { label: 'Follow up on quote for canvas repair', done: false },
+  { label: 'Confirm winter storage spot', done: true },
+] as const
+
 const WORK_ORDERS = [
   { boat: 'Loose Change', type: 'Haul-out & bottom paint', status: 'Scheduled', date: 'Aug 28' },
   { boat: 'Salty Paws', type: 'Engine service', status: 'In progress', date: 'Aug 24' },
@@ -74,6 +108,27 @@ const WORK_ORDER_STATUS_VARIANT: Record<(typeof WORK_ORDERS)[number]['status'], 
   Scheduled: 'secondary',
   'In progress': 'default',
   Complete: 'success',
+}
+
+const HAUL_WEEK_LABELS = ['May 1', 'May 8', 'May 15', 'May 22', 'May 29'] as const
+
+const HAUL_SCHEDULE = [
+  { boat: 'Second Wind', client: 'Karen Ostlund', startDay: 2, endDay: 3, status: 'Complete' },
+  { boat: 'Reel Therapy', client: 'Dave Halvorson', startDay: 3, endDay: 4, status: 'Complete' },
+  { boat: 'Salty Paws', client: 'Chris & Amy Delaney', startDay: 6, endDay: 8, status: 'Complete' },
+  { boat: 'Wake Me Up', client: 'Nancy Kowalski', startDay: 9, endDay: 10, status: 'Complete' },
+  { boat: 'Loose Change', client: 'Frank Delgado', startDay: 13, endDay: 14, status: 'In progress' },
+  { boat: 'Knot Working', client: 'Priya Anand', startDay: 14, endDay: 16, status: 'In progress' },
+  { boat: 'Sea Legs', client: 'Tom Reyes', startDay: 19, endDay: 20, status: 'Scheduled' },
+  { boat: 'High Tide', client: 'Maria Chen', startDay: 20, endDay: 22, status: 'Scheduled' },
+  { boat: 'Second Chance', client: 'Owen Whitfield', startDay: 24, endDay: 25, status: 'Scheduled' },
+  { boat: 'Aloha Spirit', client: 'Janet Ruiz', startDay: 27, endDay: 29, status: 'Scheduled' },
+] as const
+
+const HAUL_BAR_STYLE: Record<(typeof HAUL_SCHEDULE)[number]['status'], string> = {
+  Scheduled: 'border border-border bg-background',
+  'In progress': 'border border-primary/50 bg-primary/20',
+  Complete: 'border border-green-300 bg-green-100',
 }
 
 const MORE_CAPABILITIES = [
@@ -318,16 +373,45 @@ export default async function LandingPage() {
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card p-4" aria-hidden="true">
-              <div className="grid grid-cols-4 gap-2">
-                {SLIPS.map((slip) => (
-                  <div
-                    key={slip.id}
-                    className={`rounded-md border px-2 py-3 text-center text-xs font-semibold ${SLIP_STATUS_STYLE[slip.status]}`}
-                  >
-                    {slip.id}
-                  </div>
+              <svg viewBox="0 0 400 150" className="w-full" role="img">
+                <rect x="0" y="0" width="400" height="150" rx="8" className="fill-sky-50/60" />
+                <rect x="20" y="16" width="360" height="10" rx="2" className="fill-muted stroke-border" />
+                {MARINA_PIERS.map((pier) => (
+                  <g key={pier.label}>
+                    <rect
+                      x={pier.cx - 3}
+                      y="26"
+                      width="6"
+                      height="110"
+                      rx="2"
+                      className="fill-muted stroke-border"
+                    />
+                    {pier.slips.map((slip, i) => {
+                      const offset = SLIP_SLOT_OFFSETS[i]
+                      return (
+                        <g key={slip.id}>
+                          <rect
+                            x={pier.cx + offset.x}
+                            y={offset.y}
+                            width="34"
+                            height="34"
+                            rx="3"
+                            className={SLIP_MAP_RECT_STYLE[slip.status]}
+                          />
+                          <text
+                            x={pier.cx + offset.x + 17}
+                            y={offset.y + 20}
+                            textAnchor="middle"
+                            className={`text-[9px] font-semibold ${SLIP_MAP_TEXT_STYLE[slip.status]}`}
+                          >
+                            {slip.id}
+                          </text>
+                        </g>
+                      )
+                    })}
+                  </g>
                 ))}
-              </div>
+              </svg>
               <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-sm border border-primary/30 bg-primary/10" />
@@ -378,6 +462,40 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ── Booking links for rentals & services ─────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+                <Link2 className="h-4 w-4" aria-hidden="true" />
+                Booking links
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+                Let customers book rental boats and services themselves
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Every rental boat and add-on service gets its own shareable link. Send
+                it, post it, or put it on your site, customers pick a date and book
+                straight onto your schedule. No phone tag, no double-booked slips.
+              </p>
+            </div>
+            <div
+              className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card text-sm"
+              aria-hidden="true"
+            >
+              {BOOKING_LINKS.map((link) => (
+                <div key={link.label} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{link.label}</p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">yourboats.app{link.href}</p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums">{link.price}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── Scheduling & job cards ─────────────────────────────────────────── */}
         <section className="border-t border-border py-16">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
@@ -411,6 +529,62 @@ export default async function LandingPage() {
                 canComplete={false}
                 canManage={false}
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Client, boat & task notes ─────────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+            <div className="lg:order-2">
+              <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+                <StickyNote className="h-4 w-4" aria-hidden="true" />
+                Notes &amp; tasks
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+                Notes on every client and boat, and a running list of what to do
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Gate codes, boat quirks, and special requests live right on the
+                customer or boat record. Add a task when something needs follow-up
+                and it stays attached until it&apos;s checked off, no sticky notes,
+                no separate to-do app.
+              </p>
+            </div>
+            <div className="lg:order-1 mx-auto w-full max-w-sm" aria-hidden="true">
+              <Card className="transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_1px_0_hsl(var(--foreground)/0.06),0_18px_40px_hsl(var(--foreground)/0.09)]">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold leading-tight">
+                    Karen Ostlund · Second Wind
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-0">
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Notes</p>
+                    <p className="text-sm text-muted-foreground">
+                      Gate code 4471. Prefers morning service. Bimini top is fragile,
+                      fold carefully.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Tasks</p>
+                    <ul className="space-y-1.5 text-sm">
+                      {CLIENT_TASKS.map((task) => (
+                        <li key={task.label} className="flex items-center gap-2">
+                          {task.done ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                          ) : (
+                            <span className="h-4 w-4 shrink-0 rounded border border-border" aria-hidden="true" />
+                          )}
+                          <span className={task.done ? 'text-muted-foreground line-through' : 'text-foreground'}>
+                            {task.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </section>
@@ -501,6 +675,79 @@ export default async function LandingPage() {
                   <Badge variant={WORK_ORDER_STATUS_VARIANT[w.status]}>{w.status}</Badge>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Haul-in & haul-out scheduling ─────────────────────────────────────── */}
+        <section className="border-t border-border py-16">
+          <div className="max-w-2xl">
+            <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+              <GanttChart className="h-4 w-4" aria-hidden="true" />
+              Haul-in &amp; haul-out scheduling
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+              See the whole fleet&apos;s spring launch on one board
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Every boat&apos;s haul-in and haul-out window laid out on a single
+              timeline. Spot the days that are stacking up in the yard before they
+              become a bottleneck.
+            </p>
+          </div>
+          <div className="mt-8 overflow-x-auto rounded-lg border border-border bg-card p-4" aria-hidden="true">
+            <div className="min-w-[640px]">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">May 2026 · Spring launch</p>
+                <p className="text-xs text-muted-foreground">{HAUL_SCHEDULE.length} boats scheduled</p>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-40 shrink-0" />
+                <div className="relative h-4 flex-1">
+                  {HAUL_WEEK_LABELS.map((label, i) => (
+                    <span
+                      key={label}
+                      className="absolute -translate-x-1/2 text-[10px] text-muted-foreground first:translate-x-0 last:-translate-x-full"
+                      style={{ left: `${(i / (HAUL_WEEK_LABELS.length - 1)) * 100}%` }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {HAUL_SCHEDULE.map((item) => (
+                  <div key={item.boat} className="flex items-center gap-3">
+                    <div className="w-40 shrink-0 pr-2">
+                      <p className="truncate text-xs font-medium text-foreground">{item.boat}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{item.client}</p>
+                    </div>
+                    <div className="relative h-6 flex-1 rounded bg-muted/40">
+                      <div
+                        className={`absolute inset-y-0 rounded-sm ${HAUL_BAR_STYLE[item.status]}`}
+                        style={{
+                          left: `${((item.startDay - 1) / 31) * 100}%`,
+                          width: `${((item.endDay - item.startDay + 1) / 31) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm border border-border bg-background" />
+                Scheduled
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm border border-primary/50 bg-primary/20" />
+                In progress
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm border border-green-300 bg-green-100" />
+                Complete
+              </span>
             </div>
           </div>
         </section>
