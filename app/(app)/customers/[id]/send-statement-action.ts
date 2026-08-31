@@ -1,23 +1,15 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { customers, customerReminderContacts, invoices } from '@/lib/db/schema'
-import { eq, inArray } from 'drizzle-orm'
-import { getQboClient } from '@/lib/qbo/client'
+import { customers, customerReminderContacts } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { extractQboErrorMessage } from '@/lib/qbo/errors'
+import { getOpenInvoicesForCustomer } from '@/lib/qbo/open-invoices'
 import { emailTransport } from '@/lib/email/client'
 import { log } from '@/lib/log'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
-
-type QboOpenInvoice = {
-  Id: string
-  DocNumber?: string
-  TxnDate?: string
-  DueDate?: string
-  Balance: number
-}
 
 // QuickBooks Online has no API for sending an actual "Statement" — statements
 // are a QBO-web-UI-only feature, not part of the Accounting API. This builds
@@ -51,20 +43,9 @@ export async function sendCustomerStatement(customerId: string): Promise<ActionR
     to = reminderContacts.map((c) => c.email).join(', ')
   }
 
-  let openInvoices: QboOpenInvoice[]
+  let openInvoices: Awaited<ReturnType<typeof getOpenInvoicesForCustomer>>
   try {
-    const qbo = await getQboClient()
-    const result = await new Promise<{ QueryResponse: { Invoice?: QboOpenInvoice[] } }>((resolve, reject) =>
-      qbo.findInvoices(
-        [
-          { field: 'CustomerRef', value: customer.qboCustomerId! },
-          { field: 'Balance', value: '0', operator: '>' },
-        ],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (err: unknown, data: any) => (err ? reject(err) : resolve(data))
-      )
-    )
-    openInvoices = result?.QueryResponse?.Invoice ?? []
+    openInvoices = await getOpenInvoicesForCustomer(customer.qboCustomerId)
   } catch (err) {
     return { ok: false, error: `Failed to pull balance from QuickBooks: ${extractQboErrorMessage(err)}` }
   }
@@ -73,24 +54,13 @@ export async function sendCustomerStatement(customerId: string): Promise<ActionR
     return { ok: false, error: `${customer.name} has no open balance — nothing to send.` }
   }
 
-  // Pull any stored payment links for these invoices so the statement can link out to pay.
-  const qboIds = openInvoices.map((inv) => inv.Id)
-  const localInvoices = await db
-    .select({ qboInvoiceId: invoices.qboInvoiceId, qboPaymentLink: invoices.qboPaymentLink })
-    .from(invoices)
-    .where(inArray(invoices.qboInvoiceId, qboIds))
-  const paymentLinkByQboId = new Map(localInvoices.map((inv) => [inv.qboInvoiceId, inv.qboPaymentLink]))
-
-  const totalBalance = openInvoices.reduce((sum, inv) => sum + Number(inv.Balance), 0)
+  const totalBalance = openInvoices.reduce((sum, inv) => sum + inv.balance, 0)
   const fmt = (n: number) => `$${n.toFixed(2)}`
 
-  const rows = openInvoices
-    .sort((a, b) => (a.TxnDate ?? '').localeCompare(b.TxnDate ?? ''))
-    .map((inv) => {
-      const label = inv.DocNumber ? `Invoice #${inv.DocNumber}` : 'Invoice'
-      const link = paymentLinkByQboId.get(inv.Id)
-      return { label, date: inv.TxnDate ?? '', dueDate: inv.DueDate ?? '', balance: Number(inv.Balance), link }
-    })
+  const rows = openInvoices.map((inv) => {
+    const label = inv.docNumber ? `Invoice #${inv.docNumber}` : 'Invoice'
+    return { label, date: inv.txnDate ?? '', dueDate: inv.dueDate ?? '', balance: inv.balance, link: inv.paymentLink }
+  })
 
   const textLines = rows.map((r) =>
     `${r.label} — ${r.date}${r.dueDate ? ` (due ${r.dueDate})` : ''}: ${fmt(r.balance)}${r.link ? ` — Pay: ${r.link}` : ''}`

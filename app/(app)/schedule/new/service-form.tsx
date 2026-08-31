@@ -240,16 +240,28 @@ export default function ServiceForm({
   customers: initialCustomers,
   boatsByCustomer: initialBoatsByCustomer,
   qboItems = [],
+  initial,
 }: {
   customers: Customer[]
   boatsByCustomer: Record<string, Boat[]>
   qboItems?: { id: string; name: string }[]
+  // Prefills the form when arriving from an approved client-corner request
+  // (app/(app)/client-requests). serviceType lines up with FALLBACK_SERVICE_TYPES
+  // values / QBO item names; if it doesn't match anything, the select just falls
+  // back to its default option and staff picks manually.
+  initial?: { customerId?: string; date?: string; serviceType?: string; notes?: string }
 }) {
   const [mode, setMode] = useState<'onetime' | 'recurring'>('onetime')
   const [customers, setCustomers] = useState(initialCustomers)
   const [boatsByCustomer, setBoatsByCustomer] = useState(initialBoatsByCustomer)
-  const [customerId, setCustomerId] = useState('')
-  const [boatConfigs, setBoatConfigs] = useState<Record<string, BoatConfig>>({})
+  const [customerId, setCustomerId] = useState(initial?.customerId ?? '')
+  const [boatConfigs, setBoatConfigs] = useState<Record<string, BoatConfig>>(() => {
+    const cfgs: Record<string, BoatConfig> = {}
+    for (const b of initialBoatsByCustomer[initial?.customerId ?? ''] ?? []) {
+      cfgs[b.id] = defaultConfig()
+    }
+    return cfgs
+  })
   const [selectedQboItemId, setSelectedQboItemId] = useState('')
   const [modal, setModal] = useState<{ open: boolean; mode: 'customer' | 'boat' }>({
     open: false,
@@ -353,6 +365,7 @@ export default function ServiceForm({
             name="serviceType"
             required
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            defaultValue={initial?.serviceType}
             onChange={(e) => {
               if (qboItems.length > 0) {
                 const item = qboItems.find((i) => i.name === e.target.value)
@@ -385,7 +398,7 @@ export default function ServiceForm({
           <>
             <div className="space-y-1.5">
               <Label htmlFor="serviceDate">Date</Label>
-              <Input id="serviceDate" name="serviceDate" type="date" required defaultValue={today} />
+              <Input id="serviceDate" name="serviceDate" type="date" required defaultValue={initial?.date || today} />
             </div>
 
             {customerId && (
@@ -405,6 +418,7 @@ export default function ServiceForm({
                 name="notes"
                 rows={3}
                 placeholder="Any special instructions…"
+                defaultValue={initial?.notes}
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
             </div>
