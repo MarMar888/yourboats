@@ -6,6 +6,8 @@ import { db } from '@/lib/db'
 import { serviceRequests, services } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { rescheduleService } from '@/app/(app)/schedule/actions'
+import { voidInvoiceForService } from '@/lib/invoices/void-invoice'
+import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 import { log } from '@/lib/log'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
@@ -53,6 +55,7 @@ export async function approveRescheduleRequest(id: string): Promise<ActionResult
   if (!request || request.type !== 'reschedule' || !request.serviceId || !request.requestedDate) {
     return { ok: false, error: 'Invalid request.' }
   }
+  if (request.status !== 'pending') return { ok: false, error: 'Already resolved.' }
 
   const result = await rescheduleService(request.serviceId, request.requestedDate)
   if (result.error) return { ok: false, error: result.error }
@@ -62,17 +65,35 @@ export async function approveRescheduleRequest(id: string): Promise<ActionResult
   return { ok: true }
 }
 
+// Mirrors the cancel branch of updateService (schedule/[id]/actions.ts): void
+// the linked invoice before flipping status, so QBO and pay stay consistent
+// with a staff-initiated cancellation instead of just hiding the service.
 export async function approveCancelRequest(id: string): Promise<ActionResult> {
   const user = await requireStaff()
   if (!user) return { ok: false, error: 'Not authorized.' }
 
   const request = await loadRequest(id)
   if (!request || request.type !== 'cancel' || !request.serviceId) return { ok: false, error: 'Invalid request.' }
+  if (request.status !== 'pending') return { ok: false, error: 'Already resolved.' }
+
+  const [service] = await db
+    .select({ status: services.status })
+    .from(services)
+    .where(eq(services.id, request.serviceId))
+    .limit(1)
+  if (!service) return { ok: false, error: 'Service not found.' }
+  if (service.status !== 'scheduled') return { ok: false, error: 'That service is no longer scheduled.' }
+
+  const voidResult = await voidInvoiceForService(request.serviceId)
+  if (!voidResult.ok) return { ok: false, error: voidResult.error }
 
   await db.update(services).set({ status: 'cancelled' }).where(eq(services.id, request.serviceId))
+  await refreshServicePayroll(request.serviceId, 'service_cancelled')
   await markResolved(id, 'approved', user.id)
   await log({ action: 'approve_client_cancel', entityType: 'service_request', entityId: id })
   revalidatePath('/schedule')
+  revalidatePath('/invoices')
+  revalidatePath('/pay')
   return { ok: true }
 }
 
@@ -89,6 +110,7 @@ export async function resolveRequest(
 
   const request = await loadRequest(id)
   if (!request) return { ok: false, error: 'Not found.' }
+  if (request.status !== 'pending') return { ok: false, error: 'Already resolved.' }
 
   await markResolved(id, status, user.id, staffResponse)
   await log({

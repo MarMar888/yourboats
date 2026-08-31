@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +18,8 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  function submitEmail() {
+  function submitEmail(e: FormEvent) {
+    e.preventDefault()
     setError(null)
     startTransition(async () => {
       const route = await resolveLogin(email)
@@ -31,7 +32,8 @@ export function LoginForm() {
     })
   }
 
-  function submitPassword() {
+  function submitPassword(e: FormEvent) {
+    e.preventDefault()
     setError(null)
     startTransition(async () => {
       const result = await login(email, password)
@@ -40,7 +42,8 @@ export function LoginForm() {
     })
   }
 
-  function submitCode() {
+  function submitCode(e: FormEvent) {
+    e.preventDefault()
     setError(null)
     startTransition(async () => {
       const result = await verifyClientOtp(email, code)
@@ -59,7 +62,7 @@ export function LoginForm() {
 
   if (step === 'email') {
     return (
-      <div className="space-y-3">
+      <form className="space-y-3" onSubmit={submitEmail}>
         <div className="space-y-1">
           <Label htmlFor="email">Email</Label>
           <Input
@@ -77,16 +80,16 @@ export function LoginForm() {
             {error}
           </p>
         )}
-        <Button type="button" className="w-full" disabled={isPending || !email} onClick={submitEmail}>
+        <Button type="submit" className="w-full" disabled={isPending || !email}>
           {isPending ? 'Checking…' : 'Continue'}
         </Button>
-      </div>
+      </form>
     )
   }
 
   if (step === 'password') {
     return (
-      <div className="space-y-3">
+      <form className="space-y-3" onSubmit={submitPassword}>
         <p className="text-sm text-muted-foreground">{email}</p>
         <div className="space-y-1">
           <Label htmlFor="password">Password</Label>
@@ -104,7 +107,7 @@ export function LoginForm() {
             {error}
           </p>
         )}
-        <Button type="button" className="w-full" disabled={isPending || !password} onClick={submitPassword}>
+        <Button type="submit" className="w-full" disabled={isPending || !password}>
           {isPending ? 'Signing in…' : 'Sign in'}
         </Button>
         <button
@@ -114,12 +117,12 @@ export function LoginForm() {
         >
           Use a different email
         </button>
-      </div>
+      </form>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <form className="space-y-3" onSubmit={submitCode}>
       {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
       <div className="space-y-1">
         <Label htmlFor="code">6-digit code</Label>
@@ -139,7 +142,7 @@ export function LoginForm() {
           {error}
         </p>
       )}
-      <Button type="button" className="w-full" disabled={isPending || code.length < 6} onClick={submitCode}>
+      <Button type="submit" className="w-full" disabled={isPending || code.length < 6}>
         {isPending ? 'Verifying…' : 'Verify code'}
       </Button>
       <button
@@ -149,6 +152,6 @@ export function LoginForm() {
       >
         Use a different email
       </button>
-    </div>
+    </form>
   )
 }

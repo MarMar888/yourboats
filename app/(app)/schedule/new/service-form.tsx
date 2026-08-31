@@ -262,7 +262,12 @@ export default function ServiceForm({
     }
     return cfgs
   })
-  const [selectedQboItemId, setSelectedQboItemId] = useState('')
+  // If the prefilled serviceType matches a synced QBO item by name, seed its
+  // ID too, since the hidden qboItemId input otherwise stays empty until the
+  // customer manually reselects the (already-selected-looking) dropdown.
+  const [selectedQboItemId, setSelectedQboItemId] = useState(
+    () => qboItems.find((i) => i.name === initial?.serviceType)?.id ?? ''
+  )
   const [modal, setModal] = useState<{ open: boolean; mode: 'customer' | 'boat' }>({
     open: false,
     mode: 'customer',
