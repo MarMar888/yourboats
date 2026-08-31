@@ -518,7 +518,7 @@ export function EmployeePayView({
                 <span className="text-lg font-bold tabular-nums">{fmt(seasonTips.totalTips)}</span>
               </div>
               <p className="text-xs text-muted-foreground -mt-2">
-                {dateLabel(SEASON_START)} – {dateLabel(SEASON_END)} · separate from base-pay payroll
+                {dateLabel(SEASON_START)} – {dateLabel(SEASON_END)} · allocated from tips, separate from base-pay payroll
               </p>
 
               {seasonTips.jobs.length === 0 ? (
@@ -534,7 +534,7 @@ export function EmployeePayView({
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">Client</th>
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">Service</th>
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Tip on job</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Your payout</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Your tip share</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
