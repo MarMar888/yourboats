@@ -317,6 +317,104 @@ export const mcpTokens = pgTable('mcp_tokens', {
   revokedAt: timestamp('revoked_at'),
 })
 
+// ─── Quote tool ─────────────────────────────────────────────────────────────
+
+// Business-editable catalog of recurring plans and one-time detail services
+// offered on the public /quote signup link. billingType 'per_ft' multiplies
+// rate by the submitted boat length; 'flat' uses rate as-is. minPrice floors
+// the computed price (useful for small boats on a per-ft plan).
+export const quoteServices = pgTable('quote_services', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  category: text('category').notNull(), // 'recurring' | 'detail'
+  name: text('name').notNull(),
+  description: text('description'),
+  billingType: rateTypeEnum('billing_type').notNull().default('flat'),
+  rate: numeric('rate', { precision: 10, scale: 2 }).notNull(),
+  minPrice: numeric('min_price', { precision: 10, scale: 2 }),
+  requiresPhotos: boolean('requires_photos').notNull().default(false), // e.g. buffing/waxing, acid wash: priced more precisely with boat photos
+  active: boolean('active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// Add-ons offered alongside a detail service. requiresAttribute gates which
+// boat types see it recommended on the public wizard ('cabin' | 'carpet' |
+// 'bridge'), null means it's offered to every boat type.
+export const quoteAddons = pgTable('quote_addons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  billingType: rateTypeEnum('billing_type').notNull().default('flat'),
+  rate: numeric('rate', { precision: 10, scale: 2 }).notNull(),
+  minPrice: numeric('min_price', { precision: 10, scale: 2 }),
+  requiresAttribute: text('requires_attribute'), // 'cabin' | 'carpet' | 'bridge' | null
+  active: boolean('active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// Business-editable catalog of known make/model boats, searched by the public
+// quote wizard's "type your boat" field. A match auto-fills length and the
+// boat-type key (for cabin/carpet/bridge attribute inference) instead of
+// making the visitor pick a generic type. No third-party boat-specs API has
+// a viable free tier for anonymous public traffic (checked 2026-08-28:
+// VehDB requires a paid key, Marinebase is sailboat-only private beta); this
+// catalog is the first-party substitute, grown over time from real requests.
+export const boatModels = pgTable('boat_models', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  make: text('make').notNull(),
+  model: text('model').notNull(),
+  boatTypeKey: text('boat_type_key').notNull(), // matches a key in lib/quote/boat-types.ts
+  lengthFt: integer('length_ft').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+// One row per signup submitted on the public /quote link. quotedPrice and
+// quotedPriceBreakdown are computed server-side from the catalog at submit
+// time; never trust a client-supplied price.
+export const quoteRequests = pgTable('quote_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'converted' | 'declined'
+  customerName: text('customer_name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  boatTypeKey: text('boat_type_key').notNull(),
+  boatNickname: text('boat_nickname'),
+  boatMakeModel: text('boat_make_model'),
+  boatLengthFt: integer('boat_length_ft').notNull(),
+  boatModelId: uuid('boat_model_id').references(() => boatModels.id, { onDelete: 'set null' }),
+  planType: text('plan_type').notNull(), // 'recurring' | 'detail'
+  recurringServiceKey: text('recurring_service_key'),
+  detailServiceKeys: text('detail_service_keys'), // JSON array string
+  addonKeys: text('addon_keys'), // JSON array string
+  notes: text('notes'),
+  message: text('message'), // freeform questions/comments from the visitor, separate from operational notes
+  preferredStartDate: date('preferred_start_date'),
+  preferredEndDate: date('preferred_end_date'),
+  photoUrls: text('photo_urls'), // JSON array string: boat photos for services that need them (buffing/waxing, acid wash)
+  quotedPrice: numeric('quoted_price', { precision: 10, scale: 2 }).notNull(),
+  quotedPriceBreakdown: text('quoted_price_breakdown'), // JSON array string of {key,name,price}
+  convertedCustomerId: uuid('converted_customer_id').references(() => customers.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  contactedAt: timestamp('contacted_at'),
+})
+
+export type QuoteService = typeof quoteServices.$inferSelect
+export type NewQuoteService = typeof quoteServices.$inferInsert
+export type QuoteAddon = typeof quoteAddons.$inferSelect
+export type NewQuoteAddon = typeof quoteAddons.$inferInsert
+export type QuoteRequest = typeof quoteRequests.$inferSelect
+export type NewQuoteRequest = typeof quoteRequests.$inferInsert
+export type BoatModel = typeof boatModels.$inferSelect
+export type NewBoatModel = typeof boatModels.$inferInsert
+
 export type McpToken = typeof mcpTokens.$inferSelect
 export type NewMcpToken = typeof mcpTokens.$inferInsert
 
