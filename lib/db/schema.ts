@@ -170,6 +170,11 @@ export const completionPhotos = pgTable('completion_photos', {
 
 export const rateTypeEnum = pgEnum('rate_type', ['per_ft', 'flat'])
 
+// Separate from rateTypeEnum (used by service_boats' per-boat rate overrides,
+// unrelated to the quote tool) so the quote catalog's billing types can
+// evolve on their own, e.g. adding 'per_hour' for labor-based add-ons.
+export const quoteRateTypeEnum = pgEnum('quote_rate_type', ['per_ft', 'flat', 'per_hour'])
+
 export const serviceBoats = pgTable(
   'service_boats',
   {
@@ -329,7 +334,7 @@ export const quoteServices = pgTable('quote_services', {
   category: text('category').notNull(), // 'recurring' | 'detail'
   name: text('name').notNull(),
   description: text('description'),
-  billingType: rateTypeEnum('billing_type').notNull().default('flat'),
+  billingType: quoteRateTypeEnum('billing_type').notNull().default('flat'),
   rate: numeric('rate', { precision: 10, scale: 2 }).notNull(),
   minPrice: numeric('min_price', { precision: 10, scale: 2 }),
   requiresPhotos: boolean('requires_photos').notNull().default(false), // e.g. buffing/waxing, acid wash: priced more precisely with boat photos
@@ -347,7 +352,7 @@ export const quoteAddons = pgTable('quote_addons', {
   key: text('key').notNull().unique(),
   name: text('name').notNull(),
   description: text('description'),
-  billingType: rateTypeEnum('billing_type').notNull().default('flat'),
+  billingType: quoteRateTypeEnum('billing_type').notNull().default('flat'),
   rate: numeric('rate', { precision: 10, scale: 2 }).notNull(),
   minPrice: numeric('min_price', { precision: 10, scale: 2 }),
   requiresAttribute: text('requires_attribute'), // 'cabin' | 'carpet' | 'bridge' | null

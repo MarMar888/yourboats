@@ -63,7 +63,7 @@ function CatalogRow({
       </div>
 
       <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>{billingType === 'per_ft' ? '$/ft' : 'Flat $'}</span>
+        <span>{billingType === 'per_ft' ? '$/ft' : billingType === 'per_hour' ? '$/hr' : 'Flat $'}</span>
         <input
           type="number"
           min={0}

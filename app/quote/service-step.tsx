@@ -12,6 +12,8 @@ const ATTRIBUTE_META: Record<string, { label: string; icon: typeof DoorClosed }>
   bridge: { label: 'Bridge', icon: TowerControl },
 }
 
+const UNIT_LABEL: Record<string, string> = { per_ft: '/ft', per_hour: '/hr' }
+
 function addonIsRelevant(addon: QuoteAddonItem, boatType: BoatType | undefined): boolean {
   if (!addon.requiresAttribute) return true
   if (!boatType) return false
@@ -19,6 +21,21 @@ function addonIsRelevant(addon: QuoteAddonItem, boatType: BoatType | undefined):
   if (addon.requiresAttribute === 'carpet') return boatType.hasCarpet
   if (addon.requiresAttribute === 'bridge') return boatType.hasBridge
   return true
+}
+
+// Shows the native rate (e.g. "$14.00/ft") above the computed line price,
+// so the price build is transparent rather than a single opaque number.
+function PriceCell({ billingType, rate, price, suffix }: { billingType: string; rate: number; price: number; suffix?: string }) {
+  const unit = UNIT_LABEL[billingType]
+  return (
+    <div className="shrink-0 text-right">
+      {unit && <p className="text-xs text-muted-foreground tabular-nums">${rate.toFixed(2)}{unit}</p>}
+      <p className="text-sm font-semibold tabular-nums">
+        ${price.toFixed(2)}
+        {suffix && <span className="text-xs font-normal text-muted-foreground">{suffix}</span>}
+      </p>
+    </div>
+  )
 }
 
 export function ServiceStep({
@@ -53,6 +70,50 @@ export function ServiceStep({
   const relevantAddons = addons.filter((a) => addonIsRelevant(a, boatType))
   const selectedNeedsPhotos = detailServices.some(
     (svc) => svc.requiresPhotos && detailServiceKeys.has(svc.key)
+  )
+
+  const addonsSection = relevantAddons.length > 0 && (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Add anything else?
+      </p>
+      {relevantAddons.map((addon) => {
+        const price = priceForItem(addon, lengthFt)
+        const selected = addonKeys.has(addon.key)
+        const attr = addon.requiresAttribute ? ATTRIBUTE_META[addon.requiresAttribute] : null
+        return (
+          <label
+            key={addon.key}
+            className={cn(
+              'flex cursor-pointer items-start justify-between gap-4 rounded-lg border px-4 py-3 transition-colors',
+              selected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border hover:bg-muted/50'
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleAddon(addon.key)}
+                className="mt-1 h-4 w-4 rounded"
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">{addon.name}</p>
+                  {attr && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-foreground">
+                      <attr.icon className="h-3 w-3" aria-hidden="true" />
+                      For your {attr.label.toLowerCase()}
+                    </span>
+                  )}
+                </div>
+                {addon.description && <p className="text-xs text-muted-foreground">{addon.description}</p>}
+              </div>
+            </div>
+            <PriceCell billingType={addon.billingType} rate={addon.rate} price={price} />
+          </label>
+        )
+      })}
+    </div>
   )
 
   return (
@@ -96,35 +157,39 @@ export function ServiceStep({
       </div>
 
       {planType === 'recurring' ? (
-        <div className="space-y-2">
-          {recurringPlans.map((plan) => {
-            const price = priceForItem(plan, lengthFt)
-            const selected = recurringServiceKey === plan.key
-            return (
-              <label
-                key={plan.key}
-                className={cn(
-                  'flex cursor-pointer items-start justify-between gap-4 rounded-lg border px-4 py-3 transition-colors',
-                  selected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border hover:bg-muted/50'
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="recurringPlan"
-                    checked={selected}
-                    onChange={() => onRecurringServiceChange(plan.key)}
-                    className="mt-1 h-4 w-4"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{plan.name}</p>
-                    {plan.description && <p className="text-xs text-muted-foreground">{plan.description}</p>}
+        <div className="space-y-5">
+          <div className="space-y-2">
+            {recurringPlans.map((plan) => {
+              const price = priceForItem(plan, lengthFt)
+              const selected = recurringServiceKey === plan.key
+              return (
+                <label
+                  key={plan.key}
+                  className={cn(
+                    'flex cursor-pointer items-start justify-between gap-4 rounded-lg border px-4 py-3 transition-colors',
+                    selected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border hover:bg-muted/50'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="recurringPlan"
+                      checked={selected}
+                      onChange={() => onRecurringServiceChange(plan.key)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{plan.name}</p>
+                      {plan.description && <p className="text-xs text-muted-foreground">{plan.description}</p>}
+                    </div>
                   </div>
-                </div>
-                <p className="shrink-0 text-sm font-semibold tabular-nums">${price.toFixed(2)}<span className="text-xs font-normal text-muted-foreground">/visit</span></p>
-              </label>
-            )
-          })}
+                  <PriceCell billingType={plan.billingType} rate={plan.rate} price={price} suffix="/visit" />
+                </label>
+              )
+            })}
+          </div>
+
+          {addonsSection}
         </div>
       ) : (
         <div className="space-y-5">
@@ -161,7 +226,7 @@ export function ServiceStep({
                       {svc.description && <p className="text-xs text-muted-foreground">{svc.description}</p>}
                     </div>
                   </div>
-                  <p className="shrink-0 text-sm font-semibold tabular-nums">${price.toFixed(2)}</p>
+                  <PriceCell billingType={svc.billingType} rate={svc.rate} price={price} />
                 </label>
               )
             })}
@@ -174,47 +239,7 @@ export function ServiceStep({
             )}
           </div>
 
-          {relevantAddons.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add-ons</p>
-              {relevantAddons.map((addon) => {
-                const price = priceForItem(addon, lengthFt)
-                const selected = addonKeys.has(addon.key)
-                const attr = addon.requiresAttribute ? ATTRIBUTE_META[addon.requiresAttribute] : null
-                return (
-                  <label
-                    key={addon.key}
-                    className={cn(
-                      'flex cursor-pointer items-start justify-between gap-4 rounded-lg border px-4 py-3 transition-colors',
-                      selected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border hover:bg-muted/50'
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => onToggleAddon(addon.key)}
-                        className="mt-1 h-4 w-4 rounded"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{addon.name}</p>
-                          {attr && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-foreground">
-                              <attr.icon className="h-3 w-3" aria-hidden="true" />
-                              For your {attr.label.toLowerCase()}
-                            </span>
-                          )}
-                        </div>
-                        {addon.description && <p className="text-xs text-muted-foreground">{addon.description}</p>}
-                      </div>
-                    </div>
-                    <p className="shrink-0 text-sm font-semibold tabular-nums">${price.toFixed(2)}</p>
-                  </label>
-                )
-              })}
-            </div>
-          )}
+          {addonsSection}
         </div>
       )}
     </div>

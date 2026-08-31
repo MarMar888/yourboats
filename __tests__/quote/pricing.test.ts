@@ -10,6 +10,7 @@ const CATALOG = {
   addons: [
     { key: 'addon_cabin_interior', name: 'Cabin Interior Detail', billingType: 'flat' as const, rate: 85, minPrice: null },
     { key: 'addon_carpet_shampoo', name: 'Carpet Shampoo', billingType: 'flat' as const, rate: 65, minPrice: null },
+    { key: 'addon_bilge', name: 'Bilge Cleaning', billingType: 'per_hour' as const, rate: 60, minPrice: null },
   ],
 }
 
@@ -29,6 +30,10 @@ describe('priceForItem', () => {
   it('does not apply the floor once the boat is long enough', () => {
     expect(priceForItem({ billingType: 'per_ft', rate: 3.5, minPrice: 65 }, 30)).toBe(105)
   })
+
+  it('bills per_hour at the flat rate for a single assumed hour', () => {
+    expect(priceForItem({ billingType: 'per_hour', rate: 60, minPrice: null }, 24)).toBe(60)
+  })
 })
 
 describe('computeQuote', () => {
@@ -39,6 +44,22 @@ describe('computeQuote', () => {
     )
     expect(result.lineItems).toEqual([{ key: 'recurring_weekly', name: 'Weekly Wash', price: 84 }])
     expect(result.total).toBe(84)
+  })
+
+  it('adds selected add-ons on top of a recurring plan', () => {
+    const result = computeQuote(
+      {
+        lengthFt: 24,
+        planType: 'recurring',
+        recurringServiceKey: 'recurring_weekly',
+        detailServiceKeys: [],
+        addonKeys: ['addon_cabin_interior', 'addon_bilge'],
+      },
+      CATALOG
+    )
+    // recurring_weekly: 24*3.5=84, cabin: 85 flat, bilge: 60 per_hour (1hr baseline)
+    expect(result.total).toBe(84 + 85 + 60)
+    expect(result.lineItems).toHaveLength(3)
   })
 
   it('sums selected detail services and add-ons', () => {
