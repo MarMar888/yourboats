@@ -17,7 +17,7 @@ Operations app for Squeaky Clean Boats — one place for the owner, manager, and
 |------|-----------------|
 | Owner | Everything — full access including financial views, employee management |
 | Manager | All jobs across employees, customer/boat CRUD, assign employees, trigger invoices to QBO |
-| Employee | Own assigned jobs only — mark complete, leave notes, flag complaints |
+| Employee | Own assigned jobs only — mark complete, leave notes, flag complaints, and view pay and season tips |
 
 ## Local setup
 
@@ -69,6 +69,7 @@ app/
     schedule/         # Week/month view
     customers/        # Customer + boat management
     invoices/         # Ready-to-invoice queue + QBO push
+    pay/              # Payroll review and employee pay/season-tip views
     complaints/       # Complaint log
     team/             # Employee management (owner only)
   auth/callback/      # Supabase magic-link callback
