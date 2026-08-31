@@ -338,9 +338,11 @@ export default async function CustomerDetailPage({
             )}
             <div>
               <p className="text-muted-foreground text-xs mb-0.5">Client corner</p>
-              {customer.email ? (
+              {/* Login also accepts reminder-contact emails (see findCustomerByEmail
+                  in app/(auth)/login/client-actions.ts), not just the primary email. */}
+              {customer.email || reminderContacts.length > 0 ? (
                 <p className="text-sm">
-                  Can sign in with a code sent to {customer.email}.{' '}
+                  Can sign in with a code sent to {[customer.email, ...reminderContacts.map((c) => c.email)].filter(Boolean).join(', ')}.{' '}
                   <Link href="/client-requests" className="text-primary hover:underline">
                     View requests
                   </Link>
