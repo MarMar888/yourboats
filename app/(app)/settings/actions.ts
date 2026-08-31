@@ -8,7 +8,7 @@ import { invoices } from '@/lib/db/schema'
 import { isNotNull, eq } from 'drizzle-orm'
 import { getQboClient } from '@/lib/qbo/client'
 import { revalidatePath } from 'next/cache'
-import { MARLEY_SMS, NATE_SMS } from '@/lib/constants/sms'
+import { MARLEY_SMS } from '@/lib/constants/sms'
 
 export async function reconcileDocNumbers(): Promise<{ ok: boolean; updated: number; message?: string }> {
   const user = await getCurrentUser()
@@ -71,26 +71,6 @@ export async function sendInvoiceTest(): Promise<{ ok: boolean; message: string 
     })
     await log({ action: 'invoice_sms_test_sent', metadata: { to: MARLEY_SMS } })
     return { ok: true, message: `Sent to ${MARLEY_SMS}` }
-  } catch (err) {
-    return { ok: false, message: `Failed: ${err instanceof Error ? err.message : String(err)}` }
-  }
-}
-
-export async function sendScheduleReminderTest(): Promise<{ ok: boolean; message: string }> {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'owner') {
-    return { ok: false, message: 'Owner only.' }
-  }
-
-  try {
-    await emailTransport.sendMail({
-      from: `"Yourboats" <${process.env.GMAIL_USER}>`,
-      to: NATE_SMS,
-      subject: 'Schedule approval reminder',
-      text: 'Reminder: Please approve this weeks schedule. (https://yourboats.vercel.app/schedule)',
-    })
-    await log({ action: 'schedule_reminder_test_sent', metadata: { to: NATE_SMS } })
-    return { ok: true, message: `Test sent to Nate` }
   } catch (err) {
     return { ok: false, message: `Failed: ${err instanceof Error ? err.message : String(err)}` }
   }

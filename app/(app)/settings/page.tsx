@@ -9,7 +9,6 @@ import SyncQboItemsButton from './sync-qbo-items-button'
 import ReminderTestPanel from './reminder-test-panel'
 import ChangePasswordForm from './change-password-form'
 import InvoiceTestButton from './invoice-test-button'
-import ScheduleReminderTestButton from './schedule-reminder-test-button'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
 import { QboSyncHealth } from './qbo-sync-health'
 import { ReconcileDocNumbersButton } from './reconcile-doc-numbers-button'
@@ -198,20 +197,6 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent>
               <InvoiceTestButton />
-            </CardContent>
-          </Card>
-        )}
-
-        {user.role === 'owner' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Schedule reminder test</CardTitle>
-              <CardDescription>
-                Sends a test approval reminder text to Nate. The automated version runs Monday and Tuesday at 10am CST whenever the week is not yet approved.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScheduleReminderTestButton />
             </CardContent>
           </Card>
         )}
