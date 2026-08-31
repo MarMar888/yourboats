@@ -28,7 +28,9 @@
     "type": "detailing",
     "subject": "Boat detailing software",
     "text": "Hi Jack,\n\nI built Yourboats, software for boat detailing businesses. It handles scheduling, gives your crew a simple daily job list, and sends invoices straight to QuickBooks (or another provider of your choice). I've run it in my own boat detailing business for the past year and it's saved me about 10 hours a week on back office and admin.\n\nLet me know if you want to book a quick demo or give me a call.\n\nThanks,\nMarley Barrett\nyourboats.squeakycleanboats.com\n952-529-5203",
-    "sent": false
+    "sent": true,
+    "sentAt": "2026-08-28T23:50:23.092Z",
+    "resendId": "80a8798f-11d7-427c-bb0d-a91a6f77b428"
   },
   {
     "id": "bayside-marine-detailing",
@@ -37,7 +39,9 @@
     "type": "detailing",
     "subject": "Boat detailing software",
     "text": "Hi Bayside Marine Detailing team,\n\nI built Yourboats, software for boat detailing businesses. It handles scheduling, gives your crew a simple daily job list, and sends invoices straight to QuickBooks (or another provider of your choice). I've run it in my own boat detailing business for the past year and it's saved me about 10 hours a week on back office and admin.\n\nLet me know if you want to book a quick demo or give me a call.\n\nThanks,\nMarley Barrett\nyourboats.squeakycleanboats.com\n952-529-5203",
-    "sent": false
+    "sent": true,
+    "sentAt": "2026-08-29T18:09:15.828Z",
+    "resendId": "b5b20383-83a6-4139-a7b7-5a85e5e5a482"
   },
   {
     "id": "gulf-coast-boat-care",
@@ -46,7 +50,9 @@
     "type": "detailing",
     "subject": "Boat detailing software",
     "text": "Hi Gulf Coast Boat Care team,\n\nI built Yourboats, software for boat detailing businesses. It handles scheduling, gives your crew a simple daily job list, and sends invoices straight to QuickBooks (or another provider of your choice). I've run it in my own boat detailing business for the past year and it's saved me about 10 hours a week on back office and admin.\n\nLet me know if you want to book a quick demo or give me a call.\n\nThanks,\nMarley Barrett\nyourboats.squeakycleanboats.com\n952-529-5203",
-    "sent": false
+    "sent": true,
+    "sentAt": "2026-08-30T18:23:37.942Z",
+    "resendId": "c011bb53-ec77-4be5-89a9-49fb7513f44c"
   },
   {
     "id": "harborside-yacht-services",

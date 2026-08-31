@@ -336,6 +336,23 @@ export default async function CustomerDetailPage({
                 <SendStatementButton customerId={id} />
               </div>
             )}
+            <div>
+              <p className="text-muted-foreground text-xs mb-0.5">Client corner</p>
+              {/* Login also accepts reminder-contact emails (see findCustomerByEmail
+                  in app/(auth)/login/client-actions.ts), not just the primary email. */}
+              {customer.email || reminderContacts.length > 0 ? (
+                <p className="text-sm">
+                  Can sign in with a code sent to {[customer.email, ...reminderContacts.map((c) => c.email)].filter(Boolean).join(', ')}.{' '}
+                  <Link href="/client-requests" className="text-primary hover:underline">
+                    View requests
+                  </Link>
+                </p>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">
+                  No email on file, can&apos;t receive a login code
+                </Badge>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

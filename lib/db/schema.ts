@@ -38,6 +38,19 @@ export const invoiceStatusEnum = pgEnum('invoice_status', [
 
 export const severityEnum = pgEnum('severity', ['minor', 'major'])
 
+export const serviceRequestTypeEnum = pgEnum('service_request_type', [
+  'reschedule',
+  'cancel',
+  'note',
+  'new_service',
+])
+
+export const serviceRequestStatusEnum = pgEnum('service_request_status', [
+  'pending',
+  'approved',
+  'denied',
+])
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 export const users = pgTable('users', {
@@ -265,6 +278,35 @@ export const complaints = pgTable('complaints', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+// One-time codes emailed to a customer to open the client corner. Never a raw
+// login secret at rest, only the hash is stored (same approach as mcpTokens).
+export const clientOtpCodes = pgTable('client_otp_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  consumedAt: timestamp('consumed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+// Client-corner requests (reschedule/cancel/note/new service) awaiting staff
+// review. Deliberately shaped like `complaints`: customer-linked, staff-triaged.
+export const serviceRequests = pgTable('service_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  serviceId: uuid('service_id').references(() => services.id, { onDelete: 'cascade' }), // null for new_service
+  type: serviceRequestTypeEnum('type').notNull(),
+  requestedDate: date('requested_date'),
+  serviceType: text('service_type'), // for new_service requests
+  message: text('message'),
+  status: serviceRequestStatusEnum('status').notNull().default('pending'),
+  staffResponse: text('staff_response'),
+  resolvedByUserId: uuid('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt: timestamp('resolved_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const logs = pgTable('logs', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id'),           // dev user id or future auth user id
@@ -433,6 +475,18 @@ export const customersRelations = relations(customers, ({ many }) => ({
   recurringSchedules: many(recurringSchedules),
   complaints: many(complaints),
   reminderContacts: many(customerReminderContacts),
+  serviceRequests: many(serviceRequests),
+  otpCodes: many(clientOtpCodes),
+}))
+
+export const clientOtpCodesRelations = relations(clientOtpCodes, ({ one }) => ({
+  customer: one(customers, { fields: [clientOtpCodes.customerId], references: [customers.id] }),
+}))
+
+export const serviceRequestsRelations = relations(serviceRequests, ({ one }) => ({
+  customer: one(customers, { fields: [serviceRequests.customerId], references: [customers.id] }),
+  service: one(services, { fields: [serviceRequests.serviceId], references: [services.id] }),
+  resolvedBy: one(users, { fields: [serviceRequests.resolvedByUserId], references: [users.id] }),
 }))
 
 export const customerReminderContactsRelations = relations(customerReminderContacts, ({ one }) => ({
@@ -455,6 +509,7 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
   assignments: many(serviceAssignments),
   invoice: one(invoices, { fields: [services.invoiceId], references: [invoices.id] }),
   complaints: many(complaints),
+  serviceRequests: many(serviceRequests),
 }))
 
 export const serviceBoatsRelations = relations(serviceBoats, ({ one, many }) => ({
@@ -657,3 +712,7 @@ export type Payroll = typeof payroll.$inferSelect
 export type NewPayroll = typeof payroll.$inferInsert
 export type ManualPayrollLine = typeof manualPayrollLines.$inferSelect
 export type NewManualPayrollLine = typeof manualPayrollLines.$inferInsert
+export type ClientOtpCode = typeof clientOtpCodes.$inferSelect
+export type NewClientOtpCode = typeof clientOtpCodes.$inferInsert
+export type ServiceRequest = typeof serviceRequests.$inferSelect
+export type NewServiceRequest = typeof serviceRequests.$inferInsert
