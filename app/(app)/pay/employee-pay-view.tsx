@@ -8,8 +8,12 @@ import {
   formatPeriodLabel,
   type PayPeriod,
 } from '@/lib/pay/periods'
+import { SEASON_END } from '@/lib/pay/projections'
 import type { MyServiceRow } from '@/app/api/pay/my-period/route'
+import type { SeasonTipJob } from '@/app/api/pay/season-tips/route'
 import { cn } from '@/lib/utils'
+
+const SEASON_START = `${SEASON_END.slice(0, 4)}-01-01`
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
   recurring:          'Recurring Clean',
@@ -33,6 +37,12 @@ function fmtDate(ymd: string) {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+  })
+}
+
+function dateLabel(ymd: string) {
+  return new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC',
   })
 }
 
@@ -291,11 +301,15 @@ export function EmployeePayView({
   viewedEmployeeName?: string
 } = {}) {
   const [periodOffset, setPeriodOffset] = useState(0)
-  const [tab, setTab] = useState<'services' | 'how-it-works'>('services')
+  const [tab, setTab] = useState<'services' | 'season-tips' | 'how-it-works'>('services')
   const [rows, setRows] = useState<MyServiceRow[] | null>(null)
   const [periodNotes, setPeriodNotes] = useState('')
   const [loading, startTransition] = useTransition()
   const [error, setError] = useState('')
+
+  const [seasonTips, setSeasonTips] = useState<{ jobs: SeasonTipJob[]; totalTips: number } | null>(null)
+  const [seasonLoading, startSeasonTransition] = useTransition()
+  const [seasonError, setSeasonError] = useState('')
 
   const currentIdx = getCurrentPeriod().index
   const period: PayPeriod = getPeriodByIndex(currentIdx - periodOffset)
@@ -323,6 +337,24 @@ export function EmployeePayView({
   }, [period.startStr, period.endStr, viewedUserId])
 
   const totalEarnings = rows?.reduce((sum, r) => sum + r.totalPay, 0) ?? 0
+
+  useEffect(() => {
+    setSeasonTips(null)
+    setSeasonError('')
+    startSeasonTransition(async () => {
+      try {
+        const params = new URLSearchParams({ startDate: SEASON_START, endDate: SEASON_END })
+        if (viewedUserId) params.set('userId', viewedUserId)
+
+        const res = await fetch(`/api/pay/season-tips?${params.toString()}`)
+        if (!res.ok) throw new Error('Failed to load season tips')
+        const data = await res.json() as { jobs: SeasonTipJob[]; totalTips: number }
+        setSeasonTips(data)
+      } catch (e) {
+        setSeasonError(e instanceof Error ? e.message : 'Error loading season tips')
+      }
+    })
+  }, [viewedUserId])
 
   return (
     <div className="space-y-4 max-w-lg">
@@ -367,7 +399,7 @@ export function EmployeePayView({
 
       {/* Tab switcher */}
       <div className="flex border-b">
-        {(['services', 'how-it-works'] as const).map((t) => (
+        {(['services', 'season-tips', 'how-it-works'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -378,7 +410,7 @@ export function EmployeePayView({
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {t === 'services' ? 'Services' : 'How it works'}
+            {t === 'services' ? 'Services' : t === 'season-tips' ? 'Season tips' : 'How it works'}
           </button>
         ))}
       </div>
@@ -460,6 +492,87 @@ export function EmployeePayView({
                 <p className="text-xs text-muted-foreground">
                   Draft entries are saved but not yet approved — amounts may still change.
                 </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Season tips tab */}
+      {tab === 'season-tips' && (
+        <>
+          {seasonLoading && (
+            <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+          )}
+
+          {seasonError && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{seasonError}</p>
+          )}
+
+          {seasonTips && !seasonLoading && (
+            <>
+              <div className="rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {viewedEmployeeName ? `${viewedEmployeeName}'s tips this season` : 'My tips this season'}
+                </span>
+                <span className="text-lg font-bold tabular-nums">{fmt(seasonTips.totalTips)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                {dateLabel(SEASON_START)} – {dateLabel(SEASON_END)} · separate from base-pay payroll
+              </p>
+
+              {seasonTips.jobs.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  No tips recorded for this season yet.
+                </p>
+              ) : (
+                <div className="rounded-xl border bg-card overflow-x-auto text-sm">
+                  <table className="w-full min-w-[460px]">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-xs">
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Date</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Client</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Service</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Tip on job</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">Your payout</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {seasonTips.jobs.map((job) => (
+                        <tr key={job.serviceId} className="align-top hover:bg-muted/20 transition-colors">
+                          <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-xs text-muted-foreground">
+                            {fmtDate(job.serviceDate)}
+                          </td>
+                          <td className="px-3 py-2.5 font-medium">
+                            <Link href={`/schedule/${job.serviceId}`} className="hover:text-primary hover:underline">
+                              {job.customerName}
+                            </Link>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                            {SERVICE_TYPE_LABELS[job.serviceType] ?? job.serviceType}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
+                            <p>{fmt(job.tipAmount)}</p>
+                            {job.workerCount > 1 && (
+                              <p className="text-[11px] text-muted-foreground">
+                                ÷ {job.workerCount}
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums whitespace-nowrap">
+                            {fmt(job.tipShare)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-muted/20 font-semibold">
+                        <td colSpan={4} className="px-3 py-2.5 text-right">Season total</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{fmt(seasonTips.totalTips)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               )}
             </>
           )}

@@ -10,9 +10,11 @@ import { refreshServicePayroll } from '@/lib/pay/payroll-projection'
 
 function isTipLine(line: Record<string, unknown>): boolean {
   const desc = ((line.Description as string) ?? '').toLowerCase()
-  const itemName = ((line.SalesItemLineDetail as Record<string, unknown>)?.ItemRef as Record<string, unknown>)?.name
-  const name = (typeof itemName === 'string' ? itemName : '').toLowerCase()
-  return desc.includes('tip') || desc.includes('gratuity') || name.includes('tip') || name.includes('gratuity')
+  const itemRef = (line.SalesItemLineDetail as Record<string, unknown>)?.ItemRef as Record<string, unknown> | undefined
+  const itemName = typeof itemRef?.name === 'string' ? itemRef.name : ''
+  const itemValue = typeof itemRef?.value === 'string' ? itemRef.value : ''
+  const item = `${itemName} ${itemValue}`.toLowerCase()
+  return desc.includes('tip') || desc.includes('gratuity') || item.includes('tip') || item.includes('gratuity')
 }
 
 export async function syncTipFromQbo(serviceId: string): Promise<{ error?: string; tipAmount?: number }> {
