@@ -16,6 +16,11 @@ function getInstance(): AuthInstance {
       cookies: {
         secret: process.env.NEON_AUTH_COOKIE_SECRET!,
         sessionDataTtl: 60 * 60 * 24 * 7, // 7 days
+        // 'strict' (the default) drops the session cookie on the whole redirect
+        // chain when a navigation originates off-site — breaks coming back from
+        // the QuickBooks OAuth consent screen. 'lax' still blocks CSRF via POST
+        // but survives top-level GET redirects like OAuth callbacks.
+        sameSite: 'lax',
       },
     })
   }
