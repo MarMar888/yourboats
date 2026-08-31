@@ -69,9 +69,9 @@ export async function getSeasonTips(params: {
     .innerJoin(users, sql`${users.id}::text = ${serviceBoatAssignments.userId}`)
     .where(inArray(serviceBoatAssignments.serviceId, serviceIds))
 
-  const workerCountByService: Record<string, number> = {}
+  const workerIdsByService: Record<string, Set<string>> = {}
   for (const a of assignRows) {
-    workerCountByService[a.serviceId] = (workerCountByService[a.serviceId] ?? 0) + 1
+    ;(workerIdsByService[a.serviceId] ??= new Set()).add(a.userId)
   }
 
   const boatRows = await db
@@ -86,7 +86,7 @@ export async function getSeasonTips(params: {
 
   const jobs: SeasonTipJob[] = svcRows.map((s) => {
     const tipAmount = Number(s.tipAmount ?? 0)
-    const workerCount = workerCountByService[s.serviceId] ?? 1
+    const workerCount = workerIdsByService[s.serviceId]?.size ?? 1
     return {
       serviceId: s.serviceId,
       serviceDate: s.serviceDate,
