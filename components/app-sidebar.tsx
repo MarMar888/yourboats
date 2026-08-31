@@ -15,6 +15,7 @@ import {
   FileText,
   House,
   Inbox,
+  Link2,
   Plus,
   ScrollText,
   Settings,
@@ -61,6 +62,7 @@ const navGroups: NavGroup[] = [
     label: 'Customers',
     items: [
       { href: '/customers', label: 'Customers', roles: ['owner', 'manager'], icon: Users },
+      { href: '/quotes', label: 'Quotes', roles: ['owner', 'manager'], icon: Link2 },
       { href: '/client-requests', label: 'Client requests', roles: ['owner', 'manager'], icon: Inbox },
       { href: '/reminders', label: 'Reminders', roles: ['owner', 'manager'], icon: Bell },
       { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'], icon: CircleAlert },
