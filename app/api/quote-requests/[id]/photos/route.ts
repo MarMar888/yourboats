@@ -1,6 +1,6 @@
-import { put } from '@vercel/blob'
+import { del, put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { quoteRequests } from '@/lib/db/schema'
 import { logSystem } from '@/lib/log'
@@ -57,6 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .limit(1)
   if (!request) return NextResponse.json({ error: 'Quote request not found' }, { status: 404 })
 
+  // Fast-path check for the common case (one uploader, sequential requests).
+  // The cap is enforced for real below, in the same statement that appends
+  // the URL, since two concurrent uploads could both pass this check.
   const existing: string[] = request.photoUrls ? JSON.parse(request.photoUrls) : []
   if (existing.length >= MAX_PHOTOS) {
     return NextResponse.json({ error: `You can upload up to ${MAX_PHOTOS} photos.` }, { status: 400 })
@@ -83,11 +86,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     contentType,
   })
 
-  const updated = [...existing, blob.url]
-  await db
-    .update(quoteRequests)
-    .set({ photoUrls: JSON.stringify(updated), updatedAt: new Date() })
-    .where(eq(quoteRequests.id, quoteRequestId))
+  // Atomic read-append-write in a single statement: two concurrent uploads
+  // each doing SELECT-then-UPDATE in JS could overwrite each other's photo
+  // (last write wins on the full array). The cap is re-checked here too,
+  // inside the same statement, so it holds even under concurrent requests.
+  const result = await db.execute(sql`
+    UPDATE quote_requests
+    SET photo_urls = (COALESCE(photo_urls::jsonb, '[]'::jsonb) || to_jsonb(${blob.url}::text))::text,
+        updated_at = now()
+    WHERE id = ${quoteRequestId}
+      AND jsonb_array_length(COALESCE(photo_urls::jsonb, '[]'::jsonb)) < ${MAX_PHOTOS}
+    RETURNING photo_urls
+  `)
+  const updatedRows = result.rows as unknown as { photo_urls: string }[]
+
+  if (updatedRows.length === 0) {
+    // Lost the race against a concurrent upload that filled the last slot.
+    try {
+      await del(blob.url)
+    } catch (err) {
+      await logSystem({
+        action: 'quote_request_photo_orphan_blob',
+        entityType: 'quote_request',
+        entityId: quoteRequestId,
+        error: String(err),
+      })
+    }
+    return NextResponse.json({ error: `You can upload up to ${MAX_PHOTOS} photos.` }, { status: 400 })
+  }
+
+  const updated: string[] = JSON.parse(updatedRows[0].photo_urls)
 
   await logSystem({ action: 'quote_request_photo_uploaded', entityType: 'quote_request', entityId: quoteRequestId })
 

@@ -1,6 +1,8 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { Resend } from 'resend'
+import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { boatModels, quoteRequests } from '@/lib/db/schema'
 import { logSystem } from '@/lib/log'
@@ -15,6 +17,11 @@ const PHONE_RE = /^[+()\-.\s\d]{7,20}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+// The AI boat-model fallback calls a paid AI Gateway model from a public,
+// unauthenticated action, cap it per IP so a spammer can't run up spend.
+const AI_LOOKUP_LIMIT = 8
+const AI_LOOKUP_WINDOW_MINUTES = 15
+
 function isPlausiblePhone(value: string): boolean {
   if (!PHONE_RE.test(value)) return false
   const digitCount = (value.match(/\d/g) ?? []).length
@@ -23,6 +30,25 @@ function isPlausiblePhone(value: string): boolean {
 
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.squeakycleanboats.com'
+}
+
+async function clientIp(): Promise<string> {
+  const h = await headers()
+  const forwardedFor = h.get('x-forwarded-for')
+  if (forwardedFor) return forwardedFor.split(',')[0].trim()
+  return h.get('x-real-ip') ?? 'unknown'
+}
+
+async function aiLookupRateLimited(ip: string): Promise<boolean> {
+  const result = await db.execute(sql`
+    SELECT COUNT(*)::int AS c
+    FROM logs
+    WHERE action = 'quote_ai_boat_lookup'
+      AND metadata::jsonb ->> 'ip' = ${ip}
+      AND created_at > now() - (${AI_LOOKUP_WINDOW_MINUTES} * interval '1 minute')
+  `)
+  const count = (result.rows as unknown as { c: number }[])[0]?.c ?? 0
+  return count >= AI_LOOKUP_LIMIT
 }
 
 /**
@@ -38,8 +64,16 @@ export async function searchBoatModelsAction(query: string): Promise<BoatSuggest
   if (catalogMatches.length > 0) return catalogMatches.map(suggestionFromCatalogRow)
 
   if (query.trim().length < 6) return []
+
+  const ip = await clientIp()
+  if (await aiLookupRateLimited(ip)) return []
+  await logSystem({ action: 'quote_ai_boat_lookup', metadata: { ip, query } })
+
   const guess = await guessBoatFromText(query)
-  if (!guess || guess.confidence === 'low') return []
+  // The model still returns a best-effort type/length guess even when it
+  // doesn't recognize the input as a real boat; only surface guesses it
+  // actually identified, or an invented match could auto-fill a wrong quote.
+  if (!guess || !guess.recognized || guess.confidence === 'low') return []
 
   return [{ id: null, make: guess.make, model: guess.model, boatTypeKey: guess.boatTypeKey, lengthFt: guess.lengthFt, source: 'ai' }]
 }

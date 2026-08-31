@@ -50,17 +50,33 @@ export async function convertQuoteRequestToCustomer(quoteRequestId: string, form
 
   const [request] = await db.select().from(quoteRequests).where(eq(quoteRequests.id, quoteRequestId)).limit(1)
   if (!request) return { ok: false, error: 'Quote request not found.' }
+  // Guards against a double submit, two staff converting the same request
+  // at once, or revisiting /customers/new?fromQuote= after it already
+  // converted, any of which would otherwise create a duplicate customer.
+  if (request.convertedCustomerId) return { ok: true, customerId: request.convertedCustomerId }
 
   const customerResult = await createCustomer(formData)
   if (!customerResult.ok) return customerResult
 
   if (request.boatLengthFt) {
-    const boatForm = new FormData()
-    boatForm.set('customerId', customerResult.customer.id)
-    boatForm.set('nickname', request.boatNickname || getBoatType(request.boatTypeKey)?.label || 'Boat')
-    if (request.boatMakeModel) boatForm.set('makeModel', request.boatMakeModel)
-    boatForm.set('lengthFt', String(request.boatLengthFt))
-    await createBoat(boatForm)
+    try {
+      const boatForm = new FormData()
+      boatForm.set('customerId', customerResult.customer.id)
+      boatForm.set('nickname', request.boatNickname || getBoatType(request.boatTypeKey)?.label || 'Boat')
+      if (request.boatMakeModel) boatForm.set('makeModel', request.boatMakeModel)
+      boatForm.set('lengthFt', String(request.boatLengthFt))
+      await createBoat(boatForm)
+    } catch (err) {
+      // The customer is the record of truth here; don't let a boat-creation
+      // failure leave the quote unconverted, which would let a retry create
+      // a second (QuickBooks-backed) customer for the same request.
+      await log({
+        action: 'convert_quote_request_boat_failed',
+        entityType: 'quote_request',
+        entityId: quoteRequestId,
+        error: String(err),
+      })
+    }
   }
 
   await db

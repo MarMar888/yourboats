@@ -22,6 +22,8 @@ export function BoatSearch({
   const [searched, setSearched] = useState(false)
   const [isPending, startTransition] = useTransition()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const queryRef = useRef(query)
+  queryRef.current = query
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -31,9 +33,14 @@ export function BoatSearch({
       setSearched(false)
       return
     }
+    const searchedQuery = query
     debounceRef.current = setTimeout(() => {
       startTransition(async () => {
-        const rows = await searchBoatModelsAction(query)
+        const rows = await searchBoatModelsAction(searchedQuery)
+        // A slower request (e.g. the AI fallback) for an earlier keystroke
+        // can resolve after a faster one for a newer query; drop it if the
+        // user has since typed something else.
+        if (queryRef.current !== searchedQuery) return
         setResults(rows)
         setSearched(true)
         setOpen(true)

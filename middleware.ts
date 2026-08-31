@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { isDevAuthEnabled } from '@/lib/auth/dev-auth'
 
 // Public paths that never require auth
-const PUBLIC_PATHS = ['/login', '/pick-user', '/demo', '/api/auth', '/api/mcp', '/ingest', '/quote']
+const PUBLIC_PATHS = ['/login', '/pick-user', '/demo', '/api/auth', '/api/mcp', '/ingest', '/quote', '/api/quote-requests']
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
