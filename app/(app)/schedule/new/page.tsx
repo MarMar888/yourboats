@@ -8,11 +8,17 @@ import ServiceForm from './service-form'
 import { redirect } from 'next/navigation'
 import { getCachedQboItems } from '@/lib/qbo/items'
 
-export default async function NewServicePage() {
+export default async function NewServicePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ customerId?: string; date?: string; serviceType?: string; notes?: string }>
+}) {
   const currentUser = await getCurrentUser()
   if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'manager')) {
     redirect('/dashboard')
   }
+
+  const { customerId, date, serviceType, notes } = await searchParams
 
   const [allCustomers, allBoats, qboItems] = await Promise.all([
     db.select().from(customers).orderBy(asc(customers.name)),
@@ -41,6 +47,7 @@ export default async function NewServicePage() {
         customers={allCustomers}
         boatsByCustomer={boatsByCustomer}
         qboItems={qboItems.map((i) => ({ id: i.qboItemId, name: i.name }))}
+        initial={customerId ? { customerId, date, serviceType, notes } : undefined}
       />
     </div>
   )

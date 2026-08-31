@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/auth/get-current-user'
+import { getClientSession } from '@/lib/auth/client-session'
 import { DEMO_URL } from '@/lib/demo-mode'
 import ServiceCard from '@/components/service-card'
 import { IntegrationsMarquee } from '@/components/integrations-marquee'
@@ -259,7 +260,7 @@ const PORTAL_TILES = [
   { label: 'Open invoices', value: '2' },
   { label: 'Next service', value: 'Aug 26' },
   { label: 'Boats on file', value: '1' },
-  { label: 'Saved payment', value: 'Visa ····4242' },
+  { label: 'Pending requests', value: '0' },
 ] as const
 
 const REVENUE_BARS = [
@@ -275,8 +276,9 @@ const REVENUE_BARS = [
 
 export default async function LandingPage() {
   const user = await getCurrentUser()
-  const primaryHref = user ? '/dashboard' : '/login'
-  const primaryLabel = user ? 'Go to dashboard' : 'Sign in'
+  const clientSession = user ? null : await getClientSession()
+  const primaryHref = user ? '/dashboard' : clientSession ? '/client' : '/login'
+  const primaryLabel = user ? 'Go to dashboard' : clientSession ? 'Go to your account' : 'Sign in'
 
   return (
     <div className="min-h-screen bg-background">
@@ -1029,20 +1031,21 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        {/* ── Customer portal (coming soon) ────────────────────────────────────── */}
+        {/* ── Customer portal ───────────────────────────────────────────────────── */}
         <section className="border-t border-border py-16">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
             <div>
-              <Badge variant="secondary">Coming soon</Badge>
+              <Badge>Live</Badge>
               <h2 className="mt-3 flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
                 <LogIn className="h-5 w-5 text-primary" aria-hidden="true" />
-                Let customers handle their own account
+                Customers handle their own account
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Customers get their own login to see their invoices, make a payment,
-                and check when their boat is scheduled next, without calling the
-                office. Staff still see everything; customers only see their own
-                account.
+                Customers sign in with a one-time code emailed to them, no
+                password to remember. From there they see their invoices and pay
+                through QuickBooks, check when their boat is scheduled next, and
+                request a reschedule, cancellation, or new service. Staff still
+                see everything; customers only see their own account.
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card" aria-hidden="true">

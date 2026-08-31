@@ -1,28 +1,49 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { eq, sql } from 'drizzle-orm'
 import { auth } from '@/lib/auth/server'
 import { syncUser } from '@/lib/auth/sync-user'
 import { log } from '@/lib/log'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { requestClientOtp } from './client-actions'
 
-export async function login(formData: FormData) {
-  const username = (formData.get('username') as string ?? '').trim().toLowerCase()
-  const email = username.includes('@') ? username : `${username}@squeakycleanboats.com`
-  const password = formData.get('password') as string
+// The single email field on /login routes to a password prompt (staff) or a
+// one-time code (everyone else). Checked here so the client component knows
+// which step to render next. Non-staff always gets the generic OTP flow
+// (requestClientOtp's own message), so this can't be used to enumerate staff
+// vs. customer vs. unknown accounts beyond "staff or not."
+export type LoginRoute = { mode: 'password' } | { mode: 'otp'; message: string }
 
-  const { data, error } = await auth.signIn.email({ email, password })
+export async function resolveLogin(email: string): Promise<LoginRoute> {
+  const normalized = email.trim().toLowerCase()
+
+  const [staffUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${normalized}`)
+    .limit(1)
+
+  if (staffUser) return { mode: 'password' }
+
+  const { message } = await requestClientOtp(normalized)
+  return { mode: 'otp', message }
+}
+
+export async function login(email: string, password: string): Promise<{ error?: string }> {
+  const normalized = email.trim().toLowerCase()
+
+  const { data, error } = await auth.signIn.email({ email: normalized, password })
 
   if (error) {
-    redirect(`/login?message=${encodeURIComponent(error.message ?? 'Sign-in failed')}`)
+    return { error: error.message ?? 'Sign-in failed' }
   }
 
   // Sync the authenticated user into our users table
   if (data?.user) {
-    const userId = await syncUser(data.user.email, data.user.name ?? email)
+    const userId = await syncUser(data.user.email, data.user.name ?? normalized)
 
     // Fetch role for the log entry
     const [row] = await db
@@ -43,7 +64,7 @@ export async function login(formData: FormData) {
       distinctId: userId,
       properties: {
         email: data.user.email,
-        name: data.user.name ?? email,
+        name: data.user.name ?? normalized,
         role: row?.role ?? 'unknown',
       },
     })

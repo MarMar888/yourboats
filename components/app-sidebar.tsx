@@ -14,6 +14,7 @@ import {
   Clock,
   FileText,
   House,
+  Inbox,
   Plus,
   ScrollText,
   Settings,
@@ -60,6 +61,7 @@ const navGroups: NavGroup[] = [
     label: 'Customers',
     items: [
       { href: '/customers', label: 'Customers', roles: ['owner', 'manager'], icon: Users },
+      { href: '/client-requests', label: 'Client requests', roles: ['owner', 'manager'], icon: Inbox },
       { href: '/reminders', label: 'Reminders', roles: ['owner', 'manager'], icon: Bell },
       { href: '/complaints', label: 'Complaints', roles: ['owner', 'manager'], icon: CircleAlert },
       { href: '/exceptions', label: 'Exceptions', roles: ['owner', 'manager'], icon: Calendar },
