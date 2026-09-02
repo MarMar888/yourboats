@@ -83,7 +83,9 @@
     "type": "detailing",
     "subject": "Boat detailing software",
     "text": "Hi Wicked Detailing team,\n\nI built Yourboats, software for boat detailing businesses. It handles scheduling, gives your crew a simple daily job list, and sends invoices straight to QuickBooks (or another provider of your choice). I've run it in my own boat detailing business for the past year and it's saved me about 10 hours a week on back office and admin.\n\nLet me know if you want to book a quick demo or give me a call.\n\nThanks,\nMarley Barrett\nyourboats.squeakycleanboats.com\n952-529-5203",
-    "sent": false
+    "sent": true,
+    "sentAt": "2026-09-02T18:24:05.787Z",
+    "resendId": "01a0635d-2bf9-711e-8b15-35c0688d7971"
   },
   {
     "id": "blackline-marine-care",
