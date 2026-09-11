@@ -182,7 +182,9 @@
     "type": "marina",
     "subject": "Software for running your marina",
     "text": "Hi Bernell,\n\nI built Yourboats, and I've used it in my own boat detailing business for the past year. It's saved me about 10 hours a week on back office and admin.\n\nIt's operations software for marinas and boat detailers, handling slip and berth management, seasonal and transient reservations, work orders for repairs and winterization, and utility billing.\n\nLet me know if you want to book a quick demo or give me a call.\n\nThanks,\nMarley Barrett\nyourboats.squeakycleanboats.com\n952-529-5203",
-    "sent": false
+    "sent": true,
+    "sentAt": "2026-09-11T18:09:04.801Z",
+    "resendId": "8a1db36b-3b07-4079-b36b-5acb6ac3ea38"
   },
   {
     "id": "campland-on-the-bay",
