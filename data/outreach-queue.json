@@ -204,7 +204,9 @@
     "type": "marina",
     "subject": "Software for running your marina",
     "text": "Hi Bay Club Hotel & Marina team,\n\nI built Yourboats, and I've used it in my own boat detailing business for the past year. It's saved me about 10 hours a week on back office and admin.\n\nIt's operations software for marinas and boat detailers, handling slip and berth management, seasonal and transient reservations, work orders for repairs and winterization, and utility billing.\n\nLet me know if you want to book a quick demo or give me a call.\n\nThanks,\nMarley Barrett\nyourboats.squeakycleanboats.com\n952-529-5203",
-    "sent": false
+    "sent": true,
+    "sentAt": "2026-09-13T17:54:05.419Z",
+    "resendId": "d20310cd-2553-4627-ab71-4e12a178b8f0"
   },
   {
     "id": "pier-sixty-six-marina",
